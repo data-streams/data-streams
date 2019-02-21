@@ -18,6 +18,8 @@ public class TfIdfObject implements DocContainer {
   private final String docName;
   private final String partitioning;
   private final int idfCardinality;
+  private final int trainNumber;
+  private final Topic[] topics;
 
   public Set<String> tfKeys() {
     return counts.keySet();
@@ -31,7 +33,7 @@ public class TfIdfObject implements DocContainer {
     return idfCounts.get(key);
   }
 
-  private TfIdfObject(String docName, List<String> words, String partitioning, int number) {
+  private TfIdfObject(String docName, List<String> words, String partitioning, int number, Topic[] topics, int trainNumber) {
     this.docName = docName;
     this.number = number;
     this.partitioning = partitioning;
@@ -41,23 +43,28 @@ public class TfIdfObject implements DocContainer {
       counts.put(s, counts.getOrDefault(s, 0) + 1);
     }
     idfCardinality = 0;
+    this.topics = topics;
+    this.trainNumber = trainNumber;
   }
 
   public static TfIdfObject ofText(TextDocument textDocument) {
-    return new TfIdfObject(textDocument.name(), TextUtils.words(textDocument.content()), textDocument.partitioning(), textDocument.number());
+    return new TfIdfObject(textDocument.name(), TextUtils.words(textDocument.content()), textDocument.partitioning(),
+            textDocument.number(), textDocument.topics(), textDocument.trainNumber());
   }
 
   public TfIdfObject(TfIdfObject tfIdfObject, Map<String, Integer> idf) {
-    this(tfIdfObject.docName, tfIdfObject.counts, idf, tfIdfObject.partitioning, tfIdfObject.number);
+    this(tfIdfObject.docName, tfIdfObject.counts, idf, tfIdfObject.partitioning, tfIdfObject.number, tfIdfObject.topics, tfIdfObject.trainNumber);
   }
 
-  private TfIdfObject(String docName, Map counts, Map idfCounts, String partitioning, int number) {
+  private TfIdfObject(String docName, Map counts, Map idfCounts, String partitioning, int number, Topic[] topics, int trainNumber) {
     this.docName = docName;
     this.counts = counts;
     this.idfCounts = idfCounts;
     this.partitioning = partitioning;
     idfCardinality = 0;
     this.number = number;
+    this.topics = topics;
+    this.trainNumber = trainNumber;
   }
 
   @Override
@@ -77,6 +84,15 @@ public class TfIdfObject implements DocContainer {
   @Override
   public int idfCardinality() {
     return idfCardinality;
+  }
+
+
+  public int trainNumber() {
+    return trainNumber;
+  }
+
+  public Topic[] topics() {
+    return topics;
   }
 
   @Override

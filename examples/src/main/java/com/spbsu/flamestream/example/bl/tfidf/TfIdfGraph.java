@@ -18,10 +18,12 @@ import com.spbsu.flamestream.example.bl.tfidf.model.counters.WordCounter;
 import com.spbsu.flamestream.example.bl.tfidf.model.entries.WordEntry;
 import com.spbsu.flamestream.example.bl.tfidf.ops.entries.CountWordEntries;
 import com.spbsu.flamestream.example.bl.tfidf.ops.entries.IDFAggregator;
+import com.spbsu.flamestream.example.bl.tfidf.ops.entries.TrainAggregator;
 import com.spbsu.flamestream.example.bl.tfidf.ops.filtering.Classifier;
 import com.spbsu.flamestream.example.bl.tfidf.ops.filtering.DocContainerOrderingFilter;
 import com.spbsu.flamestream.example.bl.tfidf.ops.filtering.IDFObjectCompleteFilter;
 import com.spbsu.flamestream.example.bl.tfidf.ops.filtering.TfIdfFilter;
+import com.spbsu.flamestream.example.bl.tfidf.ops.filtering.TrainOrderingFilter;
 import com.spbsu.flamestream.example.bl.tfidf.ops.filtering.WordContainerOrderingFilter;
 
 import java.util.Arrays;
@@ -55,6 +57,18 @@ public class TfIdfGraph implements Supplier<Graph> {
     }
   });
 
+  private final HashFunction constHash = HashFunction.uniformHash(new HashFunction() {
+    @Override
+    public int hash(DataItem dataItem) {
+      return 345;
+    }
+
+    @Override
+    public String toString() {
+      return "ConstHash";
+    }
+  });
+
   @SuppressWarnings("Convert2Lambda")
   private final Equalz equalzWord = new Equalz() {
     @Override
@@ -71,6 +85,15 @@ public class TfIdfGraph implements Supplier<Graph> {
     }
   };
 
+  @SuppressWarnings("Convert2Lambda")
+  private final Equalz equalzAll = new Equalz() {
+    @Override
+    public boolean test(DataItem o1, DataItem o2) {
+      return true;
+    }
+  };
+
+
   @Override
   public Graph get() {
     final Source source = new Source();
@@ -82,6 +105,9 @@ public class TfIdfGraph implements Supplier<Graph> {
 
     final Grouping<DocContainer> gropingTfIdf =
             new Grouping<>(docHash, equalzDoc, 2, DocContainer.class);
+
+    final Grouping<Object> groupingPredictionBatch =
+            new Grouping<>(constHash, equalzAll, 2, Object.class);
 
 
 
@@ -121,6 +147,11 @@ public class TfIdfGraph implements Supplier<Graph> {
             List.class
     );
 
+    final FlameMap<List<Object>, List<TfIdfObject>> trainAggregator = new FlameMap<>(
+            new TrainAggregator(),
+            List.class
+    );
+
     final FlameMap<List<DocContainer>, List<DocContainer>> filterDoc = new FlameMap<>(
             new DocContainerOrderingFilter(),
             List.class
@@ -130,6 +161,39 @@ public class TfIdfGraph implements Supplier<Graph> {
             new TfIdfFilter(),
             List.class
     );
+
+    final FlameMap<List<Object>, List<Object>> filterTrainer = new FlameMap<List<Object>, List<Object>>(
+            new TrainOrderingFilter(),
+            List.class
+    );
+
+
+    final FlameMap<TfIdfObject, TfIdfObject> filterToClassify = new FlameMap<>(new Function<TfIdfObject, Stream<TfIdfObject>>() {
+      @Override
+      public Stream<TfIdfObject> apply(TfIdfObject tfIdfObject) {
+        return tfIdfObject.topics() == null ? Stream.of(tfIdfObject) : Stream.of();
+      }
+    }, TfIdfObject.class);
+
+    final FlameMap<TfIdfObject, TfIdfObject> filterToPredict = new FlameMap<>(new Function<TfIdfObject, Stream<TfIdfObject>>() {
+      @Override
+      public Stream<TfIdfObject> apply(TfIdfObject tfIdfObject) {
+        System.out.println("??? toPredict: " + tfIdfObject.document());
+        return tfIdfObject.topics() != null ? Stream.of(tfIdfObject) : Stream.of();
+      }
+    }, TfIdfObject.class);
+
+
+    final FlameMap<List<Object>, List<Object>> filterPredictBatch = new FlameMap<>(new Function<List<Object>, Stream<List<Object>>>() {
+      @Override
+      public Stream<List<Object>> apply(List<Object> tfIdfObjects) {
+        System.out.println("??? toPredictBatch: " + tfIdfObjects.size());
+        System.out.println("?????? toPredictBatch: " + tfIdfObjects);
+
+        return tfIdfObjects.size() >= 5 ? Stream.of(tfIdfObjects) : Stream.of();
+      }
+    }, List.class);
+
 
     final Classifier classifier = new Classifier();
     final FlameMap<TfIdfObject, Prediction> filterClassifier = new FlameMap<>(
@@ -168,13 +232,24 @@ public class TfIdfGraph implements Supplier<Graph> {
             .link(idfObjectCompleteFilter, gropingTfIdf)
             .link(splitterTF, gropingTfIdf)
             .link(gropingTfIdf, filterTfIdf)
-            .link(filterTfIdf, filterClassifier)
 
             .colocate(groupingDoc, filterDoc, idfAggregator, idfObjectCompleteFilter, gropingTfIdf,
-                    filterTfIdf, filterClassifier , sink)
+                    filterTfIdf)
             .colocate(groupingWord, filterWord, counterWord)
 
+            .link(filterTfIdf, filterToClassify)
+            .link(filterTfIdf, filterToPredict)
+            .link(filterToClassify, filterClassifier)
             .link(filterClassifier, sink)
+
+            .link(filterToPredict, groupingPredictionBatch)
+            .link(groupingPredictionBatch, filterTrainer)
+            .link(filterTrainer, trainAggregator)
+            .link(trainAggregator, groupingPredictionBatch)
+
+            .colocate(groupingPredictionBatch, filterTrainer, trainAggregator)
+
+            .link(trainAggregator, filterPredictBatch)
 
             .build(source, sink);
   }

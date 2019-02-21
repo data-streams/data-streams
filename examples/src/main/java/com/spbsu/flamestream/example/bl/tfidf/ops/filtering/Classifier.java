@@ -17,11 +17,9 @@ public class Classifier implements Function<TfIdfObject, Stream<Prediction>> {
 
   @Override
   public Stream<Prediction> apply(TfIdfObject tfIdfObject) {
-    final Document document = new Document(computeTfIdf(tfIdfObject));
-
-    final Prediction result = new Prediction(tfIdfObject, predictor.predict(document));
-
-    return Stream.of(result);
+      final Document document = new Document(computeTfIdf(tfIdfObject));
+      final Prediction result = new Prediction(tfIdfObject, predictor.predict(document));
+      return Stream.of(result);
   }
 
   public void init() {
