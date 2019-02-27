@@ -19,14 +19,18 @@ import com.spbsu.flamestream.example.bl.text_classifier.model.containers.DocCont
 import com.spbsu.flamestream.example.bl.text_classifier.model.containers.WordContainer;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.entries.CountWordEntries;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.entries.IDFAggregator;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.entries.TrainAggregator;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.Classifier;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.DocContainerOrderingFilter;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.IDFObjectCompleteFilter;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.TfIdfFilter;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.TrainOrderingFilter;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.Trainer;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.WordContainerOrderingFilter;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.TopicsPredictor;
 
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -58,6 +62,20 @@ public class TextClassifierGraph implements Supplier<Graph> {
     }
   });
 
+  private final HashFunction constHash = HashFunction.uniformHash(new HashFunction() {
+    @Override
+    public int hash(DataItem dataItem) {
+      return 345;
+    }
+
+    @Override
+    public String toString() {
+      return "ConstHash";
+    }
+  });
+
+
+
   @SuppressWarnings("Convert2Lambda")
   private final Equalz equalzWord = new Equalz() {
     @Override
@@ -74,6 +92,14 @@ public class TextClassifierGraph implements Supplier<Graph> {
     }
   };
 
+  @SuppressWarnings("Convert2Lambda")
+  private final Equalz equalzAll = new Equalz() {
+    @Override
+    public boolean test(DataItem o1, DataItem o2) {
+      return true;
+      }
+  };
+
   @Override
   public Graph get() {
     final Source source = new Source();
@@ -86,6 +112,8 @@ public class TextClassifierGraph implements Supplier<Graph> {
     final Grouping<DocContainer> gropingTfIdf =
             new Grouping<>(docHash, equalzDoc, 2, DocContainer.class);
 
+    final Grouping<Object> groupingPredictionBatch =
+            new Grouping<>(constHash, equalzAll, 2, Object.class);
 
     //noinspection Convert2Lambda
     final FlameMap<TfObject, WordEntry> splitterWord = new FlameMap<>(new Function<TfObject, Stream<WordEntry>>() {
@@ -126,6 +154,46 @@ public class TextClassifierGraph implements Supplier<Graph> {
             List.class
     );
 
+    final FlameMap<List<Object>, List<TfIdfObject>> trainAggregator = new FlameMap<>(
+            new TrainAggregator(),
+            List.class
+    );
+
+    final FlameMap<List<Object>, List<Object>> filterTrainer = new FlameMap<List<Object>, List<Object>>(
+            new TrainOrderingFilter(),
+            List.class
+    );
+
+    final FlameMap<TfIdfObject, TfIdfObject> filterToClassify = new FlameMap<>(new Function<TfIdfObject, Stream<TfIdfObject>>() {
+      @Override
+      public Stream<TfIdfObject> apply(TfIdfObject tfIdfObject) {
+        return tfIdfObject.topics() == null ? Stream.of(tfIdfObject) : Stream.of();
+      }
+    }, TfIdfObject.class);
+
+    final FlameMap<TfIdfObject, TfIdfObject> filterToPredict = new FlameMap<>(new Function<TfIdfObject, Stream<TfIdfObject>>() {
+      @Override
+      public Stream<TfIdfObject> apply(TfIdfObject tfIdfObject) {
+        return tfIdfObject.topics() != null ? Stream.of(tfIdfObject) : Stream.of();
+      }
+    }, TfIdfObject.class);
+
+    final FlameMap<List<Object>, List<Object>> filterPredictBatch = new FlameMap<>(new Function<List<Object>, Stream<List<Object>>>() {
+      @Override
+      public Stream<List<Object>> apply(List<Object> tfIdfObjects) {
+        return tfIdfObjects.size() >= 5 ? Stream.of(tfIdfObjects) : Stream.of();
+      }
+    }, List.class);
+
+
+    final FlameMap<List<Object>, List<Object>> filterResetBatch = new FlameMap<>(new Function<List<Object>, Stream<List<Object>>>() {
+      @Override
+      public Stream<List<Object>> apply(List<Object> tfIdfObjects) {
+        return tfIdfObjects.size() >= 5 ? Stream.of(new CopyOnWriteArrayList<>()) : Stream.of(tfIdfObjects);
+      }
+    }, List.class);
+
+
     final FlameMap<List<DocContainer>, List<DocContainer>> filterDoc = new FlameMap<>(
             new DocContainerOrderingFilter(),
             List.class
@@ -147,6 +215,13 @@ public class TextClassifierGraph implements Supplier<Graph> {
                 classifier.init();
               }
             }
+    );
+
+    final Trainer trainer = new Trainer();
+    //noinspection Convert2Lambda,Anonymous2MethodRef
+    final FlameMap<List<TfIdfObject>, Object> trainerNode = new FlameMap<>(
+            trainer,
+            List.class
     );
 
     final FlameMap<IdfObject, IdfObject> idfObjectCompleteFilter = new FlameMap<>(
@@ -174,8 +249,21 @@ public class TextClassifierGraph implements Supplier<Graph> {
 
             .link(idfObjectCompleteFilter, gropingTfIdf)
             .link(gropingTfIdf, filterTfIdf)
-            .link(filterTfIdf, filterClassifier)
             .link(filterClassifier, sink)
+
+            .link(filterTfIdf, filterToClassify)
+            .link(filterTfIdf, filterToPredict)
+            .link(filterToClassify, filterClassifier)
+            .link(filterClassifier, sink)
+
+            .link(filterToPredict, groupingPredictionBatch)
+            .link(groupingPredictionBatch, filterTrainer)
+            .link(filterTrainer, trainAggregator)
+            .link(trainAggregator, filterResetBatch)
+            .link(filterResetBatch, groupingPredictionBatch)
+            .link(trainAggregator, filterPredictBatch)
+            .link(filterPredictBatch, trainerNode)
+
 
             .colocate(source, splitterTf, splitterWord)
             .colocate(groupingWord, filterWord, counterWord)
@@ -186,9 +274,9 @@ public class TextClassifierGraph implements Supplier<Graph> {
                     idfObjectCompleteFilter,
                     gropingTfIdf,
                     filterTfIdf,
-                    filterClassifier,
                     sink
             )
+            .colocate(groupingPredictionBatch, filterTrainer, trainAggregator)
 
             .build(source, sink);
   }

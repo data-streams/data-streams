@@ -1,6 +1,7 @@
 package com.spbsu.flamestream.example.bl.text_classifier;
 
 import akka.actor.ActorSystem;
+import com.google.common.collect.Streams;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TextDocument;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TfIdfObject;
@@ -82,6 +83,59 @@ public class LentaTest extends FlameAkkaSuite {
       );
     });
 
+  }
+
+  private Stream<TextDocument> trainingDocuments(String path, int offset) throws IOException {
+    AtomicInteger trainCounter = new AtomicInteger(0);
+    return documents(path).map(doc -> new TextDocument(doc, offset + doc.number(), new Topic[]{}, trainCounter.incrementAndGet()));
+  }
+
+  private Stream<TextDocument> documentsWithTopics(String path) throws IOException {
+    final Reader reader = new InputStreamReader(
+            LentaTest.class.getClassLoader().getResourceAsStream(path));
+    final CSVParser csvFileParser = new CSVParser(reader, CSVFormat.DEFAULT);
+    { // skip headers
+      Iterator<CSVRecord> iter = csvFileParser.iterator();
+      iter.next();
+    }
+
+    final Spliterator<CSVRecord> csvSpliterator = Spliterators.spliteratorUnknownSize(
+            csvFileParser.iterator(),
+            Spliterator.IMMUTABLE
+    );
+    AtomicInteger counter = new AtomicInteger(0);
+    Stream<TextDocument> documents =  StreamSupport.stream(csvSpliterator, false).map(r -> {
+      Pattern p = Pattern.compile("\\w+", Pattern.UNICODE_CHARACTER_CLASS);
+      String recordText = r.get(2); // text order
+      Matcher m = p.matcher(recordText);
+      StringBuilder text = new StringBuilder();
+      while (m.find()) {
+        text.append(" ");
+        text.append(m.group());
+      }
+      return new TextDocument(
+              r.get(0), // url order
+              text.substring(1).toLowerCase(),
+              String.valueOf(ThreadLocalRandom.current().nextInt(0, 10)),
+              counter.incrementAndGet()
+      );
+    });
+
+
+    return Streams.concat(documents,
+            Stream.of(new TextDocument("11111111", "qqq aaa ccc",
+                    String.valueOf(ThreadLocalRandom.current().nextInt(0, 10)),
+                    counter.incrementAndGet(), new Topic[] {}, 1)),
+            Stream.of(new TextDocument("22222222", "qqq adfeerwfewaa ccc",
+                    String.valueOf(ThreadLocalRandom.current().nextInt(0, 10)),
+                    counter.incrementAndGet(), new Topic[] {}, 1)),
+            Stream.of(new TextDocument("333333", "qqq adfeerwfewaa ccc",
+                    String.valueOf(ThreadLocalRandom.current().nextInt(0, 10)),
+                    counter.incrementAndGet(), new Topic[] {}, 1)),
+            Stream.of(new TextDocument("4444444", "qqq adfeerwfewaa ccc",
+                    String.valueOf(ThreadLocalRandom.current().nextInt(0, 10)),
+                    counter.incrementAndGet(), new Topic[] {}, 1))
+    );
   }
 
   @Test
@@ -202,4 +256,131 @@ public class LentaTest extends FlameAkkaSuite {
     }
     Await.ready(system.terminate(), Duration.Inf());
   }
+
+  @Test
+  public void lenta2Test() throws InterruptedException, IOException, TimeoutException {
+    final String testFilePath = "lenta/lenta-ru-news.csv";
+
+    final int trainSize = 1000;
+
+
+    final long expectedDocs = documents(testFilePath).count();
+
+
+    final String cntVectorizerPath = "src/main/resources/cnt_vectorizer";
+    final String weightsPath = "src/main/resources/classifier_weights";
+    final TopicsPredictor predictor = new SklearnSgdPredictor(cntVectorizerPath, weightsPath);
+
+    final ConcurrentLinkedDeque<Prediction> resultQueue = new ConcurrentLinkedDeque<>();
+    final ActorSystem system = ActorSystem.create("lentaTfIdf", ConfigFactory.load("remote"));
+    try (final LocalClusterRuntime runtime = new LocalClusterRuntime.Builder().maxElementsInGraph(10)
+            .parallelism(2)
+            .millisBetweenCommits(1000)
+            .build()) {
+      try (final FlameRuntime.Flame flame = runtime.run(new TextClassifierGraph(predictor).get())) {
+        flame.attachRear("tfidfRear", new AkkaRearType<>(system, Prediction.class))
+                .forEach(r -> r.addListener(resultQueue::add));
+        final List<AkkaFront.FrontHandle<TextDocument>> handles = flame
+                .attachFront("tfidfFront", new AkkaFrontType<TextDocument>(system))
+                .collect(toList());
+
+        final AkkaFront.FrontHandle<TextDocument> front = handles.get(0);
+        for (int i = 1; i < handles.size(); i++) {
+          handles.get(i).unregister();
+        }
+
+        final AtomicInteger counter = new AtomicInteger(0);
+        final Thread thread = new Thread(Unchecked.runnable(() -> {
+          final Stream<TextDocument> trainDocs2 = trainingDocuments(testFilePath, (int)expectedDocs).limit(trainSize);
+          final Iterator<TextDocument> toCheckIter = Streams.concat(documents(testFilePath), trainDocs2).iterator();
+          final Map<String, Integer> idfExpected2 = new HashMap<>();
+          for (int i = 0; i < expectedDocs; i++) {
+            Prediction prediction = resultQueue.poll();
+            while (prediction == null) {
+              try {
+                Thread.sleep(10);
+              } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+              }
+              prediction = resultQueue.poll();
+            }
+
+            final int got = counter.incrementAndGet();
+            if (got % 1000 == 0) {
+              LOGGER.info(String.format("processed %s records", got));
+            }
+
+            final TextDocument processedDoc = toCheckIter.next();
+            final List<String> pdWords = SklearnSgdPredictor.text2words(processedDoc.content()).collect(toList());
+            final Set<String> pdWordsSet = SklearnSgdPredictor.text2words(processedDoc.content())
+                    .collect(Collectors.toSet());
+            pdWordsSet.forEach(w -> idfExpected2.merge(w, 1, Integer::sum));
+            final TfIdfObject tfIdf = prediction.tfIdf();
+            { //runtime info logging
+              final Runtime rt = Runtime.getRuntime();
+              if (got % 20 == 0) {
+                LOGGER.info(
+                        "pdWords: %d %d %d/%d %d %d %d %s%n",
+                        tfIdf.number(),
+                        got,
+                        rt.freeMemory(),
+                        rt.totalMemory(),
+                        pdWords.size(),
+                        idfExpected2.size(),
+                        i,
+                        pdWords
+                );
+              }
+            }
+
+            final Map<String, Integer> result = new HashMap<>();
+            SklearnSgdPredictor.text2words(processedDoc.content()).forEach(w -> result.merge(w, 1, Integer::sum));
+            Assert.assertEquals(processedDoc.name(), tfIdf.document(), String.format(
+                    "unexpected document: '%s' instead of '%s'%n",
+                    tfIdf.document(),
+                    processedDoc.name()
+            ));
+            Assert.assertEquals(
+                    result.keySet(),
+                    tfIdf.words(),
+                    String.format("unexpected keys: '%s' instead of '%s'%n", result.keySet(), tfIdf.words())
+            );
+            for (String key : result.keySet()) {
+              Assert.assertEquals(
+                      result.get(key).intValue(),
+                      tfIdf.tf(key),
+                      String.format("incorrect TF value for key %s: %d. Expected: %d%n",
+                              key, tfIdf.tf(key), result.get(key)
+                      )
+              );
+              Assert.assertEquals(
+                      idfExpected2.get(key).intValue(),
+                      tfIdf.idf(key),
+                      String.format("incorrect IDF value for key %s: %d. Expected: %d%n",
+                              key, tfIdf.idf(key), idfExpected2.get(key)
+                      )
+              );
+            }
+
+            final Topic[] topics = prediction.topics();
+            Arrays.sort(topics);
+            LOGGER.info("Doc: {}", processedDoc.content());
+            LOGGER.info("Predict: {}", (Object) topics);
+            LOGGER.info("\n");
+          }
+        }));
+
+        thread.start();
+
+        Stream<TextDocument> trainDocs = trainingDocuments(testFilePath, (int)expectedDocs).limit(trainSize);
+        Stream.concat(documents(testFilePath), trainDocs).forEach(front);
+
+        thread.join();
+
+        Assert.assertEquals(counter.get(), expectedDocs);
+      }
+    }
+    Await.ready(system.terminate(), Duration.Inf());
+  }
+
 }

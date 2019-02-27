@@ -1,16 +1,35 @@
 package com.spbsu.flamestream.example.bl.text_classifier.model;
 
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Topic;
+
 public class TextDocument {
   private final String name;
   private final String content;
   private final String partitioning;
+  private final Topic[] topics;
   private final int number;
+  private final int trainNumber;
 
   public TextDocument(String name, String content, String partitioning, int number) {
     this.name = name;
     this.content = content;
     this.partitioning = partitioning;
     this.number = number;
+    this.topics = null;
+    this.trainNumber = 0;
+  }
+
+  public TextDocument(String name, String content, String partitioning, int number, Topic[] topics, int trainNumber) {
+    this.name = name;
+    this.content = content;
+    this.partitioning = partitioning;
+    this.number = number;
+    this.topics = topics;
+    this.trainNumber = trainNumber;
+  }
+
+  public TextDocument(TextDocument other, int number, Topic[] topics, int trainNumber) {
+    this(other.name, other.content, other.partitioning, number, topics, trainNumber);
   }
 
   public String name() {
@@ -27,6 +46,15 @@ public class TextDocument {
 
   public int number() {
     return number;
+  }
+
+
+  public int trainNumber() {
+    return trainNumber;
+  }
+
+  public Topic[] topics() {
+    return topics;
   }
 
   @Override
