@@ -7,6 +7,14 @@
     path: "{{ flamestream_dir }}/data/"
     state: absent
 
+- copy:
+    src: classifier_weights
+    dest: "{{ flamestream_dir }}/classifier_weights"
+
+- copy:
+    src: cnt_vectorizer
+    dest: "{{ flamestream_dir }}/cnt_vectorizer"
+
 - name: Run flamestream
   shell: "cd {{ flamestream_dir }} && bash entrypoint.sh restart"
   environment:

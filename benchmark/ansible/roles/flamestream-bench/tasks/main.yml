@@ -1,7 +1,7 @@
 ---
 - name: Copy the wiki dump
   copy:
-    src: wiki.xml
+    src: lenta-ru-news.csv
     dest: "{{ flamestream_dir }}/wiki.xml"
 
 - name: Copy the deployer file
