@@ -34,7 +34,7 @@ import java.util.stream.Stream;
 public class TextClassifierGraph implements Supplier<Graph> {
   private final TopicsPredictor predictor;
 
-  TextClassifierGraph(TopicsPredictor predictor) {
+  public TextClassifierGraph(TopicsPredictor predictor) {
     this.predictor = predictor;
   }
 
