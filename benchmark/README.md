@@ -6,7 +6,7 @@
 - `aws.yml` - inventory for aws hosts
 - `docker-compose.yml` - the setup for local testing
 - `local.yml` - inventory for local docker hosts
-- `flamestrem.yml` - playbook for flamestream benchmarkink (does all the job)
+- `flamestream.yml` - playbook for flamestream benchmarking (does all the job)
 - `flink.yml` - same for flink
 - `roles/` - roles, they seems to be self-explanatory
 
@@ -39,7 +39,7 @@ To run locally:
 1. Package
 2. Copy
 3. `docker-compose up`
-4. In `flamestream-common` job change _synchonize_ with _copy_, as sync doesn't work with docker connection
+4. In `flamestream-common` job change _synchronize_ with _copy_, as sync doesn't work with docker connection
 5. Run playbook
 
 All this steps are automated with script in the root of the project. On the last line there is a default function call, replace it with local/remote, flink/flamestream function.

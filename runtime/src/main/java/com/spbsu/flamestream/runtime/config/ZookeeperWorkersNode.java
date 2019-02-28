@@ -60,9 +60,15 @@ public class ZookeeperWorkersNode {
   }
 
   public List<Worker> workers() {
-    return pathChildrenCache.getCurrentData()
-            .stream()
-            .map(worker -> jacksonSerializer.deserialize(worker.getData(), Worker.class)).collect(Collectors.toList());
+    try {
+      pathChildrenCache.rebuild();
+      return pathChildrenCache.getCurrentData()
+              .stream()
+              .map(worker -> jacksonSerializer.deserialize(worker.getData(), Worker.class))
+              .collect(Collectors.toList());
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
   public boolean isLeader(String id) {

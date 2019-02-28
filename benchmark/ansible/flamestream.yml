@@ -23,6 +23,12 @@
   roles:
     - { role: flamestream-common  }
 
+- hosts: workers
+  tasks:
+    - file:
+        state: absent
+        path: /tmp/flame_stream
+
 - name: Init workers
   hosts: workers
   roles:
