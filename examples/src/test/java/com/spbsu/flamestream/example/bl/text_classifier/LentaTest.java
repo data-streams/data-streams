@@ -182,7 +182,7 @@ public class LentaTest extends FlameAkkaSuite {
 
     double accuracy = truePositives / testsize;
     LOGGER.info("Accuracy: {}", accuracy);
-    //assertTrue(accuracy >= 0.62);
+    assertTrue(accuracy >= 0.62);
   }
 
   @Test
