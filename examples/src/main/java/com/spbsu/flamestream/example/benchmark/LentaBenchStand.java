@@ -9,11 +9,12 @@ import com.spbsu.flamestream.core.data.PayloadDataItem;
 import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.core.data.meta.Meta;
-import com.spbsu.flamestream.example.bl.index.InvertedIndexGraph;
 import com.spbsu.flamestream.example.bl.text_classifier.TextClassifierGraph;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TextDocument;
+import com.spbsu.flamestream.example.bl.text_classifier.model.TfIdfObject;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.SklearnSgdPredictor;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Topic;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.TopicsPredictor;
 import com.spbsu.flamestream.runtime.FlameRuntime;
 import com.spbsu.flamestream.runtime.LocalClusterRuntime;
@@ -39,18 +40,20 @@ import org.objenesis.strategy.StdInstantiatorStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.FileReader;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
-import java.io.Reader;
 import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -117,7 +120,10 @@ public class LentaBenchStand implements AutoCloseable {
   }
 
   private Stream<TextDocument> documents(String path) throws IOException {
-    final Reader reader = new FileReader(path);
+    final BufferedReader reader = new BufferedReader(new InputStreamReader(
+            new FileInputStream(path),
+            StandardCharsets.UTF_8
+    ));
     final CSVParser csvFileParser = new CSVParser(reader, CSVFormat.DEFAULT);
     { // skip headers
       Iterator<CSVRecord> iter = csvFileParser.iterator();
@@ -215,6 +221,11 @@ public class LentaBenchStand implements AutoCloseable {
     final Server consumer = new Server(2000, 1_000_000);
     Arrays.stream(classesToRegister).forEach(clazz -> consumer.getKryo().register(clazz));
     consumer.getKryo().register(Prediction.class);
+    consumer.getKryo().register(TfIdfObject.class);
+    consumer.getKryo().register(Topic[].class);
+    consumer.getKryo().register(Topic.class);
+    consumer.getKryo().register(HashMap.class);
+    consumer.getKryo().register(String.class);
     ((Kryo.DefaultInstantiatorStrategy) consumer.getKryo()
             .getInstantiatorStrategy())
             .setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
@@ -251,7 +262,7 @@ public class LentaBenchStand implements AutoCloseable {
         latencies.get(docId).finish();
         validator.accept(prediction);
         awaitConsumer.accept(o);
-        if (awaitConsumer.got() % 10000 == 0) {
+        if (awaitConsumer.got() % 100 == 0) {
           LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
         }
       }
@@ -393,7 +404,11 @@ public class LentaBenchStand implements AutoCloseable {
                     standConfig.benchHost(),
                     standConfig.rearPort(),
                     Prediction.class,
-                    long[].class
+                    TfIdfObject.class,
+                    Topic[].class,
+                    Topic.class,
+                    HashMap.class,
+                    String.class
             )
     );
     try (final LentaBenchStand benchStand = new LentaBenchStand(

@@ -1,4 +1,4 @@
-package com.spbsu.flamestream.example.benchmark.validators;
+package com.spbsu.flamestream.example.benchmark.validators.index;
 
 /**
  * User: Artem
