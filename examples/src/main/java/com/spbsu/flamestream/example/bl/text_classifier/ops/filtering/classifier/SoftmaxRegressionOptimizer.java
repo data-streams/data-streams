@@ -50,7 +50,7 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
     return gradient;
   }
 
-  private Mx computeSoftmaxValues(SparseMx weights, Mx trainingSet) {
+  private SparseMx computeSoftmaxValues(SparseMx weights, Mx trainingSet) {
     final SparseVec[] probVecs = new SparseVec[trainingSet.rows()];
 
     CountDownLatch latch = new CountDownLatch(trainingSet.rows());
@@ -83,30 +83,33 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
 
   private SoftmaxData softmaxGradient(SparseMx weights, Mx trainingSet, int[] correctTopics) {
     final SparseVec[] gradients = new SparseVec[weights.rows()];
-    final Mx probabilities = computeSoftmaxValues(weights, trainingSet);
+    final SparseMx probabilities = computeSoftmaxValues(weights, trainingSet);
 
     SparseVec softmaxValues = new SparseVec(trainingSet.rows());
     for (int i = 0; i < trainingSet.rows(); i++) {
-      softmaxValues.set(i, probabilities.get(i, correctTopics[i]));
+      double val = probabilities.get(i, correctTopics[i]);
+      softmaxValues.set(i, val);
+      probabilities.set(i, correctTopics[i], val - 1);
     }
     //LOGGER.info("Softmax values {}", softmaxValues);
+
+    //SparseMx transposedTrainingSet = (SparseMx) MxTools.transpose(trainingSet);
 
     CountDownLatch latch = new CountDownLatch(weights.rows());
     for (int j = 0; j < weights.rows(); j++) {
       //LOGGER.info("weights {} component", j);
       final int finalJ = j;
-      gradients[finalJ] = new SparseVec(trainingSet.columns());
 
       executor.execute(() -> {
+
+        SparseVec grad = new SparseVec(weights.columns());
         for (int i = 0; i < trainingSet.rows(); i++) {
-          final int index = correctTopics[i];
-          final int indicator = index == finalJ ? 1 : 0;
           final SparseVec x = VecTools.copySparse(trainingSet.row(i));
-          VecTools.scale(x, indicator - probabilities.get(i, finalJ));
-          gradients[finalJ] = VecTools.sum(gradients[finalJ], x);
+          VecTools.scale(x, probabilities.get(i, finalJ));
+          grad = VecTools.append(grad, x);
         }
 
-        VecTools.scale(gradients[finalJ],-1);
+        gradients[finalJ] = grad;
 
         latch.countDown();
         //LOGGER.info("Finished {}", finalJ);
@@ -122,6 +125,7 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
 
     VecTools.log(softmaxValues);
     VecTools.scale(softmaxValues,-1);
+
     return new SoftmaxData(VecTools.sum(softmaxValues), new SparseMx(gradients));
   }
 
@@ -129,7 +133,7 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
     final double alpha = 1e-1;
     final double lambda1 = 1e-2;
     final double lambda2 = 1e-1;
-    final double maxIter = 100;
+    final double maxIter = 20;
     final int[] indeces = Stream.of(correctTopics).mapToInt(topicList::indexOf).toArray();
 
     double previousValue = 0;
@@ -155,7 +159,7 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
       for (int i = 0; i < weights.rows(); i++) {
         for (int j = 0; j < weights.columns(); j++) {
           final double value = weights.get(i, j)
-                  - alpha * (data.gradients.get(i, j) /* delete */ );// - lambda1 * l1.get(i, j) - lambda2 * l2.get(i, j));
+                  - alpha * (data.gradients.get(i, j) - lambda1 * l1.get(i, j) - lambda2 * l2.get(i, j));
           weights.set(i, j, value);
         }
       }
