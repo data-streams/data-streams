@@ -1,4 +1,4 @@
-package com.spbsu.flamestream.example.benchmark.validators;
+package com.spbsu.flamestream.example.benchmark.validators.index;
 
 import gnu.trove.set.hash.TLongHashSet;
 

@@ -1,4 +1,4 @@
-package com.spbsu.flamestream.example.benchmark.validators;
+package com.spbsu.flamestream.example.benchmark.validators.index;
 
 import com.spbsu.flamestream.example.benchmark.BenchValidator;
 import com.spbsu.flamestream.example.bl.index.model.WordIndexAdd;
