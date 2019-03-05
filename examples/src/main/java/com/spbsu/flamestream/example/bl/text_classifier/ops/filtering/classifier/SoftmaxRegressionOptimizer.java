@@ -3,6 +3,7 @@ package com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifie
 import com.expleague.commons.math.vectors.Mx;
 import com.expleague.commons.math.vectors.MxTools;
 import com.expleague.commons.math.vectors.Vec;
+import com.expleague.commons.math.vectors.VecIterator;
 import com.expleague.commons.math.vectors.VecTools;
 import com.expleague.commons.math.vectors.impl.mx.SparseMx;
 import com.expleague.commons.math.vectors.impl.vectors.SparseVec;
@@ -123,7 +124,7 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
 
 
     VecTools.log(softmaxValues);
-    VecTools.scale(softmaxValues,-1);
+    VecTools.scale(softmaxValues, -1);
 
     return new SoftmaxData(VecTools.sum(softmaxValues), new SparseMx(gradients));
   }
@@ -147,35 +148,25 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
       }
 
       previousValue = data.value;
-      Mx l1 = l1Gradient(weights);
-      Mx l2 = l2Gradient(weights, prevWeights);
-
-      double sum = data.value;
+      final Mx l1 = l1Gradient(weights);
+      final Mx l2 = l2Gradient(weights, prevWeights);
       for (int i = 0; i < weights.rows(); i++) {
-        SparseVec vec = VecTools.copySparse(weights.row(i));
-        sum += lambda1 * VecTools.sum(VecTools.abs(vec));
-        VecTools.scale(vec, weights.row(i));
-        sum += lambda2 * VecTools.sum(vec);
-      }
+        VecTools.scale(l1.row(i), lambda1);
+        VecTools.scale(l2.row(i), lambda2);
+        Vec grad = VecTools.sum(l1.row(i), l2.row(i));
+        grad = VecTools.sum(grad, data.gradients.row(i));
+        VecTools.scale(grad, alpha);
 
-      //SoftmaxData = VecTools.scale(SoftmaxData, alpha);
-      //l1 = VecTools.scale(l1, lambda1);
-      //l2 = VecTools.scale(l2, lambda2);
-      // weights = VecTools.subtract(weights, VecTools.sum(SoftmaxData, VecTools.sum(l1, l2)));
-
-      for (int i = 0; i < weights.rows(); i++) {
-        for (int j = 0; j < weights.columns(); j++) {
-          final double value = weights.get(i, j)
-                  - alpha * (data.gradients.get(i, j) + lambda1 * l1.get(i, j) + lambda2 * l2.get(i, j));
-          weights.set(i, j, value);
+        final VecIterator vecIterator = grad.nonZeroes();
+        while (vecIterator.advance()) {
+          final double prev = weights.get(i, vecIterator.index());
+          weights.set(i, vecIterator.index(), prev - vecIterator.value());
         }
       }
-
     }
-
     return weights;
   }
-  
+
   private class SoftmaxData {
     private final double value;
     private final SparseMx gradients;
