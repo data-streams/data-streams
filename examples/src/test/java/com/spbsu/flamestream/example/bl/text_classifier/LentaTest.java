@@ -2,6 +2,8 @@ package com.spbsu.flamestream.example.bl.text_classifier;
 
 import akka.actor.ActorSystem;
 import com.expleague.commons.math.vectors.Mx;
+import com.expleague.commons.math.vectors.SingleValueVec;
+import com.expleague.commons.math.vectors.VecTools;
 import com.expleague.commons.math.vectors.impl.mx.SparseMx;
 import com.expleague.commons.math.vectors.impl.vectors.SparseVec;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
@@ -98,6 +100,15 @@ public class LentaTest extends FlameAkkaSuite {
 
   @Test
   public void partialFitTest() {
+    SparseVec v1 = new SparseVec(5);
+    v1.set(2, 1);
+    v1.set(3, -1);
+    SparseVec v2 = VecTools.copySparse(new SingleValueVec(0.2, 5));
+    LOGGER.info("v1 = {}", v1);
+    LOGGER.info("v2 = {}", v2);
+    VecTools.scale(v1, v2);
+    LOGGER.info("scaled v1 = {}", v1);
+
     final String CNT_VECTORIZER_PATH = "src/main/resources/cnt_vectorizer";
     final String WEIGHTS_PATH = "src/main/resources/classifier_weights";
     final String PATH_TO_TEST_DATA = "src/test/resources/sklearn_prediction";
