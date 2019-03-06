@@ -34,7 +34,7 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
     return gradient;
   }
 
-  private Mx l2Gradient(SparseMx weights, SparseMx prevWeights) {
+  private Mx l2Gradient(Mx weights, Mx prevWeights) {
     final Mx gradient = new SparseMx(weights.rows(), weights.columns());
     final MxIterator mxIterator = weights.nonZeroes();
     while (mxIterator.advance()) {
@@ -94,42 +94,33 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
   }
 
   public Mx optimizeWeights(SparseMx trainingSet, String[] correctTopics, Mx prevWeights) {
-    final double alpha = 0.2;
+    final double alpha = 0.3;
     final double lambda1 = 0.0;
-    //final double lambda2 = 1e-1;
-    final double maxIter = 100;
-    final int[] indeces = Stream.of(correctTopics).mapToInt(topicList::indexOf).toArray();
+    final double lambda2 = 0.1;
+    final double maxIter = 30;
+    final int[] indices = Stream.of(correctTopics).mapToInt(topicList::indexOf).toArray();
 
-    double previousValue = 0;
-    Mx weights = new VecBasedMx(prevWeights.rows(), prevWeights.columns());
-    Mx gradAll = new VecBasedMx(prevWeights.rows(), prevWeights.columns());
+    final Mx weights = new VecBasedMx(prevWeights.rows(), prevWeights.columns());
+    final Mx gradAll = new VecBasedMx(prevWeights.rows(), prevWeights.columns());
     for (int iteration = 1; iteration <= maxIter; iteration++) {
       LOGGER.info("Iteration {}", iteration);
-      final SoftmaxData data = softmaxGradient(weights, trainingSet, indeces, gradAll);
-      //LOGGER.info("Softmax gradient: {}", data.gradients);
+      final SoftmaxData data = softmaxGradient(weights, trainingSet, indices, gradAll);
       LOGGER.info("Loss : {}", data.value);
-      //if (Math.abs(data.value - previousValue) < 1e-3) {
-      //  break;
-      //}
 
-      int nonZero = 0;
-      previousValue = data.value;
       final Mx l1 = l1Gradient(weights);
-      //final Mx l2 = l2Gradient(weights, prevWeights);
+      final Mx l2 = l2Gradient(weights, prevWeights);
       for (int i = 0; i < weights.rows(); i++) {
         VecTools.scale(l1.row(i), lambda1);
-        //VecTools.scale(l2.row(i), lambda2);
-        final Vec grad = VecTools.sum(l1.row(i), data.gradients.row(i));
-        //grad = VecTools.sum(grad, data.gradients.row(i));
+        VecTools.scale(l2.row(i), lambda2);
+        Vec grad = VecTools.sum(l1.row(i), l2.row(i));
+        grad = VecTools.sum(grad, data.gradients.row(i));
         VecTools.scale(grad, alpha);
 
         final VecIterator vecIterator = grad.nonZeroes();
         while (vecIterator.advance()) {
           weights.adjust(i, vecIterator.index(), vecIterator.value());
-          nonZero += 1;
         }
       }
-      System.out.println("NON_ZERO: " + nonZero);
     }
     return weights;
   }
