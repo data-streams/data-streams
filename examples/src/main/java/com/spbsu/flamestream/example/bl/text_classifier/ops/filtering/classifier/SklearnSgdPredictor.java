@@ -1,7 +1,9 @@
 package com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier;
 
+import com.expleague.commons.math.vectors.Mx;
 import com.expleague.commons.math.vectors.MxTools;
 import com.expleague.commons.math.vectors.Vec;
+import com.expleague.commons.math.vectors.VecIterator;
 import com.expleague.commons.math.vectors.VecTools;
 import com.expleague.commons.math.vectors.impl.mx.SparseMx;
 import com.expleague.commons.math.vectors.impl.vectors.ArrayVec;
@@ -34,7 +36,7 @@ public class SklearnSgdPredictor implements TopicsPredictor {
   //lazy loading
   private TObjectIntMap<String> countVectorizer;
   private Vec intercept;
-  private SparseMx weights;
+  private Mx weights;
   private String[] topics;
 
   public SklearnSgdPredictor(String cntVectorizerPath, String weightsPath) {
@@ -65,7 +67,11 @@ public class SklearnSgdPredictor implements TopicsPredictor {
     final Vec probabilities;
     { // compute topic probabilities
       final SparseVec vectorized = vectorize(document.tfIdf());
-      final Vec score = MxTools.multiply(weights, vectorized);
+      final VecIterator docNZIt = vectorized.nonZeroes();
+      Vec score = new ArrayVec(weights.rows());
+      while (docNZIt.advance()) {
+        VecTools.incscale(score, weights.col(docNZIt.index()), docNZIt.value());
+      }
       final Vec sum = VecTools.sum(score, intercept);
       final Vec scaled = VecTools.scale(sum, -1);
       VecTools.exp(scaled);
@@ -92,11 +98,11 @@ public class SklearnSgdPredictor implements TopicsPredictor {
   }
 
   @Override
-  public void updateWeights(SparseMx weights) {
+  public void updateWeights(Mx weights) {
     this.weights = weights;
   }
 
-  public SparseMx getWeights() {
+  public Mx getWeights() {
     return weights;
   }
 

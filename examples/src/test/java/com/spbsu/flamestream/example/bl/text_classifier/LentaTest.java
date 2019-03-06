@@ -160,17 +160,17 @@ public class LentaTest extends FlameAkkaSuite {
     }
 
     final int len = topics.size();
-    final int testsize = 30;
+    final int testsize = 1000;
 
     List<String> testTopics = topics.stream().skip(len - testsize).collect(Collectors.toList());
     List<String> testTexts = texts.stream().skip(len - testsize).collect(Collectors.toList());
     documents = documents.stream().skip(len - testsize).collect(Collectors.toList());
 
-    Mx trainingSet = new SparseMx(mx.stream().limit(len - testsize).toArray(SparseVec[]::new));
+    SparseMx trainingSet = new SparseMx(mx.stream().limit(len - testsize).toArray(SparseVec[]::new));
     LOGGER.info("Updating weights");
     Optimizer optimizer = new SoftmaxRegressionOptimizer(predictor.getTopics());
     String[] correctTopics = topics.stream().limit(len - testsize).toArray(String[]::new);
-    SparseMx newWeights = optimizer.optimizeWeights(trainingSet, correctTopics, predictor.getWeights());
+    Mx newWeights = optimizer.optimizeWeights(trainingSet, correctTopics, predictor.getWeights());
     predictor.updateWeights(newWeights);
 
     double truePositives = 0;

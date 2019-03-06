@@ -4,5 +4,5 @@ import com.expleague.commons.math.vectors.Mx;
 import com.expleague.commons.math.vectors.impl.mx.SparseMx;
 
 public interface Optimizer {
-  SparseMx optimizeWeights(Mx trainingSet, String[] correctTopics, SparseMx prevWeights);
+  Mx optimizeWeights(SparseMx trainingSet, String[] correctTopics, Mx prevWeights);
 }
