@@ -25,15 +25,6 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
     topicList = Arrays.asList(topics);
   }
 
-  private Mx l1Gradient(Mx weights) {
-    final Mx gradient = new SparseMx(weights.rows(), weights.columns());
-    final MxIterator mxIterator = weights.nonZeroes();
-    while (mxIterator.advance()) {
-      gradient.set(mxIterator.row(), mxIterator.column(), Math.signum(mxIterator.value()));
-    }
-    return gradient;
-  }
-
   private Mx l2Gradient(Mx weights, Mx prevWeights) {
     final Mx gradient = new SparseMx(weights.rows(), weights.columns());
     final MxIterator mxIterator = weights.nonZeroes();
@@ -95,7 +86,7 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
 
   public Mx optimizeWeights(SparseMx trainingSet, String[] correctTopics, Mx prevWeights) {
     final double alpha = 0.3;
-    final double lambda1 = 0.0;
+    final double lambda1 = 0.1;
     final double lambda2 = 0.1;
     final double maxIter = 30;
     final int[] indices = Stream.of(correctTopics).mapToInt(topicList::indexOf).toArray();
@@ -107,13 +98,36 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
       final SoftmaxData data = softmaxGradient(weights, trainingSet, indices, gradAll);
       LOGGER.info("Loss : {}", data.value);
 
-      final Mx l1 = l1Gradient(weights);
+      { // l1 regularization: update gradients for non-zero weights
+        final MxIterator iterator = weights.nonZeroes();
+        while (iterator.advance()) {
+          data.gradients.adjust(
+                  iterator.row(),
+                  iterator.column(),
+                  lambda1 * Math.signum(iterator.value())
+          );
+        }
+      }
+      { // l1 regularization: update gradients for zero weights
+        final MxIterator iterator = data.gradients.nonZeroes();
+        while (iterator.advance()) {
+          if (Math.abs(weights.get(iterator.row(), iterator.column())) <= 0) {
+            final double gradValue = data.gradients.get(iterator.row(), iterator.column());
+            if (gradValue < -lambda1) {
+              data.gradients.adjust(iterator.row(), iterator.column(), lambda1);
+            } else if (gradValue > lambda1) {
+              data.gradients.adjust(iterator.row(), iterator.column(), -lambda1);
+            } else if (gradValue >= -lambda1 && gradValue <= lambda1) {
+              data.gradients.set(iterator.row(), iterator.column(), 0.0);
+            }
+          }
+        }
+      }
+
       final Mx l2 = l2Gradient(weights, prevWeights);
       for (int i = 0; i < weights.rows(); i++) {
-        VecTools.scale(l1.row(i), lambda1);
         VecTools.scale(l2.row(i), lambda2);
-        Vec grad = VecTools.sum(l1.row(i), l2.row(i));
-        grad = VecTools.sum(grad, data.gradients.row(i));
+        final Vec grad = VecTools.sum(l2.row(i), data.gradients.row(i));
         VecTools.scale(grad, alpha);
 
         final VecIterator vecIterator = grad.nonZeroes();
@@ -122,6 +136,14 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
         }
       }
     }
+
+    int nonZeros = 0;
+    final MxIterator iterator = weights.nonZeroes();
+    while (iterator.advance()) {
+      nonZeros++;
+    }
+    LOGGER.info("Non-Zeroes: " + nonZeros);
+
     return weights;
   }
 
