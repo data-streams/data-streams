@@ -34,7 +34,7 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
     return gradient;
   }
 
-  private Mx computeSoftmaxValues(Mx weights, SparseMx trainingSet) {
+  private Mx computeSoftmaxValues(Mx weights, Mx trainingSet) {
     final int classesCount = weights.rows();
     final Vec[] rows = IntStream.range(0, trainingSet.rows()).parallel().mapToObj(trainingSet::row).map(point -> {
       double denom = 0.;
@@ -42,8 +42,9 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
       for (int j = 0; j < classesCount; j++) {
         double numer = 0;
         final VecIterator pointIt = point.nonZeroes();
+        final Vec weightsRow = weights.row(j);
         while (pointIt.advance()) {
-          numer += pointIt.value() * weights.get(j, pointIt.index());
+          numer += pointIt.value() * weightsRow.get(pointIt.index());
         }
         denom += Math.exp(numer);
         probs.set(j, Math.exp(numer));
@@ -59,20 +60,21 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
     return new RowsVecArrayMx(rows);
   }
 
-  private SoftmaxData softmaxGradient(Mx weights, SparseMx trainingSet, int[] correctTopics, Mx gradAll) {
+  private SoftmaxData softmaxGradient(Mx weights, Mx trainingSet, int[] correctTopics, Mx gradAll) {
     final Mx probabilities = computeSoftmaxValues(weights, trainingSet);
     final int classesCount = weights.rows();
 
     VecTools.scale(gradAll, 0);
-    IntStream.range(0, trainingSet.rows()).forEach(pointIdx -> {
-      final Vec point = trainingSet.row(pointIdx);
-      for (int i = 0; i < classesCount; i++) {
+    IntStream.range(0, classesCount).parallel().forEach(i -> {
+      for (int j = 0; j < trainingSet.rows(); j++) {
+        final Vec point = trainingSet.row(j);
         final Vec grad = gradAll.row(i);
         final VecIterator vecIterator = point.nonZeroes();
-        final boolean isCorrectClass = correctTopics[pointIdx] == i;
+        final boolean isCorrectClass = correctTopics[j] == i;
+        final double proBab = probabilities.get(j, i);
+        final double denom = isCorrectClass ? 1 - proBab : -proBab;
         while (vecIterator.advance()) {
-          final double proBab = probabilities.get(pointIdx, i);
-          grad.adjust(vecIterator.index(), vecIterator.value() * (isCorrectClass ? 1 - proBab : -proBab));
+          grad.adjust(vecIterator.index(), vecIterator.value() * denom);
         }
       }
     });
@@ -84,7 +86,7 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
     return new SoftmaxData(Math.exp(score), gradAll);
   }
 
-  public Mx optimizeWeights(SparseMx trainingSet, String[] correctTopics, Mx prevWeights) {
+  public Mx optimizeWeights(Mx trainingSet, String[] correctTopics, Mx prevWeights) {
     final double alpha = 0.3;
     final double lambda1 = 0.1;
     final double lambda2 = 0.1;
@@ -96,7 +98,7 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
     for (int iteration = 1; iteration <= maxIter; iteration++) {
       LOGGER.info("Iteration {}", iteration);
       final SoftmaxData data = softmaxGradient(weights, trainingSet, indices, gradAll);
-      LOGGER.info("Loss : {}", data.value);
+      LOGGER.info("Score : {}", data.score);
 
       { // l1 regularization: update gradients for non-zero weights
         final MxIterator iterator = weights.nonZeroes();
@@ -148,11 +150,11 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
   }
 
   private class SoftmaxData {
-    private final double value;
+    private final double score;
     private final Mx gradients;
 
-    SoftmaxData(double value, Mx gradients) {
-      this.value = value;
+    SoftmaxData(double score, Mx gradients) {
+      this.score = score;
       this.gradients = gradients;
     }
   }

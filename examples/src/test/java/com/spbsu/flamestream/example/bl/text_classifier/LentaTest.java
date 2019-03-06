@@ -2,8 +2,6 @@ package com.spbsu.flamestream.example.bl.text_classifier;
 
 import akka.actor.ActorSystem;
 import com.expleague.commons.math.vectors.Mx;
-import com.expleague.commons.math.vectors.SingleValueVec;
-import com.expleague.commons.math.vectors.VecTools;
 import com.expleague.commons.math.vectors.impl.mx.SparseMx;
 import com.expleague.commons.math.vectors.impl.vectors.SparseVec;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
@@ -100,15 +98,6 @@ public class LentaTest extends FlameAkkaSuite {
 
   @Test
   public void partialFitTest() {
-    SparseVec v1 = new SparseVec(5);
-    v1.set(2, 1);
-    v1.set(3, -1);
-    SparseVec v2 = VecTools.copySparse(new SingleValueVec(0.2, 5));
-    LOGGER.info("v1 = {}", v1);
-    LOGGER.info("v2 = {}", v2);
-    VecTools.scale(v1, v2);
-    LOGGER.info("scaled v1 = {}", v1);
-
     final String CNT_VECTORIZER_PATH = "src/main/resources/cnt_vectorizer";
     final String WEIGHTS_PATH = "src/main/resources/classifier_weights";
     final String PATH_TO_TEST_DATA = "src/test/resources/sklearn_prediction";
@@ -125,8 +114,6 @@ public class LentaTest extends FlameAkkaSuite {
       final int features = (int) data[1];
 
       for (int i = 0; i < testCount; i++) {
-        //final double[] pyPrediction = parseDoubles(br.readLine());
-
         final String docText = br.readLine().toLowerCase();
         texts.add(docText);
 
@@ -160,21 +147,21 @@ public class LentaTest extends FlameAkkaSuite {
     }
 
     final int len = topics.size();
-    final int testsize = 1000;
+    final int testSize = 1000;
 
-    List<String> testTopics = topics.stream().skip(len - testsize).collect(Collectors.toList());
-    List<String> testTexts = texts.stream().skip(len - testsize).collect(Collectors.toList());
-    documents = documents.stream().skip(len - testsize).collect(Collectors.toList());
+    List<String> testTopics = topics.stream().skip(len - testSize).collect(Collectors.toList());
+    List<String> testTexts = texts.stream().skip(len - testSize).collect(Collectors.toList());
+    documents = documents.stream().skip(len - testSize).collect(Collectors.toList());
 
-    SparseMx trainingSet = new SparseMx(mx.stream().limit(len - testsize).toArray(SparseVec[]::new));
+    SparseMx trainingSet = new SparseMx(mx.stream().limit(len - testSize).toArray(SparseVec[]::new));
     LOGGER.info("Updating weights");
     Optimizer optimizer = new SoftmaxRegressionOptimizer(predictor.getTopics());
-    String[] correctTopics = topics.stream().limit(len - testsize).toArray(String[]::new);
+    String[] correctTopics = topics.stream().limit(len - testSize).toArray(String[]::new);
     Mx newWeights = optimizer.optimizeWeights(trainingSet, correctTopics, predictor.getWeights());
     predictor.updateWeights(newWeights);
 
     double truePositives = 0;
-    for (int i = 0; i < testsize; i++) {
+    for (int i = 0; i < testSize; i++) {
       String text = testTexts.get(i);
       String ans = testTopics.get(i);
       Document doc = documents.get(i);
@@ -191,7 +178,7 @@ public class LentaTest extends FlameAkkaSuite {
       LOGGER.info("\n");
     }
 
-    double accuracy = truePositives / testsize;
+    double accuracy = truePositives / testSize;
     LOGGER.info("Accuracy: {}", accuracy);
     assertTrue(accuracy >= 0.62);
   }

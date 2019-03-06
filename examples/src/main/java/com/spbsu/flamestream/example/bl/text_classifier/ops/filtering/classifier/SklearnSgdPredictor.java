@@ -5,6 +5,7 @@ import com.expleague.commons.math.vectors.MxTools;
 import com.expleague.commons.math.vectors.Vec;
 import com.expleague.commons.math.vectors.VecIterator;
 import com.expleague.commons.math.vectors.VecTools;
+import com.expleague.commons.math.vectors.impl.mx.RowsVecArrayMx;
 import com.expleague.commons.math.vectors.impl.mx.SparseMx;
 import com.expleague.commons.math.vectors.impl.vectors.ArrayVec;
 import com.expleague.commons.math.vectors.impl.vectors.SparseVec;
@@ -149,7 +150,7 @@ public class SklearnSgdPredictor implements TopicsPredictor {
         coef[index] = new SparseVec(currentFeatures, indeces, values);
       }
 
-      weights = new SparseMx(coef);
+      weights = new RowsVecArrayMx(coef);
       MxTools.transpose(weights);
 
       line = br.readLine();
