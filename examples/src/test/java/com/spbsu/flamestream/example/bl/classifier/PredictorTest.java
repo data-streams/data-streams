@@ -2,12 +2,17 @@ package com.spbsu.flamestream.example.bl.classifier;
 
 import akka.actor.ActorSystem;
 import com.expleague.commons.math.MathTools;
+import com.expleague.commons.math.vectors.Mx;
+import com.expleague.commons.math.vectors.impl.mx.SparseMx;
+import com.expleague.commons.math.vectors.impl.vectors.SparseVec;
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Document;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Optimizer;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.SklearnSgdPredictor;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.SoftmaxRegressionOptimizer;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Topic;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.TopicsPredictor;
 import com.spbsu.flamestream.runtime.FlameRuntime;
@@ -43,11 +48,94 @@ import static java.lang.Math.abs;
 import static java.lang.Math.max;
 import static org.testng.Assert.assertTrue;
 
-public class PredictorStreamTest {
-  private static final Logger LOGGER = LoggerFactory.getLogger(PredictorStreamTest.class.getName());
+public class PredictorTest {
+  private static final Logger LOGGER = LoggerFactory.getLogger(PredictorTest.class.getName());
   private static final String CNT_VECTORIZER_PATH = "src/main/resources/cnt_vectorizer";
   private static final String WEIGHTS_PATH = "src/main/resources/classifier_weights";
   private static final String PATH_TO_TEST_DATA = "src/test/resources/sklearn_prediction";
+
+  @Test
+  public void partialFitTest() {
+    final List<String> topics = new ArrayList<>();
+    final List<String> texts = new ArrayList<>();
+    final List<SparseVec> mx = new ArrayList<>();
+    List<Document> documents = new ArrayList<>();
+    final SklearnSgdPredictor predictor = new SklearnSgdPredictor(CNT_VECTORIZER_PATH, WEIGHTS_PATH);
+    predictor.init();
+    try (BufferedReader br = new BufferedReader(new FileReader(new File(PATH_TO_TEST_DATA)))) {
+      final double[] data = parseDoubles(br.readLine());
+      final int testCount = (int) data[0];
+      final int features = (int) data[1];
+
+      for (int i = 0; i < testCount; i++) {
+        final String docText = br.readLine().toLowerCase();
+        texts.add(docText);
+
+        String topic = br.readLine();
+        topics.add(topic);
+        final double[] info = parseDoubles(br.readLine());
+        final int[] indeces = new int[info.length / 2];
+        final double[] values = new double[info.length / 2];
+        for (int k = 0; k < info.length; k += 2) {
+          final int index = (int) info[k];
+          final double value = info[k + 1];
+
+          indeces[k / 2] = index;
+          values[k / 2] = value;
+        }
+
+        final Map<String, Double> tfIdf = new HashMap<>();
+        SparseVec vec = new SparseVec(features, indeces, values);
+
+        SklearnSgdPredictor.text2words(docText).forEach(word -> {
+          final int featureIndex = predictor.wordIndex(word);
+          tfIdf.put(word, vec.get(featureIndex));
+        });
+        final Document document = new Document(tfIdf);
+        documents.add(document);
+
+        mx.add(vec);
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+
+    final int len = topics.size();
+    final int testSize = 1000;
+
+    List<String> testTopics = topics.stream().skip(len - testSize).collect(Collectors.toList());
+    List<String> testTexts = texts.stream().skip(len - testSize).collect(Collectors.toList());
+    documents = documents.stream().skip(len - testSize).collect(Collectors.toList());
+
+    SparseMx trainingSet = new SparseMx(mx.stream().limit(len - testSize).toArray(SparseVec[]::new));
+    LOGGER.info("Updating weights");
+    Optimizer optimizer = new SoftmaxRegressionOptimizer(predictor.getTopics());
+    String[] correctTopics = topics.stream().limit(len - testSize).toArray(String[]::new);
+    Mx newWeights = optimizer.optimizeWeights(trainingSet, correctTopics, predictor.getWeights());
+    predictor.updateWeights(newWeights);
+
+    double truePositives = 0;
+    for (int i = 0; i < testSize; i++) {
+      String text = testTexts.get(i);
+      String ans = testTopics.get(i);
+      Document doc = documents.get(i);
+
+      Topic[] prediction = predictor.predict(doc);
+
+      Arrays.sort(prediction);
+      if (ans.equals(prediction[0].name())) {
+        truePositives++;
+      }
+      LOGGER.info("Doc: {}", text);
+      LOGGER.info("Real answers: {}", ans);
+      LOGGER.info("Predict: {}", (Object) prediction);
+      LOGGER.info("\n");
+    }
+
+    double accuracy = truePositives / testSize;
+    LOGGER.info("Accuracy: {}", accuracy);
+    assertTrue(accuracy >= 0.62);
+  }
 
   @Test
   public void testStreamPredict() throws InterruptedException, TimeoutException {
@@ -156,7 +244,7 @@ public class PredictorStreamTest {
     }
   }
 
-  public static double[] parseDoubles(String line) {
+  private static double[] parseDoubles(String line) {
     return Arrays
             .stream(line.split(" "))
             .mapToDouble(Double::parseDouble)

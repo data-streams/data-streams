@@ -6,14 +6,11 @@ import com.expleague.commons.math.vectors.Vec;
 import com.expleague.commons.math.vectors.VecIterator;
 import com.expleague.commons.math.vectors.VecTools;
 import com.expleague.commons.math.vectors.impl.mx.RowsVecArrayMx;
-import com.expleague.commons.math.vectors.impl.mx.SparseMx;
 import com.expleague.commons.math.vectors.impl.vectors.ArrayVec;
 import com.expleague.commons.math.vectors.impl.vectors.SparseVec;
 import com.google.common.annotations.VisibleForTesting;
 import gnu.trove.map.TObjectIntMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -28,7 +25,6 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class SklearnSgdPredictor implements TopicsPredictor {
-  private static final Logger LOGGER = LoggerFactory.getLogger(SklearnSgdPredictor.class.getName());
   private static final Pattern PATTERN = Pattern.compile("\\b\\w\\w+\\b", Pattern.UNICODE_CHARACTER_CLASS);
 
   private final String weightsPath;
