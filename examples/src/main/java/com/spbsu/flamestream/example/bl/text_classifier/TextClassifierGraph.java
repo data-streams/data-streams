@@ -9,23 +9,27 @@ import com.spbsu.flamestream.core.graph.Grouping;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import com.spbsu.flamestream.example.bl.text_classifier.model.IdfObject;
+import com.spbsu.flamestream.example.bl.text_classifier.model.ModelParameters;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TextDocument;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TfIdfObject;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TfObject;
+import com.spbsu.flamestream.example.bl.text_classifier.model.TrainInput;
 import com.spbsu.flamestream.example.bl.text_classifier.model.WordCounter;
 import com.spbsu.flamestream.example.bl.text_classifier.model.WordEntry;
 import com.spbsu.flamestream.example.bl.text_classifier.model.containers.DocContainer;
 import com.spbsu.flamestream.example.bl.text_classifier.model.containers.WordContainer;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.entries.CountWordEntries;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.entries.IDFAggregator;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.entries.ModelAggregator;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.entries.TrainAggregator;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.Classifier;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.DocContainerOrderingFilter;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.IDFObjectCompleteFilter;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.ModelParametersFilter;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.TfIdfFilter;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.TrainOrderingFilter;
-import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.Trainer;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.TrainFilter;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.WordContainerOrderingFilter;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.TopicsPredictor;
 
@@ -74,6 +78,17 @@ public class TextClassifierGraph implements Supplier<Graph> {
     }
   });
 
+  private final HashFunction constHash2 = HashFunction.uniformHash(new HashFunction() {
+    @Override
+    public int hash(DataItem dataItem) {
+      return 123;
+    }
+
+    @Override
+    public String toString() {
+      return "ConstHash-2";
+    }
+  });
 
 
   @SuppressWarnings("Convert2Lambda")
@@ -114,6 +129,9 @@ public class TextClassifierGraph implements Supplier<Graph> {
 
     final Grouping<Object> groupingPredictionBatch =
             new Grouping<>(constHash, equalzAll, 2, Object.class);
+
+    final Grouping<Object> groupingModelParameters =
+            new Grouping<>(constHash2, equalzAll, 2, Object.class);
 
     //noinspection Convert2Lambda
     final FlameMap<TfObject, WordEntry> splitterWord = new FlameMap<>(new Function<TfObject, Stream<WordEntry>>() {
@@ -159,8 +177,19 @@ public class TextClassifierGraph implements Supplier<Graph> {
             List.class
     );
 
+    final FlameMap<List<Object>, ModelParameters> modelAggregator = new FlameMap<>(
+            new ModelAggregator(),
+            List.class
+    );
+
     final FlameMap<List<Object>, List<Object>> filterTrainer = new FlameMap<List<Object>, List<Object>>(
             new TrainOrderingFilter(),
+            List.class
+    );
+
+
+    final FlameMap<List<Object>, List<Object>> filterModelParameters = new FlameMap<List<Object>, List<Object>>(
+            new ModelParametersFilter(),
             List.class
     );
 
@@ -217,10 +246,10 @@ public class TextClassifierGraph implements Supplier<Graph> {
             }
     );
 
-    final Trainer trainer = new Trainer();
+    final TrainFilter trainFilter = new TrainFilter();
     //noinspection Convert2Lambda,Anonymous2MethodRef
-    final FlameMap<List<TfIdfObject>, Object> trainerNode = new FlameMap<>(
-            trainer,
+    final FlameMap<List<TfIdfObject>, TrainInput> trainFilterMap = new FlameMap<>(
+            trainFilter,
             List.class
     );
 
@@ -262,8 +291,12 @@ public class TextClassifierGraph implements Supplier<Graph> {
             .link(trainAggregator, filterResetBatch)
             .link(filterResetBatch, groupingPredictionBatch)
             .link(trainAggregator, filterPredictBatch)
-            .link(filterPredictBatch, trainerNode)
 
+            .link(filterPredictBatch, trainFilterMap)
+            .link(trainFilterMap, groupingModelParameters)
+            .link(groupingModelParameters, filterModelParameters)
+            .link(filterModelParameters, modelAggregator)
+            .link(modelAggregator, groupingModelParameters)
 
             .colocate(source, splitterTf, splitterWord)
             .colocate(groupingWord, filterWord, counterWord)
@@ -277,6 +310,7 @@ public class TextClassifierGraph implements Supplier<Graph> {
                     sink
             )
             .colocate(groupingPredictionBatch, filterTrainer, trainAggregator)
+            .colocate(groupingModelParameters, filterModelParameters, modelAggregator)
 
             .build(source, sink);
   }

@@ -11,7 +11,6 @@ public class TrainAggregator implements Function<List<Object>, Stream<List<TfIdf
   @Override
   public Stream<List<TfIdfObject>> apply(List<Object> elems) {
     if (elems.size() == 1) {
-      //final WordCounter wordCounter = (WordCounter) docContainers.get(0);
       List<TfIdfObject> l = new CopyOnWriteArrayList<>();
       l.add((TfIdfObject) elems.get(0));
       return Stream.of(l);

@@ -146,6 +146,8 @@ public class ProcessingWatcher extends LoggingActor {
       PatternsCS.ask(context().actorOf(InitAgent.props()), graph, FlameConfig.config.bigTimeout())
               .toCompletableFuture()
               .get();
+
+
     } catch (InterruptedException | ExecutionException e) {
       throw new RuntimeException(e);
     }
@@ -225,9 +227,10 @@ public class ProcessingWatcher extends LoggingActor {
               .match(Graph.class, graph -> {
                 graph.components().forEach(vertexStream -> vertexStream.forEach(vertex -> {
                   if (vertex instanceof FlameMap) {
-                    ((FlameMap) vertex).init();
+                      ((FlameMap) vertex).init();
                   }
                 }));
+
                 sender().tell(InitDone.OBJECT, self());
                 context().stop(self());
               })
