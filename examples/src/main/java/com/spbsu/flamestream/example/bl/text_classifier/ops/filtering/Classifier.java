@@ -1,5 +1,6 @@
 package com.spbsu.flamestream.example.bl.text_classifier.ops.filtering;
 
+import com.spbsu.flamestream.example.bl.text_classifier.model.ClassifyParameters;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TfIdfObject;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Document;
@@ -10,7 +11,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-public class Classifier implements Function<TfIdfObject, Stream<Prediction>> {
+public class Classifier implements Function<ClassifyParameters, Stream<Prediction>> {
   private final TopicsPredictor predictor;
 
   public Classifier(TopicsPredictor predictor) {
@@ -18,7 +19,8 @@ public class Classifier implements Function<TfIdfObject, Stream<Prediction>> {
   }
 
   @Override
-  public Stream<Prediction> apply(TfIdfObject tfIdfObject) {
+  public Stream<Prediction> apply(ClassifyParameters params) {
+    final TfIdfObject tfIdfObject = params.tfIdfObject();
     final Map<String, Double> tfIdf = new HashMap<>();
     { //normalized tf-idf
       double squareSum = 0.0;

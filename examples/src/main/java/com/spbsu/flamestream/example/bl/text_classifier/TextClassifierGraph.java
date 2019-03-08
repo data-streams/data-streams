@@ -8,6 +8,7 @@ import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
+import com.spbsu.flamestream.example.bl.text_classifier.model.ClassifyParameters;
 import com.spbsu.flamestream.example.bl.text_classifier.model.IdfObject;
 import com.spbsu.flamestream.example.bl.text_classifier.model.ModelParameters;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
@@ -24,6 +25,9 @@ import com.spbsu.flamestream.example.bl.text_classifier.ops.entries.IDFAggregato
 import com.spbsu.flamestream.example.bl.text_classifier.ops.entries.ModelAggregator;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.entries.TrainAggregator;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.Classifier;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.ClassifyFilter;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.ClassifyFilterBack;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.ClassifyFilterFwd;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.DocContainerOrderingFilter;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.IDFObjectCompleteFilter;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.ModelParametersFilter;
@@ -90,6 +94,17 @@ public class TextClassifierGraph implements Supplier<Graph> {
     }
   });
 
+  private final HashFunction constHash3 = HashFunction.uniformHash(new HashFunction() {
+    @Override
+    public int hash(DataItem dataItem) {
+      return 124;
+    }
+
+    @Override
+    public String toString() {
+      return "ConstHash-3";
+    }
+  });
 
   @SuppressWarnings("Convert2Lambda")
   private final Equalz equalzWord = new Equalz() {
@@ -132,6 +147,9 @@ public class TextClassifierGraph implements Supplier<Graph> {
 
     final Grouping<Object> groupingModelParameters =
             new Grouping<>(constHash2, equalzAll, 2, Object.class);
+
+    final Grouping<Object> groupingClasify =
+            new Grouping<>(constHash3, equalzAll, 2, Object.class);
 
     //noinspection Convert2Lambda
     final FlameMap<TfObject, WordEntry> splitterWord = new FlameMap<>(new Function<TfObject, Stream<WordEntry>>() {
@@ -228,6 +246,20 @@ public class TextClassifierGraph implements Supplier<Graph> {
             List.class
     );
 
+    final FlameMap<List<Object>, List<Object>> filterClassify = new FlameMap<>(
+            new ClassifyFilter(),
+            List.class
+    );
+    final FlameMap<List<Object>, Object> filterClassifyBack = new FlameMap<>(
+            new ClassifyFilterBack(),
+            List.class
+    );
+    final FlameMap<List<Object>, ClassifyParameters> filterClassifyFwd = new FlameMap<>(
+            new ClassifyFilterFwd(),
+            List.class
+    );
+
+
     final FlameMap<List<DocContainer>, DocContainer> filterTfIdf = new FlameMap<>(
             new TfIdfFilter(),
             List.class
@@ -235,9 +267,9 @@ public class TextClassifierGraph implements Supplier<Graph> {
 
     final Classifier classifier = new Classifier(predictor);
     //noinspection Convert2Lambda,Anonymous2MethodRef
-    final FlameMap<TfIdfObject, Prediction> filterClassifier = new FlameMap<>(
+    final FlameMap<ClassifyParameters, Prediction> filterClassifier = new FlameMap<>(
             classifier,
-            TfIdfObject.class,
+            ClassifyParameters.class,
             new Runnable() {
               @Override
               public void run() {
@@ -282,7 +314,14 @@ public class TextClassifierGraph implements Supplier<Graph> {
 
             .link(filterTfIdf, filterToClassify)
             .link(filterTfIdf, filterToPredict)
-            .link(filterToClassify, filterClassifier)
+
+            .link(filterToClassify, groupingClasify)
+            .link(modelAggregator, groupingClasify)
+            .link(groupingClasify, filterClassify)
+            .link(filterClassify, filterClassifyBack)
+            .link(filterClassify, filterClassifyFwd)
+            .link(filterClassifyBack, groupingClasify)
+            .link(filterClassifyFwd, filterClassifier)
             .link(filterClassifier, sink)
 
             .link(filterToPredict, groupingPredictionBatch)

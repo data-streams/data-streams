@@ -13,6 +13,6 @@ import java.util.stream.Stream;
 public class TrainFilter implements Function<List<TfIdfObject>, Stream<TrainInput>> {
   @Override
   public Stream<TrainInput> apply(List<TfIdfObject> data) {
-    return Stream.of(new TrainInput(data));
+      return Stream.of(new TrainInput(data));
   }
 }

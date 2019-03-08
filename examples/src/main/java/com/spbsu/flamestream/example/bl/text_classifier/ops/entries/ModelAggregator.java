@@ -23,8 +23,12 @@ public class ModelAggregator implements Function<List<Object>, Stream<ModelParam
     }
   }
 
+  public static ModelParameters defautModelParameters() {
+    return new ModelParameters(0);
+  }
+
   private static ModelParameters initial(TrainInput trainInput) {
-    return new ModelParameters(1);
+    return merge(defautModelParameters(), trainInput);
   }
 
   private static ModelParameters merge(ModelParameters modelParameters, TrainInput trainInput) {
