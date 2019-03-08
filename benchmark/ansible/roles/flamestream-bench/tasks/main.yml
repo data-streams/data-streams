@@ -21,6 +21,8 @@
     -cp '{{ flamestream_dir }}/lib/*'
     {{ bench_class }}
     {{ flamestream_dir }}/bench.conf {{ flamestream_dir }}/deployer.conf > {{ flamestream_dir }}/bench.log 2>&1
+  environment:
+      LOCAL_ADDRESS: "{{ inventory_hostname }}:{{ flamestream_worker_port }}"
 
 - name: Fetch bench logs
   fetch:
