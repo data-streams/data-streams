@@ -218,8 +218,8 @@ public class LentaBenchStand {
         handles.get(i).unregister();
       }
       documents(standConfig.wikiDumpPath()).forEach(textDocument -> {
-        latenciesMap.put(textDocument.number(), new LatencyMeasurer());
         front.accept(textDocument);
+        latenciesMap.put(textDocument.number(), new LatencyMeasurer());
       });
       awaitConsumer.await(60, TimeUnit.MINUTES);
     }
