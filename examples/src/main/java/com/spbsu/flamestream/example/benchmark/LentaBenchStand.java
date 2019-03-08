@@ -200,6 +200,7 @@ public class LentaBenchStand {
       }
     }
 
+    final int skip = 500;
     try (final FlameRuntime.Flame flame = runtime.run(new TextClassifierGraph(predictor).get())) {
       flame.attachRear("tfidfRear", new AkkaRearType<>(system, Prediction.class))
               .forEach(r -> r.addListener(prediction -> {
@@ -217,11 +218,20 @@ public class LentaBenchStand {
       for (int i = 1; i < handles.size(); i++) {
         handles.get(i).unregister();
       }
+
+      final long[] start = {-1};
+      final int[] skipped = {0};
       documents(standConfig.wikiDumpPath()).forEach(textDocument -> {
         front.accept(textDocument);
         latenciesMap.put(textDocument.number(), new LatencyMeasurer());
+        skipped[0] += 1;
+        if (skipped[0] > skip && start[0] == -1) {
+          start[0] = System.currentTimeMillis();
+        }
       });
       awaitConsumer.await(60, TimeUnit.MINUTES);
+      final double timeInSec = (System.currentTimeMillis() - start[0]) / 1000.0;
+      LOG.info("Throughput (items/sec): {}", (validator.expectedOutputSize() - skip) / timeInSec);
     }
 
     final long[] latencies = latenciesMap.values().stream().mapToLong(l -> l.statistics().getMax()).toArray();
@@ -237,7 +247,7 @@ public class LentaBenchStand {
       LOG.info("Page sizes: {}", collect);
       final long[] skipped = latenciesMap.values()
               .stream()
-              .skip(300)
+              .skip(skip)
               .mapToLong(l -> l.statistics().getMax())
               .toArray();
       LOG.info("Median: {}", (long) percentiles().index(50).compute(skipped));
