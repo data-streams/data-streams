@@ -55,6 +55,7 @@ import java.util.StringJoiner;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.LockSupport;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -108,10 +109,16 @@ public class LentaBenchStand {
   public static class StandConfig {
     private final String wikiDumpPath;
     private final String validatorClass;
+    private final int sleepBetweenDocsMs;
 
     StandConfig(Config config) {
       wikiDumpPath = config.getString("wiki-dump-path");
       validatorClass = config.getString("validator");
+      sleepBetweenDocsMs = config.getInt("sleep-between-docs-ms");
+    }
+
+    int sleepBetweenDocsMs() {
+      return this.sleepBetweenDocsMs;
     }
 
     String wikiDumpPath() {
@@ -211,7 +218,7 @@ public class LentaBenchStand {
                 LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
               }));
       final List<AkkaFront.FrontHandle<TextDocument>> handles = flame
-              .attachFront("tfidfFront", new AkkaFrontType<TextDocument>(system))
+              .attachFront("tfidfFront", new AkkaFrontType<TextDocument>(system, false))
               .collect(toList());
 
       final AkkaFront.FrontHandle<TextDocument> front = handles.get(0);
@@ -228,6 +235,7 @@ public class LentaBenchStand {
         if (skipped[0] > skip && start[0] == -1) {
           start[0] = System.currentTimeMillis();
         }
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(standConfig.sleepBetweenDocsMs()));
       });
       awaitConsumer.await(60, TimeUnit.MINUTES);
       final double timeInSec = (System.currentTimeMillis() - start[0]) / 1000.0;
