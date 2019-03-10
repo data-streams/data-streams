@@ -12,6 +12,7 @@ import akka.japi.pf.DeciderBuilder;
 import akka.japi.pf.ReceiveBuilder;
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.data.meta.EdgeId;
+import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.runtime.config.ClusterConfig;
 import com.spbsu.flamestream.runtime.config.CommitterConfig;
 import com.spbsu.flamestream.runtime.config.HashGroup;
@@ -44,6 +45,7 @@ import java.util.stream.Collectors;
 class Cluster extends LoggingActor {
   private final ActorRef inner;
   private final boolean blinking;
+  private final int blinkPeriodSec;
 
   private Cluster
           (Graph g,
@@ -52,9 +54,11 @@ class Cluster extends LoggingActor {
            int maxElementsInGraph,
            int millisBetweenCommits,
            boolean distributedAcker,
-           boolean blinking
+           boolean blinking,
+           int blinkPeriodSec
           ) {
     this.blinking = blinking;
+    this.blinkPeriodSec = blinkPeriodSec;
 
     final Map<String, HashGroup> ranges = new HashMap<>();
     final Map<String, ActorPath> paths = new HashMap<>();
@@ -105,7 +109,7 @@ class Cluster extends LoggingActor {
                       stateStorage
               ), id)).collect(Collectors.toList());
             },
-            paths
+            paths, g
     ), "cluster");
   }
 
@@ -115,7 +119,8 @@ class Cluster extends LoggingActor {
                      int maxElementsInGraph,
                      int millisBetweenCommits,
                      boolean distributedAcker,
-                     boolean blinking
+                     boolean blinking,
+                     int blinkPeriodSec
   ) {
     return Props.create(
             Cluster.class,
@@ -125,7 +130,8 @@ class Cluster extends LoggingActor {
             maxElementsInGraph,
             millisBetweenCommits,
             distributedAcker,
-            blinking
+            blinking,
+            blinkPeriodSec
     );
   }
 
@@ -143,8 +149,8 @@ class Cluster extends LoggingActor {
       context().system()
               .scheduler()
               .schedule(
-                      FiniteDuration.apply(10, TimeUnit.SECONDS),
-                      FiniteDuration.apply(10, TimeUnit.SECONDS),
+                      FiniteDuration.apply(blinkPeriodSec, TimeUnit.SECONDS),
+                      FiniteDuration.apply(blinkPeriodSec, TimeUnit.SECONDS),
                       inner,
                       Kill.getInstance(),
                       context().system().dispatcher(),
@@ -171,9 +177,15 @@ class FlameUmbrella extends LoggingActor {
 
   private FlameUmbrella(Function<akka.actor.ActorContext, Iterable<ActorRef>> actorsStarter,
                         Map<String, ActorPath> paths,
-                        List<Object> toBeTold) {
+                        List<Object> toBeTold, Graph graph) {
     this.paths = paths;
     this.toBeTold = toBeTold;
+
+    graph.components().forEach(vertexStream -> vertexStream.forEach(vertex -> {
+      if (vertex instanceof FlameMap) {
+        ((FlameMap) vertex).init();
+      }
+    }));
     flameNodes = actorsStarter.apply(context());
 
     // Reattach rears first
@@ -190,8 +202,8 @@ class FlameUmbrella extends LoggingActor {
   }
 
   static Props props(Function<akka.actor.ActorContext, Iterable<ActorRef>> flameNodesStarter,
-                     Map<String, ActorPath> paths) {
-    return Props.create(FlameUmbrella.class, flameNodesStarter, paths, new ArrayList<>());
+                     Map<String, ActorPath> paths, Graph graph) {
+    return Props.create(FlameUmbrella.class, flameNodesStarter, paths, new ArrayList<>(), graph);
   }
 
   @Override

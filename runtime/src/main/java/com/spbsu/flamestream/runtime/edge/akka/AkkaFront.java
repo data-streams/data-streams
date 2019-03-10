@@ -179,7 +179,6 @@ public class AkkaFront implements Front {
 
       time = Math.max(start.from().time(), time);
       lastEmitted = new GlobalTime(start.from().time() - 1, edgeContext.edgeId());
-      requestDebt = 0;
     }
 
     private void tryProcess() {

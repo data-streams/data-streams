@@ -28,6 +28,7 @@ public class LocalRuntime implements FlameRuntime {
   private final int millisBetweenCommits;
   private final boolean distributedAcker;
   private final boolean blinking;
+  private final int blinkPeriodSec;
 
   private LocalRuntime(
           ActorSystem system,
@@ -35,6 +36,7 @@ public class LocalRuntime implements FlameRuntime {
           int maxElementsInGraph,
           int millisBetweenCommits,
           boolean blinking,
+          int blinkPeriodSec,
           boolean distributedAcker,
           StateStorage stateStorage
   ) {
@@ -43,6 +45,7 @@ public class LocalRuntime implements FlameRuntime {
     this.maxElementsInGraph = maxElementsInGraph;
     this.millisBetweenCommits = millisBetweenCommits;
     this.system = system;
+    this.blinkPeriodSec = blinkPeriodSec;
     this.distributedAcker = distributedAcker;
     this.stateStorage = stateStorage;
   }
@@ -61,7 +64,8 @@ public class LocalRuntime implements FlameRuntime {
                     maxElementsInGraph,
                     millisBetweenCommits,
                     distributedAcker,
-                    blinking
+                    blinking,
+                    blinkPeriodSec
             ),
             "restarter"
     );
@@ -110,6 +114,7 @@ public class LocalRuntime implements FlameRuntime {
     private int maxElementsInGraph = DEFAULT_MAX_ELEMENTS_IN_GRAPH;
     private int millisBetweenCommits = DEFAULT_MILLIS_BETWEEN_COMMITS;
     private boolean blinking = false;
+    private int blinkPeriodSec = 10;
     private boolean distributedAcker = false;
     private StateStorage stateStorage = new InMemStateStorage();
 
@@ -128,6 +133,11 @@ public class LocalRuntime implements FlameRuntime {
 
     public Builder withBlink() {
       this.blinking = true;
+      return this;
+    }
+
+    public Builder blinkPeriodSec(int blinkPeriodSec) {
+      this.blinkPeriodSec = blinkPeriodSec;
       return this;
     }
 
@@ -161,6 +171,7 @@ public class LocalRuntime implements FlameRuntime {
               maxElementsInGraph,
               millisBetweenCommits,
               blinking,
+              blinkPeriodSec,
               distributedAcker,
               stateStorage
       );

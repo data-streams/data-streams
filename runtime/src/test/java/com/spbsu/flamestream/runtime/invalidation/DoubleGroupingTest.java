@@ -119,14 +119,21 @@ public class DoubleGroupingTest extends FlameStreamSuite {
   @Test
   public void singleWorkerBlinkTest() throws InterruptedException {
     try (LocalRuntime runtime = new LocalRuntime.Builder().parallelism(1).withBlink().build()) {
-      doubleGroupingTest(runtime, 50_000, true);
+      doubleGroupingTest(runtime, 20_000, true);
     }
   }
 
   @Test
   public void multipleWorkersBlinkTest() throws InterruptedException {
     try (LocalRuntime runtime = new LocalRuntime.Builder().parallelism(4).withBlink().build()) {
-      doubleGroupingTest(runtime, 50_000, true);
+      doubleGroupingTest(runtime, 20_000, true);
+    }
+  }
+
+  @Test
+  public void multipleWorkersDistributedAckerBlinkTest() throws InterruptedException {
+    try (LocalRuntime runtime = new LocalRuntime.Builder().parallelism(4).withBlink().distributedAcker(true).build()) {
+      doubleGroupingTest(runtime, 20_000, true);
     }
   }
 
@@ -143,7 +150,7 @@ public class DoubleGroupingTest extends FlameStreamSuite {
             .withStateStorage(redisStateStorage)
             .withBlink()
             .build()) {
-      doubleGroupingTest(runtime, 50_000, true);
+      doubleGroupingTest(runtime, 20_000, true);
     }
   }
 
@@ -159,7 +166,7 @@ public class DoubleGroupingTest extends FlameStreamSuite {
             .withStateStorage(rocksDBStateStorage)
             .withBlink()
             .build()) {
-      doubleGroupingTest(runtime, 50_000, true);
+      doubleGroupingTest(runtime, 20_000, true);
     }
 
     rocksDBStateStorage.close();

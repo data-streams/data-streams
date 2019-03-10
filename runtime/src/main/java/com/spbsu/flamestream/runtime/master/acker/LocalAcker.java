@@ -7,13 +7,14 @@ import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.runtime.graph.Joba;
 import com.spbsu.flamestream.runtime.master.acker.api.Ack;
-import com.spbsu.flamestream.runtime.master.acker.api.AckerInputMessage;
+import com.spbsu.flamestream.runtime.master.acker.api.Heartbeat;
 import com.spbsu.flamestream.runtime.master.acker.api.JobaTime;
 import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
 import com.spbsu.flamestream.runtime.master.acker.api.commit.MinTimeUpdateListener;
 import com.spbsu.flamestream.runtime.master.acker.api.registry.FrontTicket;
 import com.spbsu.flamestream.runtime.master.acker.api.registry.RegisterFront;
 import com.spbsu.flamestream.runtime.master.acker.api.registry.RegisterFrontFromTime;
+import com.spbsu.flamestream.runtime.master.acker.api.registry.UnregisterFront;
 import com.spbsu.flamestream.runtime.utils.akka.LoggingActor;
 import com.spbsu.flamestream.runtime.utils.akka.PingActor;
 import org.jetbrains.annotations.NotNull;
@@ -146,7 +147,8 @@ public class LocalAcker extends LoggingActor {
 
   private final HashMap<Joba.Id, Long> jobaTimesCache = new HashMap<>();
   private final SortedMap<GlobalTime, Long> ackCache = new TreeMap<>(Comparator.reverseOrder());
-  private final List<AckerInputMessage> fifoCache = new ArrayList<>();
+  private final List<Heartbeat> heartbeatCache = new ArrayList<>();
+  private final List<UnregisterFront> unregisterCache = new ArrayList<>();
 
   private final List<ActorRef> ackers;
   private final List<ActorRef> listeners = new ArrayList<>();
@@ -202,7 +204,8 @@ public class LocalAcker extends LoggingActor {
                     AlreadyRegisteredFrontRegisterer.Registered.class,
                     registered -> registered.sender.tell(registered.frontTicket(), self())
             )
-            .match(AckerInputMessage.class, fifoCache::add)
+            .match(Heartbeat.class, heartbeatCache::add)
+            .match(UnregisterFront.class, unregisterCache::add)
             .match(MinTimeUpdateListener.class, minTimeUpdateListener -> listeners.add(minTimeUpdateListener.actorRef))
             .match(MinTimeUpdate.class, minTimeUpdate -> {
               @Nullable MinTimeUpdate minTime = minTimeUpdater.onShardMinTimeUpdate(sender(), minTimeUpdate);
@@ -253,12 +256,18 @@ public class LocalAcker extends LoggingActor {
     )));
     jobaTimesCache.clear();
 
+    final boolean acksEmpty = ackCache.isEmpty();
     ackCache.forEach((globalTime, xor) -> ackers.get((int) (globalTime.time() % ackers.size()))
             .tell(new Ack(globalTime, xor), context().parent()));
     ackCache.clear();
 
-    fifoCache.forEach(heartbeat -> ackers.forEach(acker -> acker.tell(heartbeat, self())));
-    fifoCache.clear();
+    heartbeatCache.forEach(heartbeat -> ackers.forEach(acker -> acker.tell(heartbeat, self())));
+    heartbeatCache.clear();
+
+    if (acksEmpty) {
+      unregisterCache.forEach(unregisterFront -> ackers.forEach(acker -> acker.tell(unregisterFront, self())));
+      unregisterCache.clear();
+    }
 
     flushCounter = 0;
   }
