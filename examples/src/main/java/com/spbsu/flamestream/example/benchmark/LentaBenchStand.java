@@ -99,7 +99,7 @@ public class LentaBenchStand {
       return new TextDocument(
               r.get(0), // url order
               text.toString().toLowerCase(),
-              String.valueOf(ThreadLocalRandom.current().nextInt(0, 10)),
+              String.valueOf(ThreadLocalRandom.current().nextInt(0, 200)),
               counter.incrementAndGet()
       );
     });
@@ -226,6 +226,9 @@ public class LentaBenchStand {
         handles.get(i).unregister();
       }
 
+      final int sleepBetweenDocsMs = standConfig.sleepBetweenDocsMs();
+      LOG.info("Sleep between docs: {}", sleepBetweenDocsMs);
+
       final long[] start = {-1};
       final int[] skipped = {0};
       documents(standConfig.wikiDumpPath()).forEach(textDocument -> {
@@ -235,7 +238,7 @@ public class LentaBenchStand {
         if (skipped[0] > skip && start[0] == -1) {
           start[0] = System.currentTimeMillis();
         }
-        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(standConfig.sleepBetweenDocsMs()));
+        LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(sleepBetweenDocsMs));
       });
       awaitConsumer.await(60, TimeUnit.MINUTES);
       final double timeInSec = (System.currentTimeMillis() - start[0]) / 1000.0;
