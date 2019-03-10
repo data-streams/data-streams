@@ -83,11 +83,16 @@ class Cluster extends LoggingActor {
     final Registry registry = new InMemoryRegistry();
     inner = context().actorOf(FlameUmbrella.props(
             context -> {
-              final List<ActorRef> ackers = paths.keySet()
-                      .stream()
-                      .map(id -> context.actorOf(Acker.props(0), "acker-" + id))
-                      .collect(Collectors.toList());
-              final ActorRef localAcker = context.actorOf(LocalAcker.props(ackers));
+              final List<ActorRef> ackers;
+              if (distributedAcker) {
+                ackers = paths.keySet()
+                        .stream()
+                        .map(id -> context.actorOf(Acker.props(0), "acker-" + id))
+                        .collect(Collectors.toList());
+              } else {
+                ackers = Collections.singletonList(context.actorOf(Acker.props(0), "acker"));
+              }
+              final ActorRef localAcker = context.actorOf(LocalAcker.props(ackers), "localAcker");
               final ActorRef registryHolder = context.actorOf(
                       RegistryHolder.props(registry, localAcker),
                       "registry-holder"
