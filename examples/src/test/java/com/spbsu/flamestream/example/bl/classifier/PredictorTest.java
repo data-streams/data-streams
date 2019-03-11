@@ -111,7 +111,9 @@ public class PredictorTest {
     LOGGER.info("Updating weights");
     Optimizer optimizer = new SoftmaxRegressionOptimizer(predictor.getTopics());
     String[] correctTopics = topics.stream().limit(len - testSize).toArray(String[]::new);
+    double kek = System.nanoTime();
     Mx newWeights = optimizer.optimizeWeights(trainingSet, correctTopics, predictor.getWeights());
+    kek = System.nanoTime() - kek;
     predictor.updateWeights(newWeights);
 
     double truePositives = 0;
@@ -134,6 +136,7 @@ public class PredictorTest {
 
     double accuracy = truePositives / testSize;
     LOGGER.info("Accuracy: {}", accuracy);
+    LOGGER.info("Time in nanosec: {}", kek);
     assertTrue(accuracy >= 0.62);
   }
 
