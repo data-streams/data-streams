@@ -104,21 +104,22 @@ public class PredictorTest {
 
     final int len = topics.size();
     final int testSize = 1000;
+    final int trainSize = 10000;
 
     List<String> testTopics = topics.stream().skip(len - testSize).collect(Collectors.toList());
     List<String> testTexts = texts.stream().skip(len - testSize).collect(Collectors.toList());
     documents = documents.stream().skip(len - testSize).collect(Collectors.toList());
 
-    SparseMx trainingSet = new SparseMx(mx.stream().limit(len - testSize).toArray(SparseVec[]::new));
+    SparseMx trainingSet = new SparseMx(mx.stream().limit(trainSize).toArray(SparseVec[]::new));
     LOGGER.info("Updating weights");
     Optimizer optimizer = SoftmaxRegressionOptimizer
             .builder()
             .build(predictor.getTopics());
-    String[] correctTopics = topics.stream().limit(len - testSize).toArray(String[]::new);
+    String[] correctTopics = topics.stream().limit(trainSize).toArray(String[]::new);
 
     TDoubleArrayList times = new TDoubleArrayList();
     Mx newWeights = predictor.getWeights();
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 100; i++) {
       double kek = System.nanoTime();
       newWeights = optimizer.optimizeWeights(trainingSet, correctTopics, predictor.getWeights());
       kek = System.nanoTime() - kek;
