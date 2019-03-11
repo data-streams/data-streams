@@ -22,6 +22,8 @@ import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitResultConsumer;
 import com.typesafe.config.ConfigFactory;
+import gnu.trove.list.array.TDoubleArrayList;
+import gnu.trove.list.array.TIntArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -113,9 +115,16 @@ public class PredictorTest {
             .builder()
             .build(predictor.getTopics());
     String[] correctTopics = topics.stream().limit(len - testSize).toArray(String[]::new);
-    double kek = System.nanoTime();
-    Mx newWeights = optimizer.optimizeWeights(trainingSet, correctTopics, predictor.getWeights());
-    kek = System.nanoTime() - kek;
+
+    TDoubleArrayList times = new TDoubleArrayList();
+    Mx newWeights = predictor.getWeights();
+    for (int i = 0; i < 10; i++) {
+      double kek = System.nanoTime();
+      newWeights = optimizer.optimizeWeights(trainingSet, correctTopics, predictor.getWeights());
+      kek = System.nanoTime() - kek;
+      LOGGER.info("Time in nanosec: {}", kek);
+      times.add(kek);
+    }
     predictor.updateWeights(newWeights);
 
     double truePositives = 0;
@@ -138,7 +147,7 @@ public class PredictorTest {
 
     double accuracy = truePositives / testSize;
     LOGGER.info("Accuracy: {}", accuracy);
-    LOGGER.info("Time in nanosec: {}", kek);
+    LOGGER.info("Time in nanosec: {}", times);
     assertTrue(accuracy >= 0.62);
   }
 
