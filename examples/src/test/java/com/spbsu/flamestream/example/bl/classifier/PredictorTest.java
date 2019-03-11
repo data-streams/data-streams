@@ -109,7 +109,9 @@ public class PredictorTest {
 
     SparseMx trainingSet = new SparseMx(mx.stream().limit(len - testSize).toArray(SparseVec[]::new));
     LOGGER.info("Updating weights");
-    Optimizer optimizer = new SoftmaxRegressionOptimizer(predictor.getTopics());
+    Optimizer optimizer = SoftmaxRegressionOptimizer
+            .builder()
+            .build(predictor.getTopics());
     String[] correctTopics = topics.stream().limit(len - testSize).toArray(String[]::new);
     double kek = System.nanoTime();
     Mx newWeights = optimizer.optimizeWeights(trainingSet, correctTopics, predictor.getWeights());

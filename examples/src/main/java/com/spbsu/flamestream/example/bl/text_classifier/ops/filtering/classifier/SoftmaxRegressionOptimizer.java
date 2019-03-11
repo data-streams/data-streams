@@ -22,17 +22,71 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class SoftmaxRegressionOptimizer implements Optimizer {
+  public static class Builder {
+    private double startAlpha = 0.14;
+    private double step = 0.999997;
+    private double lambda1 = 0.1;
+    private double lambda2 = 0.1;
+    private int maxIter = 50;
+    private int batchSize = 500;
+
+    public Builder startAlpha(double startAlpha) {
+      this.startAlpha = startAlpha;
+      return this;
+    }
+
+    public Builder step(double step) {
+      this.step = step;
+      return this;
+    }
+
+    public Builder lambda1(double lambda1) {
+      this.lambda1 = lambda1;
+      return this;
+    }
+
+    public Builder lambda2(double lambda2) {
+      this.lambda2 = lambda2;
+      return this;
+    }
+
+    public Builder maxIter(int maxIter) {
+      this.maxIter = maxIter;
+      return this;
+    }
+
+    public Builder batchSize(int batchSize) {
+      this.batchSize = batchSize;
+      return this;
+    }
+
+    public SoftmaxRegressionOptimizer build(String[] topics) {
+      return new SoftmaxRegressionOptimizer(topics, startAlpha, step, lambda1, lambda2, maxIter, batchSize);
+    }
+  }
+
   private static final Logger LOGGER = LoggerFactory.getLogger(SoftmaxRegressionOptimizer.class.getName());
   private final List<String> topicList;
 
-  final double startAlpha = 0.14;
-  final double step = 0.999997;
-  final double lambda1 = 0.1;
-  final double lambda2 = 0.1;
-  final double maxIter = 50;
+  final double startAlpha;
+  final double step;
+  final double lambda1;
+  final double lambda2;
+  final int maxIter;
+  final int batchSize;
 
-  public SoftmaxRegressionOptimizer(String[] topics) {
+  private SoftmaxRegressionOptimizer(String[] topics, double startAlpha, double step, double lambda1, double lambda2, int maxIter, int batchSize) {
     topicList = Arrays.asList(topics);
+    this.startAlpha = startAlpha;
+    this.step = step;
+    this.lambda1 = lambda1;
+    this.lambda2 = lambda2;
+    this.maxIter = maxIter;
+    this.batchSize = batchSize;
+  }
+
+  public static Builder builder() {
+    return new Builder();
   }
 
   private Mx l2Gradient(Mx weights, Mx prevWeights) {
@@ -76,7 +130,7 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
 
   private Mx computeStochasticSoftmaxValues(TIntList indices, Mx weights, Mx trainingSet) {
     final int classesCount = weights.rows();
-    final Vec[] rows = IntStream.range(0, BATCH_SIZE).map(indices::get).parallel().mapToObj(trainingSet::row).map(point -> {
+    final Vec[] rows = IntStream.range(0, batchSize).map(indices::get).parallel().mapToObj(trainingSet::row).map(point -> {
       double denom = 0.;
       final Vec probs = new ArrayVec(classesCount);
       for (int j = 0; j < classesCount; j++) {
@@ -100,15 +154,13 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
     return new RowsVecArrayMx(rows);
   }
 
-  private static final int BATCH_SIZE = 500;
-
   private SoftmaxData softmaxStochasticGradient(final TIntList indices, final Mx weights, final Mx trainingSet, final int[] correctTopics, Mx gradAll) {
     final Mx probabilities = computeStochasticSoftmaxValues(indices, weights, trainingSet);
     final int classesCount = weights.rows();
 
     VecTools.scale(gradAll, 0);
     IntStream.range(0, classesCount).parallel().forEach(i -> {
-      for (int index = 0; index < BATCH_SIZE; index++) {
+      for (int index = 0; index < batchSize; index++) {
         int j = indices.get(index);
         final Vec point = trainingSet.row(j);
         final Vec grad = gradAll.row(i);
@@ -122,9 +174,9 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
       }
     });
 
-    VecTools.scale(gradAll, trainingSet.rows() / (double) BATCH_SIZE);
+    VecTools.scale(gradAll, trainingSet.rows() / (double) batchSize);
 
-    final double score = IntStream.range(0, BATCH_SIZE)
+    final double score = IntStream.range(0, batchSize)
             .mapToDouble(idx -> Math.log(probabilities.get(idx, correctTopics[indices.get(idx)])))
             .average()
             .orElse(Double.NEGATIVE_INFINITY);
