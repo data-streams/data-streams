@@ -61,6 +61,117 @@ public class PredictorTest {
   private static final String PATH_TO_TEST_DATA = "src/test/resources/sklearn_prediction";
 
   @Test
+  public void testWithPreviousWeights() {
+    final List<String> topics = new ArrayList<>();
+    final List<String> texts = new ArrayList<>();
+    final List<SparseVec> mx = new ArrayList<>();
+    List<Document> documents = new ArrayList<>();
+    final SklearnSgdPredictor predictor = new SklearnSgdPredictor(CNT_VECTORIZER_PATH, WEIGHTS_PATH);
+    predictor.init();
+    try (BufferedReader br = new BufferedReader(new FileReader(new File(PATH_TO_TEST_DATA)))) {
+      final double[] data = parseDoubles(br.readLine());
+      final int testCount = (int) data[0];
+      final int features = (int) data[1];
+
+      for (int i = 0; i < testCount; i++) {
+        final String docText = br.readLine().toLowerCase();
+        texts.add(docText);
+
+        String topic = br.readLine();
+        topics.add(topic);
+        final double[] info = parseDoubles(br.readLine());
+        final int[] indeces = new int[info.length / 2];
+        final double[] values = new double[info.length / 2];
+        for (int k = 0; k < info.length; k += 2) {
+          final int index = (int) info[k];
+          final double value = info[k + 1];
+
+          indeces[k / 2] = index;
+          values[k / 2] = value;
+        }
+
+        final Map<String, Double> tfIdf = new HashMap<>();
+        SparseVec vec = new SparseVec(features, indeces, values);
+
+        SklearnSgdPredictor.text2words(docText).forEach(word -> {
+          final int featureIndex = predictor.wordIndex(word);
+          tfIdf.put(word, vec.get(featureIndex));
+        });
+        final Document document = new Document(tfIdf);
+        documents.add(document);
+
+        mx.add(vec);
+      }
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+
+    final int len = topics.size();
+    final int testSize = 3000;
+    final int trainSize = 10000;
+    final int trainBatchSize = 1000;
+
+    List<String> testTopics = topics.stream().skip(len - testSize).collect(Collectors.toList());
+    List<String> testTexts = texts.stream().skip(len - testSize).collect(Collectors.toList());
+    documents = documents.stream().skip(len - testSize).collect(Collectors.toList());
+
+
+
+    LOGGER.info("Updating weights");
+    Optimizer optimizer = SoftmaxRegressionOptimizer
+            .builder()
+            .startAlpha(0.05)
+            .lambda2(0.1)
+            .batchSize(trainBatchSize)
+            .build(predictor.getTopics());
+
+    double kek = System.nanoTime();
+    int rows = predictor.getWeights().rows();
+    int columns = predictor.getWeights().columns();
+    Mx prevWeights = new VecBasedMx(rows, columns);
+    MxIterator iterator = prevWeights.nonZeroes();
+    while (iterator.advance()) {
+      prevWeights.set(iterator.row(), iterator.column(), iterator.value());
+    }
+
+    Mx newWeights = prevWeights;
+    /*for (int offset = 0; offset < trainSize; offset += trainBatchSize) {
+      SparseMx trainingBatch = new SparseMx(mx.stream().skip(offset).limit(trainBatchSize).toArray(SparseVec[]::new));
+      String[] correctTopics = topics.stream().limit(trainSize).toArray(String[]::new);
+      newWeights = optimizer.optimizeWeights(trainingBatch, correctTopics, newWeights);
+    }*/
+    kek = System.nanoTime() - kek;
+    LOGGER.info("Time in nanosec: {}", kek);
+
+    //Mx newWeights = optimizer.optimizeWeights(partialFitSet, partialFitCorrectTopics, prevWeights);
+
+    predictor.updateWeights(newWeights);
+
+    double truePositives = 0;
+    for (int i = 0; i < testSize; i++) {
+      String text = testTexts.get(i);
+      String ans = testTopics.get(i);
+      Document doc = documents.get(i);
+
+      Topic[] prediction = predictor.predict(doc);
+
+      Arrays.sort(prediction);
+      if (ans.equals(prediction[0].name())) {
+        truePositives++;
+      }
+      LOGGER.info("Doc: {}", text);
+      LOGGER.info("Real answers: {}", ans);
+      LOGGER.info("Predict: {}", (Object) prediction);
+      LOGGER.info("\n");
+    }
+
+    double accuracy = truePositives / testSize;
+    LOGGER.info("Accuracy: {}", accuracy);
+    assertTrue(accuracy >= 0.62);
+  }
+
+
+  @Test
   public void partialFitTestWithPreviousWeightsBatches() {
     final List<String> topics = new ArrayList<>();
     final List<String> texts = new ArrayList<>();
