@@ -9,6 +9,7 @@ import com.expleague.commons.math.vectors.impl.mx.RowsVecArrayMx;
 import com.expleague.commons.math.vectors.impl.mx.SparseMx;
 import com.expleague.commons.math.vectors.impl.mx.VecBasedMx;
 import com.expleague.commons.math.vectors.impl.vectors.ArrayVec;
+import com.expleague.commons.math.vectors.impl.vectors.SparseVec;
 import com.expleague.commons.util.ArrayTools;
 import gnu.trove.list.TIntList;
 import gnu.trove.list.array.TIntArrayList;
@@ -23,10 +24,10 @@ import java.util.stream.Stream;
 
 public class SoftmaxRegressionOptimizer implements Optimizer {
   public static class Builder {
-    private double startAlpha = 0.14;
+    private double startAlpha = 1;
     private double step = 0.999997;
     private double lambda1 = 0.1;
-    private double lambda2 = 0.1;
+    private double lambda2 = 0.001;
     private int maxIter = 50;
     private int batchSize = 500;
 
@@ -96,7 +97,7 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
       gradient.set(mxIterator.row(), mxIterator.column(), 2 * mxIterator.value());
     }
     final MxIterator prevMxIterator = prevWeights.nonZeroes();
-    while (mxIterator.advance()) {
+    while (prevMxIterator.advance()) {
       gradient.adjust(prevMxIterator.row(), prevMxIterator.column(), - 2 * prevMxIterator.value());
     }
     return gradient;
@@ -136,9 +137,9 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
       for (int j = 0; j < classesCount; j++) {
         double numer = 0;
         final VecIterator pointIt = point.nonZeroes();
-        final Vec weightsRow = weights.row(j);
+        //final Vec weightsRow = weights.row(j);
         while (pointIt.advance()) {
-          numer += pointIt.value() * weightsRow.get(pointIt.index());
+          numer += pointIt.value() * weights.get(j, pointIt.index());
         }
         denom += Math.exp(numer);
         probs.set(j, Math.exp(numer));
@@ -187,7 +188,9 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
     double alpha = startAlpha;
     final int[] indices = Stream.of(correctTopics).mapToInt(topicList::indexOf).toArray();
 
-    final Mx weights = new VecBasedMx(prevWeights.rows(), prevWeights.columns());
+    final Mx weights = VecTools.copy(prevWeights);
+    //final Mx weights = new VecBasedMx(prevWeights.rows(), prevWeights.columns());
+
     final Mx gradAll = new VecBasedMx(prevWeights.rows(), prevWeights.columns());
 
     final TIntList stochasticIndices = new TIntArrayList(ArrayTools.sequence(0, trainingSet.rows()));
@@ -236,13 +239,6 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
           weights.adjust(i, vecIterator.index(), vecIterator.value());
         }
       }
-
-      /*for (int i = 0; i < weights.rows(); i++) {
-        final VecIterator vecIterator = data.gradients.row(i).nonZeroes();
-        while (vecIterator.advance()) {
-          weights.adjust(i, vecIterator.index(), vecIterator.value());
-        }
-      }*/
 
       alpha *= step;
     }
