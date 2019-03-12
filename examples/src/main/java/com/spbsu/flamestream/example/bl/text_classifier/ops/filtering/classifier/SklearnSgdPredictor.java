@@ -94,6 +94,42 @@ public class SklearnSgdPredictor implements TopicsPredictor {
     return result;
   }
 
+  public Topic[] predict(Vec vec) {
+    loadMeta();
+    loadVocabulary();
+
+    final Vec probabilities;
+    { // compute topic probabilities
+      final VecIterator docNZIt = vec.nonZeroes();
+      Vec score = new ArrayVec(weights.rows());
+      while (docNZIt.advance()) {
+        VecTools.incscale(score, weights.col(docNZIt.index()), docNZIt.value());
+      }
+      final Vec sum = VecTools.sum(score, intercept);
+      final Vec scaled = VecTools.scale(sum, -1);
+      VecTools.exp(scaled);
+
+      final Vec vecOnes = new ArrayVec(score.dim());
+      VecTools.fill(vecOnes, 1);
+
+      probabilities = VecTools.sum(scaled, vecOnes);
+      for (int i = 0; i < probabilities.dim(); i++) {
+        double changed = 1 / probabilities.get(i);
+        probabilities.set(i, changed);
+      }
+      final double rowSum = VecTools.sum(probabilities);
+      VecTools.scale(probabilities, 1 / rowSum);
+    }
+
+    final Topic[] result = new Topic[probabilities.dim()];
+    { //fill in topics
+      for (int index = 0; index < probabilities.dim(); index++) {
+        result[index] = new Topic(topics[index], Integer.toString(index), probabilities.get(index));
+      }
+    }
+    return result;
+  }
+
   @Override
   public void updateWeights(Mx weights) {
     this.weights = weights;

@@ -3,12 +3,16 @@ package com.spbsu.flamestream.example.bl.classifier;
 import akka.actor.ActorSystem;
 import com.expleague.commons.math.MathTools;
 import com.expleague.commons.math.vectors.Mx;
+import com.expleague.commons.math.vectors.Vec;
+import com.expleague.commons.math.vectors.impl.mx.RowsVecArrayMx;
 import com.expleague.commons.math.vectors.impl.mx.SparseMx;
+import com.expleague.commons.math.vectors.impl.mx.VecBasedMx;
 import com.expleague.commons.math.vectors.impl.vectors.SparseVec;
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
+import com.spbsu.flamestream.example.bl.text_classifier.model.TextDocument;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Document;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Optimizer;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.SklearnSgdPredictor;
@@ -22,6 +26,9 @@ import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitResultConsumer;
 import com.typesafe.config.ConfigFactory;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
@@ -31,18 +38,34 @@ import scala.concurrent.duration.Duration;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.RandomAccessFile;
+import java.io.Reader;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static java.lang.Math.abs;
 import static java.lang.Math.max;
@@ -53,6 +76,92 @@ public class PredictorTest {
   private static final String CNT_VECTORIZER_PATH = "src/main/resources/cnt_vectorizer";
   private static final String WEIGHTS_PATH = "src/main/resources/classifier_weights";
   private static final String PATH_TO_TEST_DATA = "src/test/resources/sklearn_prediction";
+
+  @Test
+  public void testClassifier() throws IOException {
+    final List<TextDocument> collect = documents("/home/tyoma/Downloads/news_lenta.csv").limit(20000)
+            .filter(textDocument -> !textDocument.topic().equals(""))
+            .filter(textDocument -> !textDocument.topic().equals("Все"))
+            .collect(Collectors.toList());
+    Collections.reverse(collect);
+
+    final SklearnSgdPredictor predictor = new SklearnSgdPredictor(CNT_VECTORIZER_PATH, WEIGHTS_PATH);
+    predictor.init();
+    final List<Vec> xTrain = new ArrayList<>();
+    final List<String> yTrain = new ArrayList<>();
+    final List<Vec> xTest = new ArrayList<>();
+    final List<String> yTest = new ArrayList<>();
+
+    final Map<String, Integer> idf = new HashMap<>();
+    collect.forEach(textDocument -> SklearnSgdPredictor.text2words(textDocument.content())
+            .collect(Collectors.toSet())
+            .forEach(s -> idf.merge(s, 1, Integer::sum)));
+
+    final int counter[] = {0};
+    collect.forEach(textDocument -> {
+      counter[0] += 1;
+      // update idf
+      //SklearnSgdPredictor.text2words(textDocument.content())
+      //        .collect(Collectors.toSet())
+      //        .forEach(s -> idf.merge(s, 1, Integer::sum));
+
+
+      final Map<String, Long> tf = SklearnSgdPredictor.text2words(textDocument.content())
+              .collect(Collectors.groupingBy(Function.identity(), Collectors.counting()));
+      final Map<String, Double> tfIdf = new HashMap<>();
+      { //normalized tf-idf
+        double squareSum = 0.0;
+        for (String word : tf.keySet()) {
+          double tfIdfValue = tf.get(word) * Math.log((double) collect.size() / (double) idf.get(word)) + 1;
+          squareSum += (tfIdfValue * tfIdfValue);
+          tfIdf.put(word, tfIdfValue);
+        }
+        final double norm = Math.sqrt(squareSum);
+        tfIdf.forEach((s, v) -> tfIdf.put(s, v / norm));
+      }
+
+      final Vec vec = new SparseVec(predictor.getWeights().columns());
+      tfIdf.forEach((s, val) -> {
+        final int index = predictor.wordIndex(s);
+        if (index != -1) {
+          vec.set(index, val);
+        }
+      });
+
+      if (counter[0] % 3 == 0) {
+        xTest.add(vec);
+        yTest.add(textDocument.topic());
+      } else {
+        xTrain.add(vec);
+        yTrain.add(textDocument.topic());
+      }
+    });
+
+    final Optimizer optimizer = new SoftmaxRegressionOptimizer(predictor.getTopics());
+    final Mx prev = new SparseMx(predictor.getWeights().rows(), predictor.getWeights().columns());
+    final Mx weights = optimizer.optimizeWeights(
+            new RowsVecArrayMx(xTrain.toArray(new Vec[xTrain.size()])),
+            yTrain.toArray(new String[yTrain.size()]),
+            prev
+    );
+
+    predictor.updateWeights(weights);
+    double truePositives = 0;
+    for (int i = 0; i < xTest.size(); i++) {
+      Topic[] prediction = predictor.predict(xTest.get(i));
+      Arrays.sort(prediction);
+      if (yTest.get(i).equals(prediction[0].name().trim())) {
+        truePositives++;
+      }
+      //LOGGER.info("Doc: {}", text);
+      //LOGGER.info("Real answers: {}", ans);
+      //LOGGER.info("Predict: {}", (Object) prediction);
+      //LOGGER.info("\n");
+    }
+
+    double accuracy = truePositives / xTest.size();
+    LOGGER.info("Accuracy: {}", accuracy);
+  }
 
   @Test
   public void partialFitTest() {
@@ -249,5 +358,37 @@ public class PredictorTest {
             .stream(line.split(" "))
             .mapToDouble(Double::parseDouble)
             .toArray();
+  }
+
+  private Stream<TextDocument> documents(String path) throws IOException {
+    final Reader reader = new InputStreamReader(new FileInputStream(path));
+    final CSVParser csvFileParser = new CSVParser(reader, CSVFormat.DEFAULT);
+    { // skip headers
+      Iterator<CSVRecord> iter = csvFileParser.iterator();
+      iter.next();
+    }
+
+    final Spliterator<CSVRecord> csvSpliterator = Spliterators.spliteratorUnknownSize(
+            csvFileParser.iterator(),
+            Spliterator.IMMUTABLE
+    );
+    AtomicInteger counter = new AtomicInteger(0);
+    return StreamSupport.stream(csvSpliterator, false).map(r -> {
+      Pattern p = Pattern.compile("\\w+", Pattern.UNICODE_CHARACTER_CLASS);
+      String recordText = r.get(1); // text order
+      Matcher m = p.matcher(recordText);
+      StringBuilder text = new StringBuilder();
+      while (m.find()) {
+        text.append(" ");
+        text.append(m.group());
+      }
+      return new TextDocument(
+              r.get(4), // url order
+              text.substring(1).toLowerCase(),
+              String.valueOf(ThreadLocalRandom.current().nextInt(0, 10)),
+              counter.incrementAndGet(),
+              r.get(0)
+      );
+    });
   }
 }
