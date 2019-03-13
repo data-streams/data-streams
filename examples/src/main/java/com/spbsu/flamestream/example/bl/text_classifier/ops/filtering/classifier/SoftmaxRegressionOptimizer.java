@@ -186,6 +186,13 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
 
   public Mx optimizeWeights(Mx trainingSet, String[] correctTopics, Mx prevWeights) {
     double alpha = startAlpha;
+    for (String topic: correctTopics) {
+      if (topicList.indexOf(topic) == -1) {
+        LOGGER.info("Bad topic {}", topic);
+      }
+    }
+    LOGGER.info("kek{}kek{}kek", topicList.get(0), "соцсети");
+    LOGGER.info("index {}", topicList.indexOf("соцсети"));
     final int[] indices = Stream.of(correctTopics).mapToInt(topicList::indexOf).toArray();
 
     final Mx weights = VecTools.copy(prevWeights);

@@ -78,6 +78,7 @@ public class LentaTest extends FlameAkkaSuite {
               r.get(0), // url order
               text.substring(1).toLowerCase(),
               String.valueOf(ThreadLocalRandom.current().nextInt(0, 10)),
+              r.get(4),
               counter.incrementAndGet()
       );
     });

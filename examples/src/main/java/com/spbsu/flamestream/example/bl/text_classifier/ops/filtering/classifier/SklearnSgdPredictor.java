@@ -14,8 +14,11 @@ import gnu.trove.map.hash.TObjectIntHashMap;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Map;
@@ -118,7 +121,10 @@ public class SklearnSgdPredictor implements TopicsPredictor {
     }
 
     final File metaData = new File(weightsPath);
-    try (final BufferedReader br = new BufferedReader(new FileReader(metaData))) {
+    try (final BufferedReader br = new BufferedReader(new InputStreamReader(
+            new FileInputStream(metaData),
+            StandardCharsets.UTF_8
+    ))) {
       final double[] meta = parseDoubles(br.readLine());
       final int classes = (int) meta[0];
       final int currentFeatures = (int) meta[1];
@@ -164,7 +170,10 @@ public class SklearnSgdPredictor implements TopicsPredictor {
 
     final File countFile = new File(cntVectorizerPath);
     countVectorizer = new TObjectIntHashMap<>();
-    try (final BufferedReader countFileReader = new BufferedReader(new FileReader(countFile))) {
+    try (final BufferedReader countFileReader = new BufferedReader(new InputStreamReader(
+            new FileInputStream(countFile),
+            StandardCharsets.UTF_8
+    ))) {
       String line;
       while ((line = countFileReader.readLine()) != null) {
         final String[] items = line.split(" ");
