@@ -64,6 +64,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -78,8 +79,8 @@ public class PredictorTest {
   private static final String PATH_TO_TEST_DATA = "src/test/resources/sklearn_prediction";
   private static final String PATH_TO_DATA = "src/test/resources/news_lenta.csv";
   private static int len;
-  private static final int testSize = 3000;
-  private static final int trainSize = 10000;
+  private static int testSize = 3000;
+  private static int trainSize = 10000;
 
   private final List<String> topics = new ArrayList<>();
   private final List<String> texts = new ArrayList<>();
@@ -105,6 +106,8 @@ public class PredictorTest {
     documents.clear();
     topics.clear();
     texts.clear();
+    testSize = 9000;
+    trainSize = 30000;
   }
 
   private Stream<TextDocument> documents() throws IOException {
@@ -190,11 +193,13 @@ public class PredictorTest {
 
     len = topics.size();
 
-    testTopics = topics.stream().skip(len - testSize).collect(Collectors.toList());
-    testTexts = texts.stream().skip(len - testSize).collect(Collectors.toList());
-    documents = documents.stream().skip(len - testSize).collect(Collectors.toList());
-    trainingSet = new SparseMx(mx.stream().limit(trainSize).toArray(SparseVec[]::new));
-    correctTopics = topics.stream().limit(trainSize).toArray(String[]::new);
+    testTopics = IntStream.range(0, len).filter(i -> i % 13 >= 10).mapToObj(topics::get).collect(Collectors.toList());
+    testTexts = IntStream.range(0, len).filter(i -> i % 13 >= 10).mapToObj(texts::get).collect(Collectors.toList());
+    documents = IntStream.range(0, len).filter(i -> i % 13 >= 10).mapToObj(documents::get).collect(Collectors.toList());
+    trainingSet = new SparseMx(IntStream.range(0, len).filter(i -> i % 13 < 10).mapToObj(mx::get).toArray(SparseVec[]::new));
+    correctTopics = IntStream.range(0, len).filter(i -> i % 13 < 10).mapToObj(topics::get).toArray(String[]::new);
+    trainSize = correctTopics.length;
+    testSize = testTopics.size();
   }
 
   private long time(String url) {
@@ -216,7 +221,9 @@ public class PredictorTest {
       Map<String, Integer> df = new HashMap<>();
 
       AtomicLong currentDate = new AtomicLong(0);
-      double lam = 0.99999;
+      double lam = 0.9999;
+
+      final int windowSize = windowSizeDays * 200;
 
       documents().forEach(doc -> {
         long date = time(doc.name());
@@ -248,7 +255,7 @@ public class PredictorTest {
                 .sum();
         Map<String, Double> tfIdf = new HashMap<>();
         cnt.forEach((key, value) -> {
-          final double tfIdfValue = (value / sum) * Math.log(testCount / (idf.getOrDefault(key, 0d) + df.getOrDefault(key, 0))) + 1;
+          final double tfIdfValue = (value / sum) * Math.log(windowSize / (idf.getOrDefault(key, 0d) + df.getOrDefault(key, 0))) + 1;
           tfIdf.put(key, tfIdfValue);
         });
 
@@ -273,11 +280,13 @@ public class PredictorTest {
 
     len = topics.size();
 
-    testTopics = topics.stream().skip(len - testSize).collect(Collectors.toList());
-    testTexts = texts.stream().skip(len - testSize).collect(Collectors.toList());
-    documents = documents.stream().skip(len - testSize).collect(Collectors.toList());
-    trainingSetList = mx.stream().limit(trainSize).collect(Collectors.toList());
-    correctTopics = topics.stream().limit(trainSize).toArray(String[]::new);
+    testTopics = IntStream.range(0, len).filter(i -> i % 13 >= 10).mapToObj(topics::get).collect(Collectors.toList());
+    testTexts = IntStream.range(0, len).filter(i -> i % 13 >= 10).mapToObj(texts::get).collect(Collectors.toList());
+    documents = IntStream.range(0, len).filter(i -> i % 13 >= 10).mapToObj(documents::get).collect(Collectors.toList());
+    trainingSetList = IntStream.range(0, len).filter(i -> i % 13 < 10).mapToObj(mx::get).collect(Collectors.toList());
+    correctTopics = IntStream.range(0, len).filter(i -> i % 13 < 10).mapToObj(topics::get).toArray(String[]::new);
+    trainSize = correctTopics.length;
+    testSize = testTopics.size();
   }
 
   private void readCompleteIdf() {
@@ -383,8 +392,8 @@ public class PredictorTest {
     LOGGER.info("Updating weights");
     Optimizer optimizer = SoftmaxRegressionOptimizer
             .builder()
-            .startAlpha(0.2)
-            .lambda2(0.1)
+            .startAlpha(0.08)
+            .lambda2(0.2)
             .build(allTopics);
 
     double kek = System.nanoTime();
@@ -399,14 +408,13 @@ public class PredictorTest {
 
   @Test
   public void partialFitTestWindowIdfBatches() {
-    calcWindowIdf(1);
-    final int trainBatchSizes[] = new int[]{5000, 2000, 1000, 1000, 1000};
+    calcWindowIdf(10);
+    final int trainBatchSizes[] = new int[]{15000, 3000, 3000, 3000, 3000, 3000};
     LOGGER.info("Updating weights");
     Optimizer optimizer = SoftmaxRegressionOptimizer
             .builder()
-            .startAlpha(0.14)
-            .lambda2(0.1)
-            .batchSize(500)
+            .startAlpha(0.08)
+            .lambda2(0.2)
             .build(allTopics);
 
     double kek = System.nanoTime();
@@ -414,6 +422,7 @@ public class PredictorTest {
     Mx newWeights = startMx();
     for (int i = 0, offset = 0; i < trainBatchSizes.length; offset += trainBatchSizes[i], i++) {
       final int trainBatchSize = trainBatchSizes[i];
+      LOGGER.info("offset: {}, batch size: {}", offset, trainBatchSize);
       SparseMx trainingBatch = new SparseMx(trainingSetList.stream().skip(offset).limit(trainBatchSize).toArray(SparseVec[]::new));
       String[] correctTopicsBatch = Arrays.stream(correctTopics).skip(offset).limit(trainBatchSize).toArray(String[]::new);
       newWeights = optimizer.optimizeWeights(trainingBatch, correctTopicsBatch, newWeights);
