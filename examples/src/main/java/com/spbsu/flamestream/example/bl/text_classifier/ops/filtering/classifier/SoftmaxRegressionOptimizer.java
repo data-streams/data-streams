@@ -16,9 +16,12 @@ import gnu.trove.list.array.TIntArrayList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -103,35 +106,9 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
     return gradient;
   }
 
-  private Mx computeSoftmaxValues(Mx weights, Mx trainingSet) {
-    final int classesCount = weights.rows();
-    final Vec[] rows = IntStream.range(0, trainingSet.rows()).parallel().mapToObj(trainingSet::row).map(point -> {
-      double denom = 0.;
-      final Vec probs = new ArrayVec(classesCount);
-      for (int j = 0; j < classesCount; j++) {
-        double numer = 0;
-        final VecIterator pointIt = point.nonZeroes();
-        final Vec weightsRow = weights.row(j);
-        while (pointIt.advance()) {
-          numer += pointIt.value() * weightsRow.get(pointIt.index());
-        }
-        denom += Math.exp(numer);
-        probs.set(j, Math.exp(numer));
-      }
-
-      for (int i = 0; i < probs.dim(); i++) {
-        final double value = probs.get(i);
-        probs.set(i, value / denom);
-      }
-      return probs;
-    }).toArray(Vec[]::new);
-
-    return new RowsVecArrayMx(rows);
-  }
-
   private Mx computeStochasticSoftmaxValues(TIntList indices, Mx weights, Mx trainingSet) {
     final int classesCount = weights.rows();
-    final Vec[] rows = IntStream.range(0, batchSize).map(indices::get).parallel().mapToObj(trainingSet::row).map(point -> {
+    final Vec[] rows = IntStream.range(0, indices.size()).map(indices::get).parallel().mapToObj(trainingSet::row).map(point -> {
       double denom = 0.;
       final Vec probs = new ArrayVec(classesCount);
       for (int j = 0; j < classesCount; j++) {
@@ -161,7 +138,7 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
 
     VecTools.scale(gradAll, 0);
     IntStream.range(0, classesCount).parallel().forEach(i -> {
-      for (int index = 0; index < batchSize; index++) {
+      for (int index = 0; index < indices.size(); index++) {
         int j = indices.get(index);
         final Vec point = trainingSet.row(j);
         final Vec grad = gradAll.row(i);
@@ -175,9 +152,9 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
       }
     });
 
-    VecTools.scale(gradAll, trainingSet.rows() / (double) batchSize);
+    VecTools.scale(gradAll, 10000 / (double) indices.size());
 
-    final double score = IntStream.range(0, batchSize)
+    final double score = IntStream.range(0, indices.size())
             .mapToDouble(idx -> Math.log(probabilities.get(idx, correctTopics[indices.get(idx)])))
             .average()
             .orElse(Double.NEGATIVE_INFINITY);
@@ -200,13 +177,28 @@ public class SoftmaxRegressionOptimizer implements Optimizer {
 
     final Mx gradAll = new VecBasedMx(prevWeights.rows(), prevWeights.columns());
 
-    final TIntList stochasticIndices = new TIntArrayList(ArrayTools.sequence(0, trainingSet.rows()));
+    final ArrayList<Integer> stochasticIndices = IntStream.range(0, trainingSet.rows())
+            .boxed().collect(Collectors.toCollection(ArrayList::new));
     final Random random = new Random();
+
+    int offset = stochasticIndices.size();
 
     for (int iteration = 1; iteration <= maxIter; iteration++) {
       LOGGER.info("Iteration {}", iteration);
-      stochasticIndices.shuffle(random);
-      final SoftmaxData data = softmaxStochasticGradient(stochasticIndices, weights, trainingSet, indices, gradAll);
+      if (offset >= stochasticIndices.size()) {
+        Collections.shuffle(stochasticIndices, random);
+        offset = 0;
+      }
+      final SoftmaxData data = softmaxStochasticGradient(
+        new TIntArrayList(stochasticIndices.stream()
+          .skip(offset)
+          .limit(batchSize)
+          .mapToInt(x -> x)
+          .toArray()
+        ),
+        weights, trainingSet, indices, gradAll
+      );
+      offset += batchSize;
       LOGGER.info("Score : {}", data.score);
 
       { // l1 regularization: update gradients for non-zero weights

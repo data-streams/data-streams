@@ -25,6 +25,7 @@ import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitResultConsumer;
 import com.typesafe.config.ConfigFactory;
+import gnu.trove.list.array.TIntArrayList;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
@@ -32,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
+import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.Test;
 import scala.concurrent.Await;
@@ -50,11 +52,12 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ThreadLocalRandom;
@@ -63,6 +66,7 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -79,8 +83,8 @@ public class PredictorTest {
   private static final String PATH_TO_TEST_DATA = "src/test/resources/sklearn_prediction";
   private static final String PATH_TO_DATA = "src/test/resources/news_lenta.csv";
   private static int len;
-  private static int testSize = 3000;
-  private static int trainSize = 10000;
+  private static int testSize;
+  private static int trainSize;
 
   private final List<String> topics = new ArrayList<>();
   private final List<String> texts = new ArrayList<>();
@@ -90,24 +94,55 @@ public class PredictorTest {
   private List<String> testTopics;
   private List<String> testTexts;
   private List<SparseVec> trainingSetList;
-  private SparseMx trainingSet;
   private String[] correctTopics;
   private String[] allTopics;
+  private Set<Integer> trainIndices;
+
+  String randString() {
+    Random random = new Random(System.currentTimeMillis());
+    return random.ints(20, 97, 123).boxed().collect(Collector.of(
+            StringBuilder::new,
+            (StringBuilder sb, Integer x) -> sb.append((char) x.intValue()),
+            StringBuilder::append
+    )).toString();
+  }
 
   @BeforeClass
   public void beforeClass() {
+    testSize = 2000;
+    trainSize = 10000;
     predictor.init();
     allTopics = Arrays.stream(predictor.getTopics()).map(String::trim).map(String::toLowerCase).toArray(String[]::new);
+    TIntArrayList indices = new TIntArrayList(IntStream.range(0, testSize + trainSize).toArray());
+    //indices.shuffle(random);
+    String rand = randString();
+    try {
+      AtomicInteger index = new AtomicInteger(0);
+      trainIndices = documents().map(x -> new TextDocument(
+              x.name(),
+              x.content(),
+              x.partitioning(),
+              x.topic(),
+              index.getAndIncrement()
+      )).filter(doc -> (rand + doc.name()).hashCode() % 13 < 10)
+              .mapToInt(TextDocument::number)
+              .boxed()
+              .collect(Collectors.toSet());
+      int totalSize = testSize + trainSize;
+      trainSize = trainIndices.size();
+      testSize = totalSize - trainSize;
+      LOGGER.info("Test size: {}, train size: {}", testSize, trainSize);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
-  @BeforeTest
+  @BeforeMethod
   public void before() {
     mx.clear();
     documents.clear();
     topics.clear();
     texts.clear();
-    testSize = 9000;
-    trainSize = 30000;
   }
 
   private Stream<TextDocument> documents() throws IOException {
@@ -123,13 +158,17 @@ public class PredictorTest {
             Spliterator.IMMUTABLE
     );
     AtomicInteger counter = new AtomicInteger(0);
-    List<TextDocument> documents = StreamSupport.stream(csvSpliterator, false).limit(testSize + trainSize).map(r -> new TextDocument(
+    List<TextDocument> documents = StreamSupport.stream(csvSpliterator, false).map(r -> new TextDocument(
             r.get(4), // url order
             r.get(1),
             String.valueOf(ThreadLocalRandom.current().nextInt(0, 10)),
             r.get(0).trim().toLowerCase(),
             counter.incrementAndGet()
-    )).filter(doc -> !doc.topic().equals("все")).filter(doc -> !doc.topic().equals("")).collect(Collectors.toList());
+    ))
+            .filter(doc -> !doc.topic().equals("все"))
+            .filter(doc -> !doc.topic().equals(""))
+            .limit(testSize + trainSize)
+            .collect(Collectors.toList());
     Collections.reverse(documents);
     documents.sort(Comparator.comparing(TextDocument::name));
     return documents.stream();
@@ -193,13 +232,11 @@ public class PredictorTest {
 
     len = topics.size();
 
-    testTopics = IntStream.range(0, len).filter(i -> i % 13 >= 10).mapToObj(topics::get).collect(Collectors.toList());
-    testTexts = IntStream.range(0, len).filter(i -> i % 13 >= 10).mapToObj(texts::get).collect(Collectors.toList());
-    documents = IntStream.range(0, len).filter(i -> i % 13 >= 10).mapToObj(documents::get).collect(Collectors.toList());
-    trainingSet = new SparseMx(IntStream.range(0, len).filter(i -> i % 13 < 10).mapToObj(mx::get).toArray(SparseVec[]::new));
-    correctTopics = IntStream.range(0, len).filter(i -> i % 13 < 10).mapToObj(topics::get).toArray(String[]::new);
-    trainSize = correctTopics.length;
-    testSize = testTopics.size();
+    testTopics = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(topics::get).collect(Collectors.toList());
+    testTexts = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(texts::get).collect(Collectors.toList());
+    documents = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(documents::get).collect(Collectors.toList());
+    trainingSetList = IntStream.range(0, len).filter(trainIndices::contains).mapToObj(mx::get).collect(Collectors.toList());
+    correctTopics = IntStream.range(0, len).filter(trainIndices::contains).mapToObj(topics::get).toArray(String[]::new);
   }
 
   private long time(String url) {
@@ -212,7 +249,7 @@ public class PredictorTest {
     return c.getTime().getTime();
   }
 
-  private void calcWindowIdf(int windowSizeDays) {
+  private void calcWindowIdf(int windowSizeDays, double lam) {
     try {
 
       final int testCount = (int) documents().count();
@@ -221,15 +258,19 @@ public class PredictorTest {
       Map<String, Integer> df = new HashMap<>();
 
       AtomicLong currentDate = new AtomicLong(0);
-      double lam = 0.9999;
 
       final int windowSize = windowSizeDays * 200;
 
       documents().forEach(doc -> {
         long date = time(doc.name());
 
-        if (currentDate.get() == 0 || (currentDate.get() - date >  windowSizeDays * 24 * 3600000l)) {
-          idf.forEach((s, v) -> idf.put(s, (v + df.getOrDefault(s, 0)) * lam));
+        if (currentDate.get() == 0 || (date - currentDate.get() >= windowSizeDays * 24 * 3600000l)) {
+          df.forEach((s, v) -> idf.put(s, (v + idf.getOrDefault(s, 0.0)) * lam));
+          idf.forEach((s, v) -> {
+            if (!df.containsKey(s)) {
+              idf.put(s, v * lam);
+            }
+          });
           df.clear();
           currentDate.set(date);
         }
@@ -280,13 +321,11 @@ public class PredictorTest {
 
     len = topics.size();
 
-    testTopics = IntStream.range(0, len).filter(i -> i % 13 >= 10).mapToObj(topics::get).collect(Collectors.toList());
-    testTexts = IntStream.range(0, len).filter(i -> i % 13 >= 10).mapToObj(texts::get).collect(Collectors.toList());
-    documents = IntStream.range(0, len).filter(i -> i % 13 >= 10).mapToObj(documents::get).collect(Collectors.toList());
-    trainingSetList = IntStream.range(0, len).filter(i -> i % 13 < 10).mapToObj(mx::get).collect(Collectors.toList());
-    correctTopics = IntStream.range(0, len).filter(i -> i % 13 < 10).mapToObj(topics::get).toArray(String[]::new);
-    trainSize = correctTopics.length;
-    testSize = testTopics.size();
+    testTopics = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(topics::get).collect(Collectors.toList());
+    testTexts = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(texts::get).collect(Collectors.toList());
+    documents = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(documents::get).collect(Collectors.toList());
+    trainingSetList = IntStream.range(0, len).filter(trainIndices::contains).mapToObj(mx::get).collect(Collectors.toList());
+    correctTopics = IntStream.range(0, len).filter(trainIndices::contains).mapToObj(topics::get).toArray(String[]::new);
   }
 
   private void readCompleteIdf() {
@@ -333,7 +372,6 @@ public class PredictorTest {
     testTopics = topics.stream().skip(len - testSize).collect(Collectors.toList());
     testTexts = texts.stream().skip(len - testSize).collect(Collectors.toList());
     documents = documents.stream().skip(len - testSize).collect(Collectors.toList());
-    trainingSet = new SparseMx(mx.stream().limit(trainSize).toArray(SparseVec[]::new));
     correctTopics = topics.stream().limit(trainSize).toArray(String[]::new);
   }
 
@@ -366,7 +404,7 @@ public class PredictorTest {
   }
 
 
-  @Test
+  //@Test
   public void countingTfIdfTest() {
     readCompleteIdf();
     List<SparseVec> checkMx = new ArrayList<>();
@@ -385,17 +423,40 @@ public class PredictorTest {
   public void partialFitTestCompleteIdf() {
     calcCompleteIdf();
 
-    for (String topic: allTopics) {
-      LOGGER.info("topic: {}", topic);
-    }
+    LOGGER.info("Updating weights");
+    Optimizer optimizer = SoftmaxRegressionOptimizer
+            .builder()
+            .startAlpha(0.2)
+            .lambda2(0)
+            .maxIter(80)
+            //.batchSize(trainSize)
+            .build(allTopics);
+
+    final SparseMx trainingSet = new SparseMx(trainingSetList.toArray(new SparseVec[0]));
+    double kek = System.nanoTime();
+    Mx newWeights = optimizer.optimizeWeights(trainingSet, correctTopics, startMx());
+    kek = System.nanoTime() - kek;
+    LOGGER.info("Time in nanosec: {}", kek);
+
+    predictor.updateWeights(newWeights);
+
+    assertTrue(accuracy() >= 0.62);
+  }
+
+  //@Test
+  public void partialFitTestWindowIdf() {
+    calcWindowIdf(18, 0.6625);
 
     LOGGER.info("Updating weights");
     Optimizer optimizer = SoftmaxRegressionOptimizer
             .builder()
-            .startAlpha(0.08)
-            .lambda2(0.2)
+            .startAlpha(0.2)
+            .lambda2(0)
+            .maxIter(80)
+            //.batchSize(trainSize)
             .build(allTopics);
 
+    final SparseMx trainingSet = new SparseMx(trainingSetList.toArray(new SparseVec[0]));
     double kek = System.nanoTime();
     Mx newWeights = optimizer.optimizeWeights(trainingSet, correctTopics, startMx());
     kek = System.nanoTime() - kek;
@@ -408,24 +469,55 @@ public class PredictorTest {
 
   @Test
   public void partialFitTestWindowIdfBatches() {
-    calcWindowIdf(10);
-    final int trainBatchSizes[] = new int[]{15000, 3000, 3000, 3000, 3000, 3000};
+    calcWindowIdf(18, 0.6625);
+    final int trainBatchSizes[] = new int[]{7000, 2000, 1000, 1000, 1000};
     LOGGER.info("Updating weights");
-    Optimizer optimizer = SoftmaxRegressionOptimizer
+    Optimizer preOptimizer = SoftmaxRegressionOptimizer
             .builder()
-            .startAlpha(0.08)
-            .lambda2(0.2)
+            .startAlpha(0.2)
+            .lambda2(0)
+            .maxIter(80)
+            .build(allTopics);
+
+    Optimizer upOptimizer = SoftmaxRegressionOptimizer
+            .builder()
+            .startAlpha(0.019)
+            .lambda2(0.5)
+            .maxIter(80)
+            //.batchSize(200)
+            .build(allTopics);
+
+    Optimizer upUpOptimizer = SoftmaxRegressionOptimizer
+            .builder()
+            .startAlpha(0.009)
+            .lambda2(0.5)
+            .maxIter(80)
+            //.batchSize(200)
             .build(allTopics);
 
     double kek = System.nanoTime();
 
-    Mx newWeights = startMx();
-    for (int i = 0, offset = 0; i < trainBatchSizes.length; offset += trainBatchSizes[i], i++) {
+    LOGGER.info("offset: {}, batch size: {}", 0, trainBatchSizes[0]);
+    SparseMx trainingBatch1 = new SparseMx(trainingSetList.stream().limit(trainBatchSizes[0]).toArray(SparseVec[]::new));
+    String[] correctTopicsBatch1 = Arrays.stream(correctTopics).limit(trainBatchSizes[0]).toArray(String[]::new);
+    Mx newWeights = preOptimizer.optimizeWeights(trainingBatch1, correctTopicsBatch1, startMx());
+    predictor.updateWeights(newWeights);
+    accuracy();
+
+    LOGGER.info("offset: {}, batch size: {}", trainBatchSizes[0], trainBatchSizes[1]);
+    SparseMx trainingBatch2 = new SparseMx(trainingSetList.stream().skip(trainBatchSizes[0]).limit(trainBatchSizes[1]).toArray(SparseVec[]::new));
+    String[] correctTopicsBatch2 = Arrays.stream(correctTopics).skip(trainBatchSizes[0]).limit(trainBatchSizes[1]).toArray(String[]::new);
+    newWeights = upOptimizer.optimizeWeights(trainingBatch2, correctTopicsBatch2, newWeights);
+    predictor.updateWeights(newWeights);
+    accuracy();
+    
+    for (int i = 2, offset = trainBatchSizes[0] + trainBatchSizes[1]; i < trainBatchSizes.length; offset += trainBatchSizes[i], i++) {
+      if (trainSize <= offset) break;
       final int trainBatchSize = trainBatchSizes[i];
       LOGGER.info("offset: {}, batch size: {}", offset, trainBatchSize);
       SparseMx trainingBatch = new SparseMx(trainingSetList.stream().skip(offset).limit(trainBatchSize).toArray(SparseVec[]::new));
       String[] correctTopicsBatch = Arrays.stream(correctTopics).skip(offset).limit(trainBatchSize).toArray(String[]::new);
-      newWeights = optimizer.optimizeWeights(trainingBatch, correctTopicsBatch, newWeights);
+      newWeights = upUpOptimizer.optimizeWeights(trainingBatch, correctTopicsBatch, newWeights);
       predictor.updateWeights(newWeights);
       accuracy();
     }
@@ -434,7 +526,7 @@ public class PredictorTest {
     assertTrue(accuracy() >= 0.62);
   }
 
-  @Test
+  //@Test
   public void testStreamPredict() throws InterruptedException, TimeoutException {
     final List<Document> documents = new ArrayList<>();
     final List<String> texts = new ArrayList<>();
