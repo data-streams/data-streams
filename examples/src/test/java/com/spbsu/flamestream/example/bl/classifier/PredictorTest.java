@@ -109,8 +109,8 @@ public class PredictorTest {
 
   @BeforeClass
   public void beforeClass() {
-    testSize = 2000;
-    trainSize = 10000;
+    testSize = 100000;
+    trainSize = 50000;
     predictor.init();
     allTopics = Arrays.stream(predictor.getTopics()).map(String::trim).map(String::toLowerCase).toArray(String[]::new);
     TIntArrayList indices = new TIntArrayList(IntStream.range(0, testSize + trainSize).toArray());
@@ -124,7 +124,7 @@ public class PredictorTest {
               x.partitioning(),
               x.topic(),
               index.getAndIncrement()
-      )).filter(doc -> (rand + doc.name()).hashCode() % 13 < 10)
+      )).filter(doc -> (rand + doc.name()).hashCode() % 120 < 40)
               .mapToInt(TextDocument::number)
               .boxed()
               .collect(Collectors.toSet());
@@ -429,7 +429,7 @@ public class PredictorTest {
             .startAlpha(0.2)
             .lambda2(0)
             .maxIter(80)
-            //.batchSize(trainSize)
+            .batchSize(2500)
             .build(allTopics);
 
     final SparseMx trainingSet = new SparseMx(trainingSetList.toArray(new SparseVec[0]));
@@ -450,7 +450,7 @@ public class PredictorTest {
     LOGGER.info("Updating weights");
     Optimizer optimizer = SoftmaxRegressionOptimizer
             .builder()
-            .startAlpha(0.2)
+            .startAlpha(0.4)
             .lambda2(0)
             .maxIter(80)
             //.batchSize(trainSize)
@@ -470,29 +470,30 @@ public class PredictorTest {
   @Test
   public void partialFitTestWindowIdfBatches() {
     calcWindowIdf(18, 0.6625);
-    final int trainBatchSizes[] = new int[]{7000, 2000, 1000, 1000, 1000};
+    final int trainBatchSizes[] = new int[]{25000, 5000, 5000, 5000, 5000, 5000};
     LOGGER.info("Updating weights");
     Optimizer preOptimizer = SoftmaxRegressionOptimizer
             .builder()
             .startAlpha(0.2)
             .lambda2(0)
             .maxIter(80)
+            .batchSize(2500)
             .build(allTopics);
 
     Optimizer upOptimizer = SoftmaxRegressionOptimizer
             .builder()
-            .startAlpha(0.019)
+            .startAlpha(0.03)
             .lambda2(0.5)
             .maxIter(80)
-            //.batchSize(200)
+            .batchSize(250)
             .build(allTopics);
 
     Optimizer upUpOptimizer = SoftmaxRegressionOptimizer
             .builder()
-            .startAlpha(0.009)
+            .startAlpha(0.02)
             .lambda2(0.5)
             .maxIter(80)
-            //.batchSize(200)
+            .batchSize(250)
             .build(allTopics);
 
     double kek = System.nanoTime();
