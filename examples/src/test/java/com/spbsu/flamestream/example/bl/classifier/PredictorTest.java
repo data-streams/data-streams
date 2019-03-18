@@ -124,7 +124,7 @@ public class PredictorTest {
               x.partitioning(),
               x.topic(),
               index.getAndIncrement()
-      )).filter(doc -> (rand + doc.name()).hashCode() % 120 < 40)
+      )).filter(doc -> abs((rand + doc.name()).hashCode()) % 120 < 40)
               .mapToInt(TextDocument::number)
               .boxed()
               .collect(Collectors.toSet());
@@ -470,11 +470,11 @@ public class PredictorTest {
   @Test
   public void partialFitTestWindowIdfBatches() {
     calcWindowIdf(18, 0.6625);
-    final int trainBatchSizes[] = new int[]{25000, 5000, 5000, 5000, 5000, 5000};
+    final int trainBatchSizes[] = new int[]{35000, 5000, 5000, 5000, 5000, 5000};
     LOGGER.info("Updating weights");
     Optimizer preOptimizer = SoftmaxRegressionOptimizer
             .builder()
-            .startAlpha(0.2)
+            .startAlpha(0.3)
             .lambda2(0)
             .maxIter(80)
             .batchSize(2500)
@@ -482,7 +482,7 @@ public class PredictorTest {
 
     Optimizer upOptimizer = SoftmaxRegressionOptimizer
             .builder()
-            .startAlpha(0.03)
+            .startAlpha(0.022)
             .lambda2(0.5)
             .maxIter(80)
             .batchSize(250)
@@ -490,7 +490,7 @@ public class PredictorTest {
 
     Optimizer upUpOptimizer = SoftmaxRegressionOptimizer
             .builder()
-            .startAlpha(0.02)
+            .startAlpha(0.022)
             .lambda2(0.5)
             .maxIter(80)
             .batchSize(250)
