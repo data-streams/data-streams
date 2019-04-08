@@ -3,9 +3,12 @@ package com.spbsu.flamestream.example.bl.classifier;
 import akka.actor.ActorSystem;
 import com.expleague.commons.math.MathTools;
 import com.expleague.commons.math.vectors.Mx;
+import com.expleague.commons.math.vectors.Vec;
+import com.expleague.commons.math.vectors.VecIterator;
 import com.expleague.commons.math.vectors.VecTools;
 import com.expleague.commons.math.vectors.impl.mx.SparseMx;
 import com.expleague.commons.math.vectors.impl.mx.VecBasedMx;
+import com.expleague.commons.math.vectors.impl.vectors.ArrayVec;
 import com.expleague.commons.math.vectors.impl.vectors.SparseVec;
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.graph.FlameMap;
@@ -13,6 +16,7 @@ import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TextDocument;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Document;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.FTRLProximalOptimizer;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Optimizer;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.SklearnSgdPredictor;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.SoftmaxRegressionOptimizer;
@@ -82,6 +86,8 @@ public class PredictorTest {
   private static final String WEIGHTS_PATH = "src/main/resources/classifier_weights";
   private static final String PATH_TO_TEST_DATA = "src/test/resources/sklearn_prediction";
   private static final String PATH_TO_DATA = "src/test/resources/news_lenta.csv";
+  private static final String BI_CLASSIFIER_CANCER_DATA = "src/test/resources/cancer.csv";
+  private static final String BI_CLASSIFIER_SPAM_DATA = "src/test/resources/spam.csv";
   private static int len;
   private static int testSize;
   private static int trainSize;
@@ -94,6 +100,7 @@ public class PredictorTest {
   private List<String> testTopics;
   private List<String> testTexts;
   private List<SparseVec> trainingSetList;
+  private List<SparseVec> testSetList;
   private String[] correctTopics;
   private String[] allTopics;
   private Set<Integer> trainIndices;
@@ -109,8 +116,8 @@ public class PredictorTest {
 
   @BeforeClass
   public void beforeClass() {
-    testSize = 100000;
-    trainSize = 50000;
+    testSize = 2000;
+    trainSize = 1000;
     predictor.init();
     allTopics = Arrays.stream(predictor.getTopics()).map(String::trim).map(String::toLowerCase).toArray(String[]::new);
     TIntArrayList indices = new TIntArrayList(IntStream.range(0, testSize + trainSize).toArray());
@@ -234,6 +241,7 @@ public class PredictorTest {
 
     testTopics = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(topics::get).collect(Collectors.toList());
     testTexts = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(texts::get).collect(Collectors.toList());
+    testSetList = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(mx::get).collect(Collectors.toList());
     documents = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(documents::get).collect(Collectors.toList());
     trainingSetList = IntStream.range(0, len).filter(trainIndices::contains).mapToObj(mx::get).collect(Collectors.toList());
     correctTopics = IntStream.range(0, len).filter(trainIndices::contains).mapToObj(topics::get).toArray(String[]::new);
@@ -373,6 +381,70 @@ public class PredictorTest {
     testTexts = texts.stream().skip(len - testSize).collect(Collectors.toList());
     documents = documents.stream().skip(len - testSize).collect(Collectors.toList());
     correctTopics = topics.stream().limit(trainSize).toArray(String[]::new);
+  }
+
+  private void readCancerFeatures() {
+    try (BufferedReader br = new BufferedReader(new FileReader(new File(BI_CLASSIFIER_CANCER_DATA)))) {
+      br.lines().skip(1).forEach(line -> {
+        String[] tokens = line.split(",");
+        topics.add(tokens[0]);
+        final double[] values = Arrays.stream(tokens)
+                .skip(1)
+                .mapToDouble(Double::parseDouble)
+                .toArray();
+
+        final Map<String, Double> tfIdf = new HashMap<>();
+        SparseVec vec = new SparseVec(values.length);
+        for (int i = 0; i < values.length; i++) {
+          vec.set(i, values[i]);
+        }
+        mx.add(vec);
+      });
+
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+
+    len = topics.size();
+
+    allTopics = new String[]{"M", "B"};
+    testTopics = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(topics::get).collect(Collectors.toList());
+    //testTexts = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(texts::get).collect(Collectors.toList());
+    testSetList = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(mx::get).collect(Collectors.toList());
+    trainingSetList = IntStream.range(0, len).filter(trainIndices::contains).mapToObj(mx::get).collect(Collectors.toList());
+    correctTopics = IntStream.range(0, len).filter(trainIndices::contains).mapToObj(topics::get).toArray(String[]::new);
+  }
+
+  private void readSpamFeatures() {
+    try (BufferedReader br = new BufferedReader(new FileReader(new File(BI_CLASSIFIER_SPAM_DATA)))) {
+      br.lines().skip(1).forEach(line -> {
+        String[] tokens = line.split(",");
+        topics.add(tokens[tokens.length - 1]);
+        final double[] values = Arrays.stream(tokens)
+                .limit(tokens.length - 1)
+                .mapToDouble(Double::parseDouble)
+                .toArray();
+
+        final Map<String, Double> tfIdf = new HashMap<>();
+        SparseVec vec = new SparseVec(values.length);
+        for (int i = 0; i < values.length; i++) {
+          vec.set(i, values[i]);
+        }
+        mx.add(vec);
+      });
+
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+
+    len = topics.size();
+
+    allTopics = new String[]{"0", "1"};
+    testTopics = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(topics::get).collect(Collectors.toList());
+    //testTexts = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(texts::get).collect(Collectors.toList());
+    testSetList = IntStream.range(0, len).filter(i -> !trainIndices.contains(i)).mapToObj(mx::get).collect(Collectors.toList());
+    trainingSetList = IntStream.range(0, len).filter(trainIndices::contains).mapToObj(mx::get).collect(Collectors.toList());
+    correctTopics = IntStream.range(0, len).filter(trainIndices::contains).mapToObj(topics::get).toArray(String[]::new);
   }
 
   private Mx startMx() {
@@ -524,6 +596,70 @@ public class PredictorTest {
     }
     kek = System.nanoTime() - kek;
     LOGGER.info("Time in nanosec: {}", kek);
+    assertTrue(accuracy() >= 0.62);
+  }
+
+  @Test
+  public void testBiClassifier() {
+    //calcCompleteIdf();
+    readSpamFeatures();
+    FTRLProximalOptimizer optimizer = FTRLProximalOptimizer.builder()
+            .alpha(0.01)
+            .beta(1)
+            .build(allTopics);
+    SparseMx trainingSet = new SparseMx(trainingSetList.toArray(new SparseVec[0]));
+
+    Vec localWeights = optimizer.optimizeWeights(
+            trainingSet,
+            Arrays.stream(correctTopics).mapToInt(s -> s.equals(allTopics[0]) ? 1 : 0).toArray(),
+            new SparseVec(trainingSet.columns())
+    );
+
+    int trues = 0;
+    int truePositives = 0;
+    int positives = 0;
+    int ones = 0;
+    for (int i = 0; i < testSize; i++) {
+      double x = MathTools.sigmoid(VecTools.multiply(testSetList.get(i), localWeights));
+      LOGGER.info("p = {}, y = {}", x, testTopics.get(i).equals(allTopics[0]) ? 1 : 0);
+      if ((2 * x > 1) == (testTopics.get(i).equals(allTopics[0]))) {
+        trues++;
+      }
+      if (2 * x > 1) {
+        positives++;
+        if (testTopics.get(i).equals(allTopics[0]))
+          truePositives++;
+      }
+      if (testTopics.get(i).equals(allTopics[0]))
+        ones++;
+    }
+    LOGGER.info("accuracy = {}", trues / (double) testSize);
+    LOGGER.info("precision = {}", truePositives / (double) positives);
+    LOGGER.info("recall = {}", truePositives / (double) ones);
+
+
+  }
+
+  @Test
+  public void testFTRLProximal() {
+    calcCompleteIdf();
+
+    LOGGER.info("Updating weights");
+    Optimizer optimizer = FTRLProximalOptimizer.builder()
+            .alpha(100)
+            .beta(1)
+            .lambda1(0.2)
+            .lambda2(0.1)
+            .build(allTopics);
+
+    final SparseMx trainingSet = new SparseMx(trainingSetList.toArray(new SparseVec[0]));
+    double kek = System.nanoTime();
+    Mx newWeights = optimizer.optimizeWeights(trainingSet, correctTopics, startMx());
+    kek = System.nanoTime() - kek;
+    LOGGER.info("Time in nanosec: {}", kek);
+
+    predictor.updateWeights(newWeights);
+
     assertTrue(accuracy() >= 0.62);
   }
 
