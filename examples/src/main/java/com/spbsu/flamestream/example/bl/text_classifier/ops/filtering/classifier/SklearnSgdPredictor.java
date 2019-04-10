@@ -68,10 +68,7 @@ public class SklearnSgdPredictor implements TopicsPredictor {
     { // compute topic probabilities
       final SparseVec vectorized = vectorize(document.tfIdf());
       final VecIterator docNZIt = vectorized.nonZeroes();
-      Vec score = new ArrayVec(weights.rows());
-      while (docNZIt.advance()) {
-        VecTools.incscale(score, weights.col(docNZIt.index()), docNZIt.value());
-      }
+      Vec score =  MxTools.multiply(weights, vectorized);
       final Vec sum = VecTools.sum(score, intercept);
       final Vec scaled = VecTools.scale(sum, -1);
       VecTools.exp(scaled);

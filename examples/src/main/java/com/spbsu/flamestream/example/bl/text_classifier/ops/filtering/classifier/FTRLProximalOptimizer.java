@@ -2,6 +2,7 @@ package com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifie
 
 import com.expleague.commons.math.MathTools;
 import com.expleague.commons.math.vectors.Mx;
+import com.expleague.commons.math.vectors.MxIterator;
 import com.expleague.commons.math.vectors.MxTools;
 import com.expleague.commons.math.vectors.Vec;
 import com.expleague.commons.math.vectors.VecIterator;
@@ -14,7 +15,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.LongSummaryStatistics;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -105,7 +109,7 @@ public class FTRLProximalOptimizer implements Optimizer, BiClassifierOptimizer {
   @Override
   public Mx optimizeWeights(Mx trainingSet, String[] correctTopics, Mx prevWeights) {
     final int[] indices = Stream.of(correctTopics).mapToInt(topicList::indexOf).toArray();
-    Mx weights = new VecBasedMx(prevWeights.rows(), prevWeights.columns());
+    Mx weights = new SparseMx(prevWeights.rows(), prevWeights.columns());
     Mx zed = new VecBasedMx(prevWeights.rows(), prevWeights.columns());
     Mx norm = new VecBasedMx(prevWeights.rows(), prevWeights.columns());
     for (int it = 0; it < 3; it++) {
@@ -113,13 +117,13 @@ public class FTRLProximalOptimizer implements Optimizer, BiClassifierOptimizer {
       for (int i = 0; i < trainingSet.rows(); i++) {
         final int finalI = i;
         Vec x = trainingSet.row(i);
-        IntStream.range(0, weights.rows()).parallel().forEach(j -> {
+        IntStream.range(0, weights.rows()).forEach(j -> {
           VecIterator iterator = x.nonZeroes();
           while (iterator.advance()) {
             double z = zed.get(j, iterator.index());
             if (Math.abs(z) > lambda1) {
               double val = -(z - Math.signum(z) * lambda1) /
-                      ((beta + Math.sqrt(norm.get(j, iterator.index()))) / alpha + lambda2);
+                      (((beta + Math.sqrt(norm.get(j, iterator.index()))) / alpha) + lambda2);
               weights.set(j, iterator.index(), val);
             } else {
               weights.set(j, iterator.index(), 0);
@@ -134,7 +138,7 @@ public class FTRLProximalOptimizer implements Optimizer, BiClassifierOptimizer {
         //LOGGER.info("Score: {}", score);
         if (i % 100 == 0)
           LOGGER.info("Iteration: {} {}", it, i);
-        IntStream.range(0, weights.rows()).parallel().forEach(j -> {
+        IntStream.range(0, weights.rows()).forEach(j -> {
           VecIterator iterator = x.nonZeroes();
           while (iterator.advance()) {
             double g = (indices[finalI] == j ? p.get(j) - 1 : p.get(j)) * iterator.value();
@@ -148,6 +152,6 @@ public class FTRLProximalOptimizer implements Optimizer, BiClassifierOptimizer {
       score /= trainingSet.rows();
       LOGGER.info("Iteration {}, average score {}", it, score);
     }
-    return new VecBasedMx(weights);
+    return weights;
   }
 }
