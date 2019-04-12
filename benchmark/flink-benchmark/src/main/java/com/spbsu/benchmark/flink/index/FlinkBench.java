@@ -6,7 +6,7 @@ import com.spbsu.benchmark.flink.index.ops.KryoSocketSource;
 import com.spbsu.benchmark.flink.index.ops.OrderEnforcer;
 import com.spbsu.benchmark.flink.index.ops.TwoPCKryoSocketSink;
 import com.spbsu.benchmark.flink.index.ops.WikipediaPageToWordPositions;
-import com.spbsu.flamestream.example.benchmark.BenchStand;
+import com.spbsu.flamestream.example.benchmark.WikiBenchStand;
 import com.spbsu.flamestream.example.benchmark.GraphDeployer;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -24,7 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 
 public class FlinkBench {
-  public static void main(String[] args) throws IOException, InterruptedException {
+  public static void main(String[] args) throws Exception {
     final Config benchConfig;
     final Config deployerConfig;
     if (args.length == 2) {
@@ -34,9 +34,8 @@ public class FlinkBench {
       benchConfig = ConfigFactory.load("flink-bench.conf").getConfig("benchmark");
       deployerConfig = ConfigFactory.load("flink-deployer.conf").getConfig("deployer");
     }
-    final BenchStand.StandConfig standConfig = new BenchStand.StandConfig(benchConfig);
-
-    final GraphDeployer deployer = new GraphDeployer() {
+    WikiBenchStand wikiBenchStand = new WikiBenchStand(benchConfig);
+    wikiBenchStand.run(new GraphDeployer() {
       @Override
       public void deploy() {
         final int parallelism = deployerConfig.getInt("parallelism");
@@ -59,12 +58,12 @@ public class FlinkBench {
         final SinkFunction<Result> sinkFunction;
         if (guarantees.equals("EXACTLY_ONCE")) {
           sinkFunction = new TwoPCKryoSocketSink(
-                  standConfig.benchHost(),
-                  standConfig.rearPort(),
+                  wikiBenchStand.benchHost,
+                  wikiBenchStand.rearPort,
                   environment.getConfig()
           );
         } else {
-          sinkFunction = new KryoSocketSink(standConfig.benchHost(), standConfig.rearPort());
+          sinkFunction = new KryoSocketSink(wikiBenchStand.benchHost, wikiBenchStand.rearPort);
         }
 
         if (guarantees.equals("EXACTLY_ONCE") || guarantees.equals("AT_LEAST_ONCE")) {
@@ -81,7 +80,7 @@ public class FlinkBench {
 
 
         environment
-                .addSource(new KryoSocketSource(standConfig.benchHost(), standConfig.frontPort()))
+                .addSource(new KryoSocketSource(wikiBenchStand.benchHost, wikiBenchStand.frontPort))
                 .setParallelism(parallelism)
                 .shuffle()
                 .flatMap(new WikipediaPageToWordPositions())
@@ -105,11 +104,7 @@ public class FlinkBench {
       public void close() {
         // It will close itself on completion
       }
-    };
-
-    try (BenchStand benchStand = new BenchStand(standConfig, deployer)) {
-      benchStand.run();
-    }
+    });
     System.exit(0);
   }
 }

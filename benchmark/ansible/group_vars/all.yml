@@ -12,7 +12,7 @@ tarball_dir: /opt/src
 
 results_dir: results/{{ lookup("pipe", "git rev-parse --short HEAD") }}/{{ groups['workers'] | length }}/{{ rate }}/{{ guarantees }}/{{ millis_between_commits }}
 
-zookeeper_version: 3.4.13
+zookeeper_version: 3.4.14
 zookeeper_client_port: 2181
 
 flamestream_worker_port: 5412

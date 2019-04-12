@@ -15,9 +15,6 @@ import com.spbsu.flamestream.runtime.edge.akka.AkkaFront;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
 import com.typesafe.config.ConfigFactory;
-import org.apache.commons.csv.CSVFormat;
-import org.apache.commons.csv.CSVParser;
-import org.apache.commons.csv.CSVRecord;
 import org.jooq.lambda.Unchecked;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,64 +23,23 @@ import org.testng.annotations.Test;
 import scala.concurrent.Await;
 import scala.concurrent.duration.Duration;
 
+import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.Spliterator;
-import java.util.Spliterators;
-import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static java.util.stream.Collectors.toList;
 
 public class LentaTest extends FlameAkkaSuite {
   private static final Logger LOGGER = LoggerFactory.getLogger(LentaTest.class);
-
-  private Stream<TextDocument> documents(String path) throws IOException {
-    final Reader reader = new InputStreamReader(
-            LentaTest.class.getClassLoader().getResourceAsStream(path));
-    final CSVParser csvFileParser = new CSVParser(reader, CSVFormat.DEFAULT);
-    { // skip headers
-      Iterator<CSVRecord> iter = csvFileParser.iterator();
-      iter.next();
-    }
-
-    final Spliterator<CSVRecord> csvSpliterator = Spliterators.spliteratorUnknownSize(
-            csvFileParser.iterator(),
-            Spliterator.IMMUTABLE
-    );
-    AtomicInteger counter = new AtomicInteger(0);
-    return StreamSupport.stream(csvSpliterator, false).map(r -> {
-      Pattern p = Pattern.compile("\\w+", Pattern.UNICODE_CHARACTER_CLASS);
-      String recordText = r.get(2); // text order
-      Matcher m = p.matcher(recordText);
-      StringJoiner text = new StringJoiner(" ");
-      while (m.find()) {
-        text.add(m.group());
-      }
-      return new TextDocument(
-              r.get(0), // url order
-              text.toString().toLowerCase(),
-              String.valueOf(ThreadLocalRandom.current().nextInt(0, 10)),
-              counter.incrementAndGet()
-      );
-    });
-
-  }
 
   @Test
   public void lentaTest() throws TimeoutException, InterruptedException, IOException {
@@ -111,7 +67,8 @@ public class LentaTest extends FlameAkkaSuite {
 
   private void test(FlameRuntime runtime, ActorSystem system) throws IOException, InterruptedException {
     final String testFilePath = "lenta/lenta-ru-news.csv";
-    final long expectedDocs = documents(testFilePath).count();
+    final long expectedDocs = LentaCsvTextDocumentsReader
+            .documents(LentaTest.class.getClassLoader().getResourceAsStream(testFilePath)).count();
 
     final String cntVectorizerPath = "src/main/resources/cnt_vectorizer";
     final String weightsPath = "src/main/resources/classifier_weights";
@@ -133,7 +90,8 @@ public class LentaTest extends FlameAkkaSuite {
 
       final AtomicInteger counter = new AtomicInteger(0);
       final Thread thread = new Thread(Unchecked.runnable(() -> {
-        final Iterator<TextDocument> toCheckIter = documents(testFilePath).iterator();
+        final Iterator<TextDocument> toCheckIter = LentaCsvTextDocumentsReader
+                .documents(LentaTest.class.getClassLoader().getResourceAsStream(testFilePath)).iterator();
         final Map<String, Integer> idfExpected2 = new HashMap<>();
         for (int i = 0; i < expectedDocs; i++) {
           Prediction prediction = resultQueue.poll();
@@ -213,7 +171,8 @@ public class LentaTest extends FlameAkkaSuite {
 
       thread.start();
 
-      documents(testFilePath).forEach(front);
+      LentaCsvTextDocumentsReader
+              .documents(LentaTest.class.getClassLoader().getResourceAsStream(testFilePath)).forEach(front);
 
       thread.join();
 
