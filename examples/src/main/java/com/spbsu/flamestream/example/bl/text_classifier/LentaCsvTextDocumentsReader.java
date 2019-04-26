@@ -22,6 +22,8 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class LentaCsvTextDocumentsReader {
+  private static final Pattern WORD_PATTERN = Pattern.compile("\\w+", Pattern.UNICODE_CHARACTER_CLASS);
+
   public static Stream<TextDocument> documents(InputStream inputStream) throws IOException {
     Iterator<CSVRecord> iter = new CSVParser(new BufferedReader(new InputStreamReader(
             inputStream,
@@ -30,24 +32,24 @@ public class LentaCsvTextDocumentsReader {
     // skip headers
     iter.next();
 
-    Pattern wordPattern = Pattern.compile("\\w+", Pattern.UNICODE_CHARACTER_CLASS);
     AtomicInteger counter = new AtomicInteger(0);
     return StreamSupport.stream(Spliterators.spliteratorUnknownSize(
             iter,
             Spliterator.IMMUTABLE
-    ), false).map(r -> {
-      String recordText = r.get(2); // text order
-      StringJoiner text = new StringJoiner(" ");
-      Matcher matcher = wordPattern.matcher(recordText);
-      while (matcher.find()) {
-        text.add(matcher.group());
-      }
-      return new TextDocument(
-              r.get(0), // url order
-              text.toString().toLowerCase(),
-              String.valueOf(ThreadLocalRandom.current().nextInt(0, 10)),
-              counter.incrementAndGet()
-      );
-    });
+    ), false).map(r -> document(r.get(0), r.get(2), counter.incrementAndGet()));
+  }
+
+  public static TextDocument document(String name, String recordText, int number) {
+    StringJoiner text = new StringJoiner(" ");
+    Matcher matcher = WORD_PATTERN.matcher(recordText);
+    while (matcher.find()) {
+      text.add(matcher.group());
+    }
+    return new TextDocument(
+            name, // url order
+            text.toString().toLowerCase(),
+            String.valueOf(ThreadLocalRandom.current().nextInt(0, 10)),
+            number
+    );
   }
 }

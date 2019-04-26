@@ -74,10 +74,10 @@ public class LentaBenchStand {
   private final int sleepBetweenDocs;
   private final String lentaDumpPath;
   private final String validatorClass;
-  private final String benchHost;
+  public final String benchHost;
   private final String inputHost;
-  private final int frontPort;
-  private final int rearPort;
+  public final int frontPort;
+  public final int rearPort;
 
   public LentaBenchStand(Config benchConfig) {
     sleepBetweenDocs = benchConfig.getInt("sleep-between-docs-ms");

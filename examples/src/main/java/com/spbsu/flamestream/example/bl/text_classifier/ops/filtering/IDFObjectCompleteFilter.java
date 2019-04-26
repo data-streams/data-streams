@@ -26,7 +26,6 @@ public class IDFObjectCompleteFilter implements Function<WordCounter, Stream<Idf
 
   @Override
   public Stream<IdfObject> apply(WordCounter wordCounter) {
-    //noinspection unchecked
     final Set<WordCounter> result = buffer.compute(wordCounter.document(), (s, counters) -> {
       if (counters == null) {
         final Set<WordCounter> wordCounters = new HashSet<>();
