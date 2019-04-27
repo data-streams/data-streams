@@ -10,15 +10,14 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-public class Classifier implements Function<TfIdfObject, Stream<Prediction>> {
+public class Classifier {
   private final TopicsPredictor predictor;
 
   public Classifier(TopicsPredictor predictor) {
     this.predictor = predictor;
   }
 
-  @Override
-  public Stream<Prediction> apply(TfIdfObject tfIdfObject) {
+  public Prediction apply(TfIdfObject tfIdfObject) {
     final Map<String, Double> tfIdf = new HashMap<>();
     { //normalized tf-idf
       double squareSum = 0.0;
@@ -34,8 +33,7 @@ public class Classifier implements Function<TfIdfObject, Stream<Prediction>> {
     }
 
     final Document document = new Document(tfIdf);
-    final Prediction result = new Prediction(tfIdfObject, predictor.predict(document));
-    return Stream.of(result);
+    return new Prediction(tfIdfObject, predictor.predict(document));
   }
 
   public void init() {

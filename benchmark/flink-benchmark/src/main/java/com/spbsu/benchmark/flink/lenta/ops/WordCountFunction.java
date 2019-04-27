@@ -1,5 +1,6 @@
 package com.spbsu.benchmark.flink.lenta.ops;
 
+import com.spbsu.benchmark.flink.lenta.FlinkBench;
 import com.spbsu.flamestream.example.bl.text_classifier.model.WordCounter;
 import com.spbsu.flamestream.example.bl.text_classifier.model.WordEntry;
 import org.apache.flink.api.common.functions.RichMapFunction;
@@ -15,7 +16,7 @@ import java.util.concurrent.TimeUnit;
  * User: Artem
  * Date: 04.01.2018
  */
-public class IndexFunction extends RichMapFunction<WordEntry, WordCounter> {
+public class WordCountFunction extends RichMapFunction<WordEntry, WordCounter> {
   private transient ValueState<WordCounter> checkpointedState;
 
   @Override

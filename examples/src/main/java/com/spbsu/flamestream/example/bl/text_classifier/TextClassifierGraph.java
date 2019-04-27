@@ -22,9 +22,12 @@ import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.Classifier
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.IDFObjectCompleteFilter;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.TfIdfFilter;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.WordContainerOrderingFilter;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Document;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.TopicsPredictor;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -120,7 +123,7 @@ public class TextClassifierGraph implements Supplier<Graph> {
             List.class
     );
 
-    final Classifier classifier = new Classifier(predictor);
+    final ClassifierFunction classifier = new ClassifierFunction(new Classifier(predictor));
     //noinspection Convert2Lambda,Anonymous2MethodRef
     final FlameMap<TfIdfObject, Prediction> filterClassifier = new FlameMap<>(
             classifier,
@@ -175,5 +178,22 @@ public class TextClassifierGraph implements Supplier<Graph> {
             )
 
             .build(source, sink);
+  }
+
+  private static class ClassifierFunction implements Function<TfIdfObject, Stream<Prediction>> {
+    private final Classifier classifier;
+
+    public ClassifierFunction(Classifier classifier) {
+      this.classifier = classifier;
+    }
+
+    public void init() {
+      classifier.init();
+    }
+
+    @Override
+    public Stream<Prediction> apply(TfIdfObject tfIdfObject) {
+      return Stream.of(classifier.apply(tfIdfObject));
+    }
   }
 }

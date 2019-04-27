@@ -383,7 +383,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${maven-surefire-plugin.version}</version>
                 <configuration>
-                    <argLine>-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=oom.hprof -Xmx1g -Xms1g</argLine>
+                    <argLine>-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=oom.hprof -Xmx2g -Xms2g</argLine>
                     <forkCount>1</forkCount>
                     <reuseForks>false</reuseForks>
                     <parallel>methods</parallel>

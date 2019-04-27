@@ -1,6 +1,6 @@
 package com.spbsu.benchmark.flink.lenta;
 
-import com.spbsu.benchmark.flink.lenta.ops.IndexFunction;
+import com.spbsu.benchmark.flink.lenta.ops.WordCountFunction;
 import com.spbsu.benchmark.flink.lenta.ops.KryoSocketSink;
 import com.spbsu.benchmark.flink.lenta.ops.KryoSocketSource;
 import com.spbsu.benchmark.flink.lenta.ops.TwoPCKryoSocketSink;
@@ -119,7 +119,7 @@ public class FlinkBench {
           DataStream<TextDocument> source
   ) {
     final SingleOutputStreamOperator<TfObject> splitterTf = source
-            .keyBy(TextDocument::partitioning)
+            .shuffle()
             .map(TfObject::ofText);
     return splitterTf
             .<WordEntry>flatMap((tfObject, out) -> {
@@ -133,8 +133,8 @@ public class FlinkBench {
               }
             }).returns(WordEntry.class)
             .keyBy(WordEntry::word)
-            .map(new IndexFunction())
-            .keyBy(WordCounter::partitioning)
+            .map(new WordCountFunction())
+            .keyBy(WordCounter::document)
             .flatMap(new IdfObjectCompleteFilter())
             .connect(splitterTf)
             .keyBy(IdfObject::document, TfObject::document)
@@ -143,11 +143,11 @@ public class FlinkBench {
               public void open(Configuration parameters) throws Exception {
                 super.open(parameters);
 
-                this.storedIdf = getRuntimeContext().getState(new ValueStateDescriptor<>(
+                storedIdf = getRuntimeContext().getState(new ValueStateDescriptor<>(
                         "idf",
                         new GenericTypeInfo<>(IdfObject.class)
                 ));
-                this.storedTf = getRuntimeContext().getState(new ValueStateDescriptor<>(
+                storedTf = getRuntimeContext().getState(new ValueStateDescriptor<>(
                         "tf",
                         new GenericTypeInfo<>(TfObject.class)
                 ));
@@ -188,7 +188,7 @@ public class FlinkBench {
 
               @Override
               public Prediction map(TfIdfObject tfIdfObject) {
-                return classifier.apply(tfIdfObject).findFirst().get();
+                return classifier.apply(tfIdfObject);
               }
             });
   }
