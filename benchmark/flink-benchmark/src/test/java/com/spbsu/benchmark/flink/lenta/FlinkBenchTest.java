@@ -1,5 +1,6 @@
 package com.spbsu.benchmark.flink.lenta;
 
+import com.google.common.collect.Iterators;
 import com.spbsu.flamestream.example.bl.text_classifier.LentaCsvTextDocumentsReader;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TextDocument;
@@ -10,20 +11,58 @@ import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.shaded.netty4.io.netty.util.collection.IntObjectHashMap;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
+import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.testng.annotations.Test;
 
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.Serializable;
+import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.testng.Assert.assertEquals;
 
 public class FlinkBenchTest {
   static private long blinkAtMillis;
+
+  static class TextDocumentIterator implements Iterator<TextDocument>, Serializable {
+    private FileInputStream inputStream;
+    private Iterator<TextDocument> iterator;
+
+    @Override
+    public boolean hasNext() {
+      return iterator().hasNext();
+    }
+
+    @Override
+    public TextDocument next() {
+      return iterator().next();
+    }
+
+    private Iterator<TextDocument> iterator() {
+      if (iterator != null) {
+        return iterator;
+      }
+      try {
+        if (inputStream == null) {
+          inputStream = new FileInputStream("../../examples/src/main/resources/lenta/lenta-ru-news.csv");
+        }
+        return iterator = LentaCsvTextDocumentsReader.documents(inputStream).iterator();
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    @Override
+    protected void finalize() throws Throwable {
+      if (inputStream != null) {
+        inputStream.close();
+      }
+    }
+  }
 
   @Test
   public void testPredictionDataStream() throws Exception {
@@ -32,35 +71,28 @@ public class FlinkBenchTest {
     env.enableCheckpointing(2000);
     env.setRestartStrategy(RestartStrategies.fixedDelayRestart(10, 100));
     env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.AT_LEAST_ONCE);
-    try (
-            final FileInputStream inputStream = new FileInputStream(
-                    "../../examples/src/main/resources/lenta/lenta-ru-news.csv"
-            )
-    ) {
-      final List<TextDocument> documents =
-              LentaCsvTextDocumentsReader.documents(inputStream).collect(Collectors.toList());
-      final long blinkPeriodMillis = 7000;
-      blinkAtMillis = System.currentTimeMillis() + blinkPeriodMillis;
-      predictionDataStream(env, documents).map(value -> {
-        if (System.currentTimeMillis() > blinkAtMillis) {
-          blinkAtMillis = System.currentTimeMillis() + blinkPeriodMillis;
-          throw new RuntimeException("blink");
-        }
-        return value;
-      }).addSink(new CollectSink()).setParallelism(1);
-      env.execute();
-      assertEquals(CollectSink.values.size(), documents.size());
-      //try (final FileWriter out = new FileWriter("predictions.csv")) {
-      //  dumpToCsv(new ArrayList<>(CollectSink.values.values()), out);
-      //}
-    }
+    final long blinkPeriodMillis = 7000;
+    blinkAtMillis = System.currentTimeMillis() + blinkPeriodMillis;
+    CollectSink.values.clear();
+    predictionDataStream(env.fromCollection(new TextDocumentIterator(), TextDocument.class)).map(value -> {
+      if (System.currentTimeMillis() > blinkAtMillis) {
+        blinkAtMillis = System.currentTimeMillis() + blinkPeriodMillis;
+        throw new RuntimeException("blink");
+      }
+      return value;
+    }).addSink(new CollectSink()).setParallelism(1);
+    env.execute();
+    assertEquals(CollectSink.values.size(), Iterators.size(new TextDocumentIterator()));
+    //try (final FileWriter out = new FileWriter("predictions.csv")) {
+    //  dumpToCsv(new ArrayList<>(CollectSink.values.values()), out);
+    //}
   }
 
-  private DataStream<Prediction> predictionDataStream(StreamExecutionEnvironment env, List<TextDocument> documents) {
+  private DataStream<Prediction> predictionDataStream(DataStreamSource<TextDocument> source) {
     return FlinkBench.predictionDataStream(
             "../../examples/src/main/resources/cnt_vectorizer",
             "../../examples/src/main/resources/classifier_weights",
-            env.fromCollection(documents)
+            source
     );
   }
 
