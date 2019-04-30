@@ -39,6 +39,7 @@ import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.util.Collector;
 import org.jooq.lambda.Unchecked;
 
+import java.io.File;
 import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -114,8 +115,7 @@ public class FlinkBench {
         }
 
         final String rocksDbPath = deployerConfig.getString("rocksdb-path");
-        final StateBackend backend = new FsStateBackend("file:///" + rocksDbPath, true);
-        environment.setStateBackend(backend);
+        environment.setStateBackend(new FsStateBackend(new File(rocksDbPath).toURI(), true));
 
         predictionDataStream(
                 new MainPredictor(),

@@ -1,6 +1,5 @@
 package com.spbsu.benchmark.flink.lenta;
 
-import com.google.common.collect.Iterators;
 import com.spbsu.flamestream.example.bl.text_classifier.LentaCsvTextDocumentsReader;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TextDocument;
@@ -10,7 +9,7 @@ import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
-import org.apache.flink.shaded.netty4.io.netty.util.collection.IntObjectHashMap;
+import org.apache.flink.runtime.state.filesystem.FsStateBackend;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
@@ -18,14 +17,14 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.testng.annotations.Test;
 
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
 import java.util.stream.Stream;
-
-import static org.testng.Assert.assertEquals;
 
 public class FlinkBenchTest {
   static private long blinkAtMillis;
@@ -87,6 +86,7 @@ public class FlinkBenchTest {
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(2);
     env.enableCheckpointing(2000);
+    env.setStateBackend(new FsStateBackend(new File("rocksdb").toURI(), true));
     env.setRestartStrategy(RestartStrategies.fixedDelayRestart(10, 100));
     env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.AT_LEAST_ONCE);
     final long blinkPeriodMillis = 7000;
@@ -102,27 +102,37 @@ public class FlinkBenchTest {
             })
             .addSink(new CollectSink()).setParallelism(1);
     env.execute();
-    assertEquals(CollectSink.values.size(), Iterators.size(new TextDocumentIterator()));
-    //try (final FileWriter out = new FileWriter("predictions.csv")) {
-    //  dumpToCsv(new ArrayList<>(CollectSink.values.values()), out);
-    //}
   }
 
   private DataStream<Prediction> predictionDataStream(DataStreamSource<TextDocument> source) {
     return FlinkBench.predictionDataStream(new ExamplesTopicPredictor(), source);
   }
 
-  private void dumpToCsv(List<Prediction> predictions, Appendable out) throws IOException {
-    final CSVPrinter csvPrinter = new CSVPrinter(out, CSVFormat.DEFAULT);
-    final String[] topicNames = predictions.isEmpty() ? new String[]{} :
-            Stream.of(predictions.get(0).topics()).map(Topic::name).toArray(String[]::new);
-    csvPrinter.print("document");
-    for (final String topicName : topicNames) {
-      csvPrinter.print(topicName);
+  private static class CollectSink implements SinkFunction<Prediction> {
+    static final ArrayList<Prediction> values = new ArrayList<>();
+
+    @Override
+    public void invoke(Prediction value, Context context) throws Exception {
+      values.add(value);
     }
-    csvPrinter.println();
-    for (final Prediction prediction : predictions) {
-      csvPrinter.print(prediction.tfIdf().document());
+  }
+
+  private static class CSVSink implements SinkFunction<Prediction> {
+    private final String fileName;
+    private CSVPrinter openedCsvPrinter;
+    private String[] topicNames;
+
+    private CSVSink(String fileName) {this.fileName = fileName;}
+
+    @Override
+    public void invoke(Prediction prediction, Context context) throws Exception {
+      if (topicNames == null) {
+        topicNames = Stream.of(prediction.topics()).map(Topic::name).toArray(String[]::new);
+        for (final String topicName : topicNames) {
+          csvPrinter().print(topicName);
+        }
+      }
+      csvPrinter().print(prediction.tfIdf().document());
       if (prediction.topics().length != topicNames.length) {
         throw new RuntimeException("different topics number");
       }
@@ -132,20 +142,35 @@ public class FlinkBenchTest {
           throw new RuntimeException("inconsistent topics order");
         }
         i++;
-        csvPrinter.print(topic.probability());
+        csvPrinter().print(topic.probability());
       }
-      csvPrinter.println();
+      csvPrinter().println();
+      if (prediction.tfIdf().number() % 1000 == 0) {
+        System.out.println(prediction.tfIdf().number());
+      }
     }
-  }
 
-  // create a testing sink
-  private static class CollectSink implements SinkFunction<Prediction> {
-    // must be static
-    public static final IntObjectHashMap<Prediction> values = new IntObjectHashMap<>();
+    private CSVPrinter csvPrinter() {
+      if (openedCsvPrinter != null) {
+        return openedCsvPrinter;
+      }
+      try {
+        openedCsvPrinter = new CSVPrinter(new FileWriter(fileName), CSVFormat.DEFAULT);
+        openedCsvPrinter.print("document");
+        return openedCsvPrinter;
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
 
     @Override
-    public synchronized void invoke(Prediction value) throws Exception {
-      values.put(value.tfIdf().number(), value);
+    protected void finalize() throws Throwable {
+      if (openedCsvPrinter != null) {
+        if (topicNames == null) {
+          openedCsvPrinter.println();
+        }
+        openedCsvPrinter.close();
+      }
     }
   }
 }
