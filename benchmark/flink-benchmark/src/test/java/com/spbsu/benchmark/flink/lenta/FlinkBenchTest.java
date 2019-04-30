@@ -4,6 +4,8 @@ import com.google.common.collect.Iterators;
 import com.spbsu.flamestream.example.bl.text_classifier.LentaCsvTextDocumentsReader;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TextDocument;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Document;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.SklearnSgdPredictor;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Topic;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
@@ -27,6 +29,22 @@ import static org.testng.Assert.assertEquals;
 
 public class FlinkBenchTest {
   static private long blinkAtMillis;
+
+  static class ExamplesTopicPredictor implements FlinkBench.SerializableTopicsPredictor {
+    public static final SklearnSgdPredictor predictor = new SklearnSgdPredictor(
+            "../../examples/src/main/resources/cnt_vectorizer",
+            "../../examples/src/main/resources/classifier_weights"
+    );
+
+    static {
+      predictor.init();
+    }
+
+    @Override
+    public Topic[] predict(Document document) {
+      return predictor.predict(document);
+    }
+  }
 
   static class TextDocumentIterator implements Iterator<TextDocument>, Serializable {
     private FileInputStream inputStream;
@@ -74,13 +92,15 @@ public class FlinkBenchTest {
     final long blinkPeriodMillis = 7000;
     blinkAtMillis = System.currentTimeMillis() + blinkPeriodMillis;
     CollectSink.values.clear();
-    predictionDataStream(env.fromCollection(new TextDocumentIterator(), TextDocument.class)).map(value -> {
-      if (System.currentTimeMillis() > blinkAtMillis) {
-        blinkAtMillis = System.currentTimeMillis() + blinkPeriodMillis;
-        throw new RuntimeException("blink");
-      }
-      return value;
-    }).addSink(new CollectSink()).setParallelism(1);
+    predictionDataStream(env.fromCollection(new TextDocumentIterator(), TextDocument.class).setParallelism(1))
+            .map(value -> {
+              if (System.currentTimeMillis() > blinkAtMillis) {
+                blinkAtMillis = System.currentTimeMillis() + blinkPeriodMillis;
+                throw new RuntimeException("blink");
+              }
+              return value;
+            })
+            .addSink(new CollectSink()).setParallelism(1);
     env.execute();
     assertEquals(CollectSink.values.size(), Iterators.size(new TextDocumentIterator()));
     //try (final FileWriter out = new FileWriter("predictions.csv")) {
@@ -89,11 +109,7 @@ public class FlinkBenchTest {
   }
 
   private DataStream<Prediction> predictionDataStream(DataStreamSource<TextDocument> source) {
-    return FlinkBench.predictionDataStream(
-            "../../examples/src/main/resources/cnt_vectorizer",
-            "../../examples/src/main/resources/classifier_weights",
-            source
-    );
+    return FlinkBench.predictionDataStream(new ExamplesTopicPredictor(), source);
   }
 
   private void dumpToCsv(List<Prediction> predictions, Appendable out) throws IOException {

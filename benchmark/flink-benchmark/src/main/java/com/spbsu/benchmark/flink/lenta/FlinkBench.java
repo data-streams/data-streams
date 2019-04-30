@@ -15,11 +15,13 @@ import com.spbsu.flamestream.example.bl.text_classifier.model.WordCounter;
 import com.spbsu.flamestream.example.bl.text_classifier.model.WordEntry;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.Classifier;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.IDFObjectCompleteFilter;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Document;
 import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.SklearnSgdPredictor;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Topic;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.TopicsPredictor;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
-import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
@@ -37,10 +39,30 @@ import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.util.Collector;
 import org.jooq.lambda.Unchecked;
 
+import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
 public class FlinkBench {
+  interface SerializableTopicsPredictor extends TopicsPredictor, Serializable {
+  }
+
+  static class MainPredictor implements SerializableTopicsPredictor {
+    public static final SklearnSgdPredictor predictor = new SklearnSgdPredictor(
+            "/opt/flamestream/cnt_vectorizer",
+            "/opt/flamestream/classifier_weights"
+    );
+
+    static {
+      predictor.init();
+    }
+
+    @Override
+    public Topic[] predict(Document document) {
+      return predictor.predict(document);
+    }
+  }
+
   public static void main(String[] args) throws Exception {
     final Config benchConfig;
     final Config deployerConfig;
@@ -96,8 +118,7 @@ public class FlinkBench {
         environment.setStateBackend(backend);
 
         predictionDataStream(
-                "/opt/flamestream/cnt_vectorizer",
-                "/opt/flamestream/classifier_weights",
+                new MainPredictor(),
                 environment
                         .addSource(new KryoSocketSource(benchStand.benchHost, benchStand.frontPort))
                         .setParallelism(parallelism)
@@ -114,8 +135,7 @@ public class FlinkBench {
   }
 
   static DataStream<Prediction> predictionDataStream(
-          String cntVectorizerPath,
-          String weightsPath,
+          SerializableTopicsPredictor topicsPredictor,
           DataStream<TextDocument> source
   ) {
     final SingleOutputStreamOperator<TfObject> splitterTf = source
@@ -176,21 +196,7 @@ public class FlinkBench {
                 }
               }
             })
-            .map(new RichMapFunction<TfIdfObject, Prediction>() {
-              private Classifier classifier;
-
-              @Override
-              public void open(Configuration parameters) throws Exception {
-                super.open(parameters);
-                classifier = new Classifier(new SklearnSgdPredictor(cntVectorizerPath, weightsPath));
-                classifier.init();
-              }
-
-              @Override
-              public Prediction map(TfIdfObject tfIdfObject) {
-                return classifier.apply(tfIdfObject);
-              }
-            });
+            .map(tfIdfObject -> new Classifier(topicsPredictor).apply(tfIdfObject));
   }
 
   private static class IdfObjectCompleteFilter extends RichFlatMapFunction<WordCounter, IdfObject> {
