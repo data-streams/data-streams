@@ -9,7 +9,7 @@ import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVPrinter;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
-import org.apache.flink.runtime.state.filesystem.FsStateBackend;
+import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
@@ -86,7 +86,7 @@ public class FlinkBenchTest {
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(2);
     env.enableCheckpointing(2000);
-    env.setStateBackend(new FsStateBackend(new File("rocksdb").toURI(), true));
+    env.setStateBackend(new RocksDBStateBackend(new File("rocksdb").toURI(), true));
     env.setRestartStrategy(RestartStrategies.fixedDelayRestart(10, 100));
     env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.AT_LEAST_ONCE);
     final long blinkPeriodMillis = 7000;
