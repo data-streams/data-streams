@@ -6,9 +6,9 @@ public class TextDocument implements DocContainer {
   private final String name;
   private final String content;
   private final String partitioning;
-  private final int number;
+  private final long number;
 
-  public TextDocument(String name, String content, String partitioning, int number) {
+  public TextDocument(String name, String content, String partitioning, long number) {
     this.name = name;
     this.content = content;
     this.partitioning = partitioning;
@@ -32,7 +32,7 @@ public class TextDocument implements DocContainer {
     return partitioning;
   }
 
-  public int number() {
+  public long number() {
     return number;
   }
 

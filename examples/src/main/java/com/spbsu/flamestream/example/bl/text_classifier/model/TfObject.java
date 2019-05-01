@@ -11,9 +11,9 @@ public class TfObject implements DocContainer {
   private final Map<String, Integer> counts;
   private final String docName;
   private final String partitioning;
-  private final int number;
+  private final long number;
 
-  private TfObject(String docName, Stream<String> words, String partitioning, int number) {
+  private TfObject(String docName, Stream<String> words, String partitioning, long number) {
     this.docName = docName;
     this.number = number;
     this.partitioning = partitioning;
@@ -34,7 +34,7 @@ public class TfObject implements DocContainer {
     return counts;
   }
 
-  public int number() {
+  public long number() {
     return number;
   }
 

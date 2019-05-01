@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class TfIdfObject implements DocContainer {
-  private final int number;
+  private final long number;
   private final Map<String, Integer> tf;
   private final Map<String, Integer> idf;
   private final String docName;
@@ -38,7 +38,7 @@ public class TfIdfObject implements DocContainer {
     return docName;
   }
 
-  public int number() {
+  public long number() {
     return number;
   }
 

@@ -96,7 +96,7 @@ public class LentaBenchStand {
     BenchValidator<Prediction> validator =
             ((Class<? extends BenchValidator>) Class.forName(validatorClass)).newInstance();
     final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(validator.expectedOutputSize());
-    final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
+    final Map<Long, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
     try (
             AutoCloseable ignored = benchStandBuilder.producer(
                     TextDocument.class,

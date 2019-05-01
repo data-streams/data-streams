@@ -25,21 +25,16 @@ public class LentaCsvTextDocumentsReader {
   private static final Pattern WORD_PATTERN = Pattern.compile("\\w+", Pattern.UNICODE_CHARACTER_CLASS);
 
   public static Stream<TextDocument> documents(InputStream inputStream) throws IOException {
-    Iterator<CSVRecord> iter = new CSVParser(new BufferedReader(new InputStreamReader(
-            inputStream,
-            StandardCharsets.UTF_8
-    )), CSVFormat.DEFAULT).iterator();
-    // skip headers
-    iter.next();
-
-    AtomicInteger counter = new AtomicInteger(0);
     return StreamSupport.stream(Spliterators.spliteratorUnknownSize(
-            iter,
+            new CSVParser(new BufferedReader(new InputStreamReader(
+                    inputStream,
+                    StandardCharsets.UTF_8
+            )), CSVFormat.DEFAULT.withFirstRecordAsHeader()).iterator(),
             Spliterator.IMMUTABLE
-    ), false).map(r -> document(r.get(0), r.get(2), counter.incrementAndGet()));
+    ), false).map(r -> document(r.get(0), r.get(2), r.getRecordNumber()));
   }
 
-  public static TextDocument document(String name, String recordText, int number) {
+  public static TextDocument document(String name, String recordText, long number) {
     StringJoiner text = new StringJoiner(" ");
     Matcher matcher = WORD_PATTERN.matcher(recordText);
     while (matcher.find()) {
