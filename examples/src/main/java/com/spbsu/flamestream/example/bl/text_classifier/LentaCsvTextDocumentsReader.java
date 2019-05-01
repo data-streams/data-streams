@@ -36,7 +36,7 @@ public class LentaCsvTextDocumentsReader {
     return StreamSupport.stream(Spliterators.spliteratorUnknownSize(
             iter,
             Spliterator.IMMUTABLE
-    ), false).map(r -> document(r.get(0), r.get(2), counter.incrementAndGet()));
+    ), false).map(r -> document(r.get(4), r.get(1), counter.incrementAndGet()));
   }
 
   public static TextDocument document(String name, String recordText, int number) {

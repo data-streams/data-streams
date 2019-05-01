@@ -23,7 +23,9 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class FlinkBenchTest {
@@ -87,7 +89,7 @@ public class FlinkBenchTest {
     env.setParallelism(2);
     env.enableCheckpointing(2000);
     env.setStateBackend(new RocksDBStateBackend(new File("rocksdb").toURI(), true));
-    env.setRestartStrategy(RestartStrategies.fixedDelayRestart(10, 100));
+    env.setRestartStrategy(RestartStrategies.fixedDelayRestart(200, 100));
     env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.AT_LEAST_ONCE);
     final long blinkPeriodMillis = 7000;
     blinkAtMillis = System.currentTimeMillis() + blinkPeriodMillis;
@@ -99,13 +101,23 @@ public class FlinkBenchTest {
                     .collect(Collectors.toList())
     ).setParallelism(1))
             .map(value -> {
-              if (System.currentTimeMillis() > blinkAtMillis) {
-                blinkAtMillis = System.currentTimeMillis() + blinkPeriodMillis;
+              if (Stream.of(value.topics())
+                      .sorted(Comparator.comparing(Topic::probability).reversed())
+                      .findFirst()
+                      .get()
+                      .name()
+                      .equals("Зимние виды ") && Math.random() < 0.2) {
                 throw new RuntimeException("blink");
+              }
+              {
+                if (System.currentTimeMillis() > blinkAtMillis) {
+                  blinkAtMillis = System.currentTimeMillis() + blinkPeriodMillis;
+                  throw new RuntimeException("blink");
+                }
               }
               return value;
             })
-            .addSink(new CollectSink()).setParallelism(1);
+            .addSink(new CSVSink("blinking_predictions3.csv")).setParallelism(1);
     env.execute();
     CSVSink.openedCsvPrinter.close();
   }
