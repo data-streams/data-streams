@@ -16,18 +16,10 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.testng.annotations.Test;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.io.Serializable;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class FlinkBenchTest {
@@ -49,32 +41,20 @@ public class FlinkBenchTest {
     }
   }
 
-  static class CSVReaderSupplier implements Supplier<Reader>, Serializable {
-    @Override
-    public Reader get() {
-      try {
-        return new BufferedReader(new InputStreamReader(
-                new FileInputStream("../../examples/src/main/resources/lenta/lenta-ru-news.csv"),
-                StandardCharsets.UTF_8
-        ));
-      } catch (FileNotFoundException e) {
-        throw new RuntimeException(e);
-      }
-    }
-  }
-
   @Test
   public void testPredictionDataStream() throws Exception {
     StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
     env.setParallelism(2);
-    env.enableCheckpointing(2000);
+    env.enableCheckpointing(100);
     env.setStateBackend(new FsStateBackend(new File("rocksdb").toURI(), true));
     env.setRestartStrategy(RestartStrategies.fixedDelayRestart(10, 100));
     env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.AT_LEAST_ONCE);
-    final long blinkPeriodMillis = 60000;
+    final long blinkPeriodMillis = 5000;
     CollectSink.values.clear();
     predictionDataStream(
-            env.addSource(new CSVParserSourceFunction(new CSVReaderSupplier(), CSVFormat.DEFAULT))
+            env.addSource(new CSVParserSourceFunction(new File(
+                    "../../examples/src/main/resources/lenta/lenta-ru-news.csv"
+            ), CSVFormat.DEFAULT))
                     .setParallelism(1)
                     .map(record ->
                             LentaCsvTextDocumentsReader.document(record.get(0), record.get(2), record.getRecordNumber())
@@ -87,7 +67,7 @@ public class FlinkBenchTest {
       }
       return value;
     }).addSink(new CSVSink("predictions.csv")).setParallelism(1);
-    blinkAtMillis = System.currentTimeMillis() + 14000;
+    blinkAtMillis = System.currentTimeMillis() + 4000;
     env.execute();
   }
 
@@ -132,7 +112,7 @@ public class FlinkBenchTest {
         csvPrinter().print(topic.probability());
       }
       csvPrinter().println();
-      if (prediction.tfIdf().number() % 1000 == 0) {
+      if (prediction.tfIdf().number() % 100 == 0) {
         System.out.println(prediction.tfIdf().number());
       }
     }
