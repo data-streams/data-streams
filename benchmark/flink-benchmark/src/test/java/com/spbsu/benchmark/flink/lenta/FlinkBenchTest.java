@@ -92,7 +92,12 @@ public class FlinkBenchTest {
     final long blinkPeriodMillis = 7000;
     blinkAtMillis = System.currentTimeMillis() + blinkPeriodMillis;
     CollectSink.values.clear();
-    predictionDataStream(env.fromCollection(new TextDocumentIterator(), TextDocument.class).setParallelism(1))
+    predictionDataStream(env.fromCollection(
+            LentaCsvTextDocumentsReader
+                    .documents(new FileInputStream("../../examples/src/main/resources/lenta/news_lenta.csv"))
+                    .limit(10000)
+                    .collect(Collectors.toList())
+    ).setParallelism(1))
             .map(value -> {
               if (System.currentTimeMillis() > blinkAtMillis) {
                 blinkAtMillis = System.currentTimeMillis() + blinkPeriodMillis;
@@ -102,6 +107,7 @@ public class FlinkBenchTest {
             })
             .addSink(new CollectSink()).setParallelism(1);
     env.execute();
+    CSVSink.openedCsvPrinter.close();
   }
 
   private DataStream<Prediction> predictionDataStream(DataStreamSource<TextDocument> source) {
@@ -119,18 +125,22 @@ public class FlinkBenchTest {
 
   private static class CSVSink implements SinkFunction<Prediction> {
     private final String fileName;
-    private CSVPrinter openedCsvPrinter;
-    private String[] topicNames;
+    static CSVPrinter openedCsvPrinter;
+    static private String[] topicNames;
 
-    private CSVSink(String fileName) {this.fileName = fileName;}
+    private CSVSink(String fileName) {
+      this.fileName = fileName;
+      System.out.println("sink");
+    }
 
     @Override
-    public void invoke(Prediction prediction, Context context) throws Exception {
+    public synchronized void invoke(Prediction prediction, Context context) throws Exception {
       if (topicNames == null) {
         topicNames = Stream.of(prediction.topics()).map(Topic::name).toArray(String[]::new);
         for (final String topicName : topicNames) {
           csvPrinter().print(topicName);
         }
+        csvPrinter().println();
       }
       csvPrinter().print(prediction.tfIdf().document());
       if (prediction.topics().length != topicNames.length) {
@@ -160,16 +170,6 @@ public class FlinkBenchTest {
         return openedCsvPrinter;
       } catch (IOException e) {
         throw new RuntimeException(e);
-      }
-    }
-
-    @Override
-    protected void finalize() throws Throwable {
-      if (openedCsvPrinter != null) {
-        if (topicNames == null) {
-          openedCsvPrinter.println();
-        }
-        openedCsvPrinter.close();
       }
     }
   }
