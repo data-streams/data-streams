@@ -30,8 +30,11 @@ import java.io.OutputStreamWriter;
 import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.stream.Collectors;
@@ -161,6 +164,48 @@ public class FlinkBenchTest {
   }
 
   @Test
+  void prepareBalancedFewTopics() throws IOException {
+    try (
+            final FileInputStream in =
+                    new FileInputStream("../../examples/src/main/resources/lenta/news_lenta.csv");
+            final FileOutputStream out =
+                    new FileOutputStream("../../examples/src/main/resources/lenta/balanced_few_topics_news_lenta.csv");
+            final CSVPrinter csvPrinter = new CSVPrinter(new OutputStreamWriter(out), CSVFormat.DEFAULT)
+    ) {
+      final HashMap<String, Integer> counts = new HashMap<>();
+      counts.put("Госэкономика", 0);
+      counts.put("Общество", 0);
+      counts.put("Политика", 0);
+      counts.put("Происшествия", 0);
+      counts.put("Украина", 0);
+      counts.put("Футбол", 0);
+      final int limit = 200;
+      StreamSupport.stream(Spliterators.spliteratorUnknownSize(
+              new CSVParser(new BufferedReader(new InputStreamReader(
+                      in,
+                      StandardCharsets.UTF_8
+              )), CSVFormat.DEFAULT.withFirstRecordAsHeader()).iterator(),
+              Spliterator.IMMUTABLE
+      ), false)
+              .filter(csvRecord -> {
+                String topic = csvRecord.get(0);
+                if (!counts.containsKey(topic) || counts.get(topic) == limit)
+                  return false;
+                counts.put(topic, counts.get(topic) + 1);
+                return true;
+              })
+              .takeWhile(csvRecord -> !counts.entrySet().stream().allMatch(entry -> entry.getValue() == limit))
+              .forEach(values -> {
+                try {
+                  csvPrinter.printRecord(values);
+                } catch (IOException e) {
+                  throw new RuntimeException(e);
+                }
+              });
+    }
+  }
+
+  @Test
   void testTopDispersion() throws Exception {
     final List<TextDocument> textDocuments = LentaCsvTextDocumentsReader
             .documents(new FileInputStream("../../examples/src/main/resources/lenta/news_lenta.csv"))
@@ -187,6 +232,27 @@ public class FlinkBenchTest {
     executeWithoutBlink(textDocuments, "few-topics-stable-1000-2.csv");
     executeWithoutBlink(textDocuments, "stable-1000-2.csv");
     executeWithBlink(textDocuments, "blink-replaying-500-of-1000.csv");
+  }
+
+  @Test
+  void testReplay500Of1000WhenFewTopics() throws Exception {
+    final List<TextDocument> textDocuments = LentaCsvTextDocumentsReader
+            .documents(new FileInputStream("../../examples/src/main/resources/lenta/few_topics_news_lenta.csv"))
+            .limit(1000)
+            .collect(Collectors.toList());
+    executeWithoutBlink(textDocuments, "few-topics-stable-1000.csv");
+    executeWithoutBlink(textDocuments, "few-topics-stable-1000-2.csv");
+    executeWithBlink(textDocuments, "few-topics-blink-replaying-500-of-1000.csv");
+  }
+
+  @Test
+  void testReplay500Of1000WhenBalancedFewTopics() throws Exception {
+    final List<TextDocument> textDocuments = LentaCsvTextDocumentsReader
+            .documents(new FileInputStream("../../examples/src/main/resources/lenta/balanced_few_topics_news_lenta.csv"))
+            .collect(Collectors.toList());
+    executeWithoutBlink(textDocuments, "balanced_few-topics-stable-1000.csv");
+    executeWithoutBlink(textDocuments, "balanced_few-topics-stable-1000-2.csv");
+    executeWithBlink(textDocuments, "balanced_few-topics-blink-replaying-500-of-1000.csv");
   }
 
   @Test
