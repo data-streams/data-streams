@@ -61,8 +61,8 @@ public class FTRLProximalTest {
     optimizer = FTRLProximal.builder()
             .alpha(132)
             .beta(0.1)
-            .lambda1(0.0086)
-            .lambda2(0.095)
+            .lambda1(0.0066)
+            .lambda2(0.101)
             .build(allTopics);
   }
 
@@ -106,7 +106,7 @@ public class FTRLProximalTest {
   }
 
   private void splitDatsetWindow(int seed) {
-    splitDatsetWindow(seed, 5, "0.761");
+    splitDatsetWindow(seed, 6, "0.55");
   }
 
   private void splitDatsetWindow(int seed, int windowSize, String lam) {
@@ -419,14 +419,14 @@ public class FTRLProximalTest {
   }
 
   public void testChooseRegularisationParams() {
-    splitDatsetWindow(42, 2, "0.7");
+    splitDatsetWindow(42, 6, "0.55");
     readStreaming();
     for (int i = 1; i <= 500; i++) {
-      double lambda2 = 0.001 * i;
+      double lambda2 = 0.0005 * i;
       final FTRLProximal optimizer = FTRLProximal.builder()
               .alpha(132)
               .beta(0.1)
-              .lambda1(0.0086)
+              .lambda1(0.0066)
               .lambda2(lambda2)
               .build(allTopics);
       streamingAccuracy(optimizer);
@@ -463,7 +463,7 @@ public class FTRLProximalTest {
   }
 
   public void testStreaming() {
-    splitDatsetWindow(42, 7, "0.46"); // 7 0.46 0.657
+    splitDatsetWindow(42, 6, "0.55"); // 7 0.46 0.657
     readStreaming();
     long time = System.currentTimeMillis();
     streamingAccuracy(optimizer);
