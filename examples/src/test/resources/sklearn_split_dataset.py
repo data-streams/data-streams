@@ -72,7 +72,7 @@ def main(argv):
     testSize = int(argv[2])
     offset = int(argv[3])
     seed = int(argv[4])
-    windowSize = int(argv[5])
+    windowSize = float(argv[5])
     lam = float(argv[6])
     splitStrategy = argv[7]
 
@@ -86,10 +86,14 @@ def main(argv):
     X = df['text']
     y = df['tags']
 
-
     if (splitStrategy == 'window'):
         vectorizer = CountVectorizer()
         X = vectorizer.fit_transform(X)
+
+        voc = vectorizer.vocabulary_
+        print('Russia', list(voc.values())[list(voc.keys()).index('россия')])
+        print('Putin', list(voc.values())[list(voc.keys()).index('путин')])
+        print('Ukraine', list(voc.values())[list(voc.keys()).index('украина')])
 
         print("Step inside calcWindowIdf")
         tm = time.monotonic()
