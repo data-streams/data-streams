@@ -66,13 +66,13 @@ public class FTRLProximalTest {
     predictor.init();
     allTopics = Arrays.stream(predictor.getTopics()).map(String::trim).map(String::toLowerCase).toArray(String[]::new);
     optimizer = FTRLProximal.builder()
-            .alpha(1)
+            .alpha(1.8)
             .beta(0.0138)
             .lambda1(0.0062)
             .lambda2(0.010)
             .build(allTopics);
     warmUpOptimizer = FTRLProximal.builder()
-            .alpha(2.3)
+            .alpha(2.4)
             .beta(0.0138)
             .lambda1(0.009)
             .lambda2(0.084)

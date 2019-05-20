@@ -11,6 +11,7 @@ def draw_graph():
 
     inf.close()
 
+    plt.axvline(5000, color='red')
     plt.legend(legend)
     plt.title("политика")
     plt.xlabel("n_docs")
