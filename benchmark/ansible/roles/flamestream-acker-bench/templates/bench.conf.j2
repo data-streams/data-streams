@@ -1,0 +1,11 @@
+benchmark {
+  bench-host = "{{ groups['bench'][0] }}"
+  input-host = "{{ groups['input'][0] }}"
+  bench-source-port = 4567
+  bench-sink-port = 5678
+
+  sleep-between-docs-ms = {{ rate }}
+  stream-length = 1000
+  parallelism = 3
+  iterations = 3
+}

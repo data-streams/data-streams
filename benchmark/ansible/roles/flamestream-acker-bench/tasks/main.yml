@@ -1,0 +1,30 @@
+---
+- name: Copy the deployer file
+  template:
+    src: deployer.conf.j2
+    dest: "{{ flamestream_dir }}/deployer.conf"
+
+- name: Copy the bench configuration file
+  template:
+    src: bench.conf.j2
+    dest: "{{ flamestream_dir }}/bench.conf"
+
+- name: Start the flamestream bench
+  shell: >
+    java
+    -Daeron.term.buffer.length=4194304 -Daeron.mtu.length=16384 -Xms500m -Xmx500m -XX:+PrintGC -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps -XX:+HeapDumpOnOutOfMemoryError
+    -cp '{{ flamestream_dir }}/lib/*'
+    {{ bench_class }}
+    {{ flamestream_dir }}/bench.conf {{ flamestream_dir }}/deployer.conf > {{ flamestream_dir }}/bench.log 2>&1
+
+- name: Fetch bench logs
+  fetch:
+    src: "{{ flamestream_dir }}/bench.log"
+    dest: "{{ results_dir }}/flamestream/bench.log"
+    flat: true
+
+- name: Fetch latencies
+  fetch:
+    src: /tmp/lat.data
+    dest: "{{ results_dir }}/flamestream/latency/lat.data"
+    flat: true

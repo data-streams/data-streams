@@ -8,11 +8,11 @@
       register: test
       changed_when: test.stdout
 
-- name: Prepare cluster
-  hosts: all
-  roles:
-    - { role: common-packages }
-
+#- name: Prepare cluster
+#  hosts: all
+#  roles:
+#    - { role: common-packages }
+#
 - name: Setup zookeeper
   hosts: manager
   roles:
@@ -33,6 +33,8 @@
   hosts: workers
   roles:
     - { role: flamestream-worker }
+  environment:
+    PATH: "/usr/lib/jvm/java-8-oracle/jre/bin/:{{ ansible_env.PATH }}"
 
 - hosts: workers
   tasks:
@@ -47,7 +49,9 @@
 - name: Run the benchmark
   hosts: bench
   roles:
-    - { role: flamestream-bench , bench_class: com.spbsu.flamestream.example.benchmark.BenchStand }
+    - { role: flamestream-acker-bench , bench_class: com.spbsu.flamestream.example.benchmark.WatermarksBenchStand }
+  environment:
+    PATH: "/usr/lib/jvm/java-8-oracle/jre/bin/:{{ ansible_env.PATH }}"
 
 - name: Destroy flamestream
   hosts: workers

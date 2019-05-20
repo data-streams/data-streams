@@ -52,7 +52,7 @@ local_bench() {
 remote_bench() {
   package \
     && copy_worker_artifacts \
-    && ansible-playbook -v -i "${ANSIBLE_HOME}/aws.yml" "${ANSIBLE_HOME}/flamestream.yml"
+    && ansible-playbook -v -i "${ANSIBLE_HOME}/remote.yml" "${ANSIBLE_HOME}/flamestream.yml"
 }
 
 local_flink_bench() {
@@ -63,9 +63,9 @@ local_flink_bench() {
 }
 
 remote_flink_bench() {
-    package \
+  package \
     && copy_flink_artifacts \
-    && ansible-playbook -v -i "${ANSIBLE_HOME}/aws.yml" "${ANSIBLE_HOME}/flink.yml"
+    && ansible-playbook -v -i "${ANSIBLE_HOME}/remote.yml" "${ANSIBLE_HOME}/flink.yml"
 }
 
-[[ "$0" == "$BASH_SOURCE" ]] && local_flink_bench
+[[ "$0" == "$BASH_SOURCE" ]] && remote_bench

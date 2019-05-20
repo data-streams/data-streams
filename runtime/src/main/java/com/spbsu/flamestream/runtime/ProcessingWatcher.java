@@ -160,9 +160,7 @@ public class ProcessingWatcher extends LoggingActor {
     final List<HashUnit> covering = HashUnit.covering(config.paths().size() - 1)
             .collect(Collectors.toCollection(ArrayList::new));
     final Map<String, HashGroup> ranges = new HashMap<>();
-    config.paths().keySet().forEach(s -> ranges.put(s, new HashGroup(Collections.singleton(
-            s.equals(config.masterLocation()) ? new HashUnit(0, 0) : covering.remove(0)
-    ))));
+    config.paths().keySet().forEach(s -> ranges.put(s, new HashGroup(Collections.singleton(covering.remove(0)))));
     assert covering.isEmpty();
     final List<ActorRef> ackers = ackers(config);
     final @Nullable ActorRef localAcker = ackers.isEmpty() ? null : context().actorOf(LocalAcker.props(ackers, id));
