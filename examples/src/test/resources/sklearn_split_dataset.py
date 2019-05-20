@@ -91,9 +91,11 @@ def main(argv):
         X = vectorizer.fit_transform(X)
 
         voc = vectorizer.vocabulary_
-        print('Russia', list(voc.values())[list(voc.keys()).index('россия')])
-        print('Putin', list(voc.values())[list(voc.keys()).index('путин')])
-        print('Ukraine', list(voc.values())[list(voc.keys()).index('украина')])
+
+        ouf = open('cnt_vectorizer', 'w')
+        for key, val in voc.items():
+            ouf.write(str(key) + ' ' + str(val) + '\n')
+        ouf.close()
 
         print("Step inside calcWindowIdf")
         tm = time.monotonic()

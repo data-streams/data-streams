@@ -19,7 +19,6 @@ import org.slf4j.LoggerFactory;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
-import scala.concurrent.java8.FuturesConvertersImpl;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -43,6 +42,7 @@ public class FTRLProximalTest {
   private static final String WEIGHTS_PATH = "src/main/resources/classifier_weights";
   private static final String TMP_TRAIN_PATH = "src/test/resources/tmp_train";
   private static final String TMP_TEST_PATH = "src/test/resources/tmp_test";
+  private static final String CNT_VECTORIZER = "src/test/resources/cnt_vectorizer";
   private static int testSize;
   private static int trainSize;
   private static int offset;
@@ -51,6 +51,8 @@ public class FTRLProximalTest {
   private final SklearnSgdPredictor predictor = new SklearnSgdPredictor(WEIGHTS_PATH);
   private final List<DataPoint> trainingSetList = new ArrayList<>();
   private final List<DataPoint> testSetList = new ArrayList<>();
+  private final List<String> trackingWords = Arrays.asList("россия", "путин", "украина", "россии", "президент", "сша");
+  private final List<Integer> trackingIndices = new ArrayList<>();
   private Boolean[] isTrain;
   private String[] allTopics;
   private FTRLProximal optimizer;
@@ -66,14 +68,14 @@ public class FTRLProximalTest {
     optimizer = FTRLProximal.builder()
             .alpha(1)
             .beta(0.0138)
-            .lambda1(0.0067)
-            .lambda2(0.050)
+            .lambda1(0.0062)
+            .lambda2(0.010)
             .build(allTopics);
     warmUpOptimizer = FTRLProximal.builder()
-            .alpha(1)
-            .beta(0.000005)
-            .lambda1(0.0067)
-            .lambda2(0.125)
+            .alpha(2.3)
+            .beta(0.0138)
+            .lambda1(0.009)
+            .lambda2(0.084)
             .build(allTopics);
   }
 
@@ -206,7 +208,6 @@ public class FTRLProximalTest {
 
       readDatasetFromFileToList(TMP_TEST_PATH, testSetList);
       testSize = testSetList.size();
-
       LOGGER.info("Test size: {}, train size: {}", testSize, trainSize);
     } catch (IOException e) {
       e.printStackTrace();
@@ -227,6 +228,19 @@ public class FTRLProximalTest {
               .limit(1)
               .toArray(String[]::new);
       isTrain = Arrays.stream(kek[0].split(",")).map(Integer::parseInt).map(x -> x == 1).toArray(Boolean[]::new);
+
+      trackingIndices.clear();
+      for (int i = 0; i < trackingWords.size(); i++) {
+        trackingIndices.add(0);
+      }
+
+      Files.lines(new File(CNT_VECTORIZER).toPath()).forEach(line -> {
+        String[] pair = line.split(" ");
+        int wordIndex = trackingWords.indexOf(pair[0]);
+        if (wordIndex != -1) {
+          trackingIndices.set(wordIndex, Integer.parseInt(pair[1]));
+        }
+      });
     } catch (IOException e) {
       e.printStackTrace();
     }
@@ -449,15 +463,22 @@ public class FTRLProximalTest {
   public void testChooseRegularisationParams() {
     //splitDatsetWindow(42);
     readStreaming();
-    for (int i = 50; i <= 500; i++) {
-      final double alpha = i * 0.1;
-      final FTRLProximal warmUpOptimizer = FTRLProximal.builder()
-              .alpha(alpha)
-              .beta(0.138)
-              .lambda1(0.0067)
-              .lambda2(0.125)
+    double optAcc = 0;
+    double optLam = 0;
+    for (int i = 1; i <= 500; i++) {
+      final double beta = i * 0.01;
+      final FTRLProximal optimizer = FTRLProximal.builder()
+              .alpha(beta)
+              .beta(0.0138)
+              .lambda1(0.0062)
+              .lambda2(0.010)
               .build(allTopics);
-      streamingAccuracy(warmUpOptimizer, optimizer);
+      double acc = streamingAccuracy(warmUpOptimizer, optimizer);
+      if (acc >= optAcc - 1e-8) {
+        optAcc = acc;
+        optLam = beta;
+      }
+      LOGGER.info("Best accuracy: {}, best lambda: {}", optAcc, optLam);
     }
   }
 
@@ -470,26 +491,25 @@ public class FTRLProximalTest {
     int truePositives = 0;
     int count = 0;
 
-    final int russiaIndex = 143230;
-    final int ukraineIndex = 168018;
-    final int putinIndex = 135039;
-    final List<Double> russiaList = new ArrayList<>();
-    final List<Double> ukraineList = new ArrayList<>();
-    final List<Double> putinList = new ArrayList<>();
+    final List<List<Double>> trackingList = new ArrayList<>(trackingWords.size());
+    for (int ind = 0; ind < trackingWords.size(); ind++) {
+      trackingList.add(new ArrayList<>());
+    }
+
     final int polIndex = Arrays.asList(allTopics).indexOf("политика");
 
     for (int i = 0; i < offset; i++) {
       state = warmUpOptimizer.step(trainingSetList.get(i), state);
-      russiaList.add(state.weights().get(polIndex, russiaIndex));
-      putinList.add(state.weights().get(polIndex, putinIndex));
-      ukraineList.add(state.weights().get(polIndex, ukraineIndex));
+      for (int ind = 0; ind < trackingList.size(); ind++) {
+        trackingList.get(ind).add(state.weights().get(polIndex, trackingIndices.get(ind)));
+      }
     }
     for (int i = offset; i < trainingSetList.size(); i++) {
       if (isTrain[i]) {
         state = optimizer.step(trainingSetList.get(i), state);
-        russiaList.add(state.weights().get(polIndex, russiaIndex));
-        putinList.add(state.weights().get(polIndex, putinIndex));
-        ukraineList.add(state.weights().get(polIndex, ukraineIndex));
+        for (int ind = 0; ind < trackingList.size(); ind++) {
+          trackingList.get(ind).add(state.weights().get(polIndex, trackingIndices.get(ind)));
+        }
       } else {
         Mx weights = state.weights();
         Vec x = trainingSetList.get(i).getFeatures();
@@ -511,9 +531,13 @@ public class FTRLProximalTest {
     LOGGER.info("Accuracy: {}", accuracy);
 
     try(PrintWriter writer = new PrintWriter("src/test/resources/tmp.txt")) {
-      writer.println(russiaList.stream().map(Object::toString).collect(Collectors.joining(",")));
-      writer.println(putinList.stream().map(Object::toString).collect(Collectors.joining(",")));
-      writer.println(ukraineList.stream().map(Object::toString).collect(Collectors.joining(",")));
+      for (int i = 0; i < trackingList.size(); i++) {
+        writer.print(trackingWords.get(i));
+        writer.print(',');
+        writer.println(trackingList.get(i).stream()
+                .map(Object::toString)
+                .collect(Collectors.joining(",")));
+      }
     } catch (FileNotFoundException e) {
       e.printStackTrace();
     }

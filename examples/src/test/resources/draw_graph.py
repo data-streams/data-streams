@@ -3,15 +3,15 @@ import numpy as np
 
 def draw_graph():
     inf = open("tmp.txt", "r")
-    rus = list(map(float, inf.readline().split(',')))
-    put = list(map(float, inf.readline().split(',')))
-    ukr = list(map(float, inf.readline().split(',')))
+    legend = []
+    for line in inf.readlines():
+        tmp = line.split(',')
+        plt.plot(list(map(float, tmp[1:])))
+        legend.append(tmp[0])
+
     inf.close()
 
-    plt.plot(rus)
-    plt.plot(put)
-    plt.plot(ukr)
-    plt.legend(["россия", "путин", "украина"])
+    plt.legend(legend)
     plt.title("политика")
     plt.xlabel("n_docs")
     plt.ylabel("weight")
