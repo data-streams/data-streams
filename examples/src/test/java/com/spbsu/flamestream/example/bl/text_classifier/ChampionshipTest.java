@@ -81,6 +81,7 @@ public class ChampionshipTest {
   }
 
   private static void splitDatasetWarmUpTestComplete(int seed) {
+    int warmUp = 5000;
     splitDatasetWarmupTestComplete(seed, trainSize, testSize, warmUp, offset);
   }
 
@@ -157,6 +158,7 @@ public class ChampionshipTest {
   }
 
   private void splitDatasetWindow(int seed) {
+    int warmUp = 1900;
     FTRLProximalTest.splitDatasetWindow(seed, trainSize, testSize, warmUp, offset);
   }
 

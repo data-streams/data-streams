@@ -21,29 +21,57 @@ def draw_graph():
 def draw_hists():
     inf = open("tmp_hist.txt", "r")
     topics = inf.readline().split(',')
-    counts = np.array(list(map(float, inf.readline().split(' '))))
-    counts /= np.sum(counts)
-    x = np.arange(len(counts))
 
     fig = plt.figure()
-
     bar_width = 0.8
+    x = np.arange(len(topics))
+
+    counts = np.array(list(map(float, inf.readline().split(' '))))
+    counts /= np.sum(counts)
     plt.bar(x - bar_width / 2, counts, color='b', width=bar_width / 3)
 
 
     counts = np.array(list(map(float, inf.readline().split(' '))))
     counts /= np.sum(counts)
-
-
     plt.bar(x - bar_width / 6, counts, color='r', width=bar_width / 3)
 
     counts = np.array(list(map(float, inf.readline().split(' '))))
     counts /= np.sum(counts)
     plt.bar(x + bar_width / 6, counts, color='g', width=bar_width / 3)
 
-    fig.set_size_inches(18.5, 10.5, forward=True)
-    plt.xticks(x - bar_width / 2, topics, rotation='vertical')
-    plt.legend(['online', 'offline', 'correct'])
+    fig.set_size_inches(18.5, 8.5, forward=True)
+    plt.xticks(x, topics, rotation='vertical')
+    plt.legend(['online test=3100, train=3100, warmup=1900', 'offline test=3100, warmup=5000', 'correct'])
+    plt.ylabel('docs percentage')
+    plt.show()
+
+def draw_topics():
+    inf = open("tmp_hist.txt", "r")
+    topics = inf.readline().split(',')
+    online = np.array(list(map(float, inf.readline().split(' '))))
+    offline = np.array(list(map(float, inf.readline().split(' '))))
+    correct = np.array(list(map(float, inf.readline().split(' '))))
+
+    interesting = ['политика', 'происшествия', 'госэкономика', 'украина', 'люди', 'звери', 'мир']
+
+    fig, axs = plt.subplots(1, len(interesting), sharey=True)
+
+    for i in range(len(interesting)):
+        axs[i].set_title(interesting[i])
+        j = topics.index(interesting[i])
+
+        bar_width = 0.8
+        x = np.array([0])
+
+        axs[i].bar(x - bar_width / 2, [online[j] / np.sum(online)], color='b', width=bar_width / 3)
+        axs[i].bar(x - bar_width / 6, [offline[j] / np.sum(offline)], color='r', width=bar_width / 3)
+        axs[i].bar(x + bar_width / 6, [correct[j] / np.sum(correct)], color='g', width=bar_width / 3)
+
+        axs[i].set_xticks(x)
+
+    fig.set_size_inches(18.5, 8.5, forward=True)
+
+    plt.legend(['online test=3100, train=3100, warmup=1900', 'offline test=3100, warmup=5000', 'correct'])
     plt.ylabel('docs percentage')
     plt.show()
 
