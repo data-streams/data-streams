@@ -43,9 +43,9 @@ public class FTRLProximalTest {
   private static final String TMP_TRAIN_PATH = "src/test/resources/tmp_train";
   private static final String TMP_TEST_PATH = "src/test/resources/tmp_test";
   private static final String CNT_VECTORIZER = "src/test/resources/cnt_vectorizer";
-  private static int testSize;
-  private static int trainSize;
-  private static int offset;
+  private int testSize;
+  private int trainSize;
+  private int warmUp;
   private static int features;
 
   private final SklearnSgdPredictor predictor = new SklearnSgdPredictor(WEIGHTS_PATH);
@@ -53,7 +53,7 @@ public class FTRLProximalTest {
   private final List<DataPoint> testSetList = new ArrayList<>();
   private final List<String> trackingWords = Arrays.asList("россия", "путин", "украина", "россии", "президент", "сша");
   private final List<Integer> trackingIndices = new ArrayList<>();
-  private Boolean[] isTrain;
+  private List<Boolean> isTrain = new ArrayList<>();
   private String[] allTopics;
   private FTRLProximal optimizer;
   private FTRLProximal warmUpOptimizer;
@@ -62,7 +62,7 @@ public class FTRLProximalTest {
   public void beforeClass() {
     testSize = 5000;
     trainSize = 10000;
-    offset = 5000;
+    warmUp = 5000;
     predictor.init();
     allTopics = Arrays.stream(predictor.getTopics()).map(String::trim).map(String::toLowerCase).toArray(String[]::new);
     optimizer = FTRLProximal.builder()
@@ -87,7 +87,11 @@ public class FTRLProximalTest {
     //new File(TMP_TRAIN_PATH).delete();
   }
 
-  private String callPython(String pythonCommand) {
+  static int features() {
+    return features;
+  }
+
+  static String callPython(String pythonCommand) {
     String[] commands = new String[]{
             "bash",
             "-c",
@@ -116,59 +120,88 @@ public class FTRLProximalTest {
 
   @Test
   public void split() {
-    splitDatsetWindow(42);
+    splitDatasetWindow(42);
   }
 
-  private void splitDatsetWindow(int seed) {
-    splitDatsetWindow(seed, 12, 0.8);
+  private void splitDatasetWindow(int seed) {
+    splitDatasetWindow(seed, trainSize, testSize, warmUp, 0);
   }
 
-  private void splitDatsetWindow(int seed, double windowSize, double lam) {
+  static void splitDatasetWindow(int seed, int trainSize, int testSize, int warmUp, int offset) {
+    splitDatasetWindow(seed, offset, trainSize, testSize, warmUp, 12, 0.8);
+  }
+
+  private static void splitDatasetWindow(int seed, int offset, int trainSize, int testSize, int warmUp, double windowSize, double lam) {
     String pythonCommand = String.format(
             Locale.US,
-            "sklearn_split_dataset.py %d %d %d %d %f %f %s",
+            "sklearn_split_dataset.py %d %d %d %d %d %s %f %f",
             trainSize,
             testSize,
+            warmUp,
             offset,
             seed,
+            "window",
             windowSize,
-            lam,
-            "window"
+            lam
     );
     LOGGER.info(callPython(pythonCommand));
   }
 
-  private void splitDatsetRandomComplete(int seed) {
+  private void splitDatasetRandomComplete(int seed) {
+    splitDatasetRandomComplete(seed, trainSize, testSize, warmUp, 0);
+  }
+
+  private static void splitDatasetRandomComplete(int seed, int trainSize, int testSize, int warmUp, int offset) {
     String pythonCommand = String.format(
             Locale.US,
-            "sklearn_split_dataset.py %d %d %d %d %d %f %s",
+            "sklearn_split_dataset.py %d %d %d %d %d %s",
             trainSize,
             testSize,
-            1000,
+            warmUp,
+            offset,
             seed,
-            3,
-            0.09,
             "random_complete"
     );
     LOGGER.info(callPython(pythonCommand));
   }
 
-  private void splitDatsetOrderedComplete(int seed) {
+  private void splitDatasetOrderedComplete(int seed) {
+    splitDatasetOrderedComplete(seed, trainSize,testSize, warmUp, 0);
+  }
+
+  private static void splitDatasetOrderedComplete(int seed, int trainSize, int testSize, int warmUp, int offset) {
     String pythonCommand = String.format(
             Locale.US,
-            "sklearn_split_dataset.py %d %d %d %d %d %f %s",
+            "sklearn_split_dataset.py %d %d %d %d %d %s",
             trainSize,
             testSize,
-            1000,
+            warmUp,
+            offset,
             seed,
-            3,
-            0.09,
             "ordered_complete"
     );
     LOGGER.info(callPython(pythonCommand));
   }
 
-  private void readDatasetFromFileToList(String filename, List<DataPoint> dataset) throws IOException {
+  private void splitDatasetNoShuffleComplete(int seed) {
+    splitDatasetNoShuffleComplete(seed, trainSize, testSize, warmUp, 0);
+  }
+
+  static void splitDatasetNoShuffleComplete(int seed, int trainSize, int testSize, int warmUp, int offset) {
+    String pythonCommand = String.format(
+            Locale.US,
+            "sklearn_split_dataset.py %d %d %d %d %d %s",
+            trainSize,
+            testSize,
+            warmUp,
+            offset,
+            seed,
+            "no_shuffle_complete"
+    );
+    LOGGER.info(callPython(pythonCommand));
+  }
+
+  private static void readDatasetFromFileToList(String filename, List<DataPoint> dataset) throws IOException {
     final String[] trainInfo = Files.lines(new File(filename).toPath())
             .limit(1).toArray(String[]::new)[0].split(" ");
     int size = Integer.parseInt(trainInfo[0]);
@@ -196,27 +229,47 @@ public class FTRLProximalTest {
             });
   }
 
-  private void readTestTrain() {
+  static void readTestTrain(List<DataPoint> trainingSetList, List<DataPoint> testSetList) {
     trainingSetList.clear();
     testSetList.clear();
     try {
       final String[] trainInfo = Files.lines(new File(TMP_TRAIN_PATH).toPath())
               .limit(1).toArray(String[]::new)[0].split(" ");
-      trainSize = Integer.parseInt(trainInfo[0]);
       features = Integer.parseInt(trainInfo[1]);
       readDatasetFromFileToList(TMP_TRAIN_PATH, trainingSetList);
 
       readDatasetFromFileToList(TMP_TEST_PATH, testSetList);
-      testSize = testSetList.size();
-      LOGGER.info("Test size: {}, train size: {}", testSize, trainSize);
     } catch (IOException e) {
       e.printStackTrace();
     }
   }
 
+  private void readTestTrain() {
+    readTestTrain(trainingSetList, testSetList);
+  }
+
   private void readStreaming() {
+    readStreaming(trainingSetList, isTrain);
+
+    trackingIndices.clear();
+    for (int i = 0; i < trackingWords.size(); i++) {
+      trackingIndices.add(0);
+    }
+    try {
+      Files.lines(new File(CNT_VECTORIZER).toPath()).forEach(line -> {
+        String[] pair = line.split(" ");
+        int wordIndex = trackingWords.indexOf(pair[0]);
+        if (wordIndex != -1) {
+          trackingIndices.set(wordIndex, Integer.parseInt(pair[1]));
+        }
+      });
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+  }
+
+  static void readStreaming(List<DataPoint> trainingSetList, List<Boolean> isTrain) {
     trainingSetList.clear();
-    testSetList.clear();
     try {
       final String[] trainInfo = Files.lines(new File(TMP_TRAIN_PATH).toPath())
               .limit(1).toArray(String[]::new)[0].split(" ");
@@ -227,20 +280,8 @@ public class FTRLProximalTest {
               .skip(trainingSetList.size() + 1)
               .limit(1)
               .toArray(String[]::new);
-      isTrain = Arrays.stream(kek[0].split(",")).map(Integer::parseInt).map(x -> x == 1).toArray(Boolean[]::new);
-
-      trackingIndices.clear();
-      for (int i = 0; i < trackingWords.size(); i++) {
-        trackingIndices.add(0);
-      }
-
-      Files.lines(new File(CNT_VECTORIZER).toPath()).forEach(line -> {
-        String[] pair = line.split(" ");
-        int wordIndex = trackingWords.indexOf(pair[0]);
-        if (wordIndex != -1) {
-          trackingIndices.set(wordIndex, Integer.parseInt(pair[1]));
-        }
-      });
+      isTrain.clear();
+      isTrain.addAll(Arrays.stream(kek[0].split(",")).map(Integer::parseInt).map(x -> x == 1).collect(Collectors.toList()));
     } catch (IOException e) {
       e.printStackTrace();
     }
@@ -282,7 +323,7 @@ public class FTRLProximalTest {
   }
 
   public void testSKLearnParams() {
-    splitDatsetOrderedComplete(42);
+    splitDatasetOrderedComplete(42);
     readTestTrain();
 
     LOGGER.info("Updating weights");
@@ -298,7 +339,7 @@ public class FTRLProximalTest {
 
     for (int i = 0; i < 10; i++) {
       final int seed = random.nextInt(Integer.MAX_VALUE);
-      splitDatsetWindow(seed);
+      splitDatasetWindow(seed);
       readStreaming();
 
       LOGGER.info("Updating weights");
@@ -308,7 +349,7 @@ public class FTRLProximalTest {
       time = System.currentTimeMillis() - time;
       LOGGER.info("Execution time {}", time);
 
-      splitDatsetOrderedComplete(seed);
+      splitDatasetOrderedComplete(seed);
       readTestTrain();
       skAcc += accuracySKLearn();
     }
@@ -323,7 +364,7 @@ public class FTRLProximalTest {
     double skAcc = 0;
 
     for (int i = 0; i < 10; i++) {
-      splitDatsetRandomComplete(random.nextInt(Integer.MAX_VALUE));
+      splitDatasetRandomComplete(random.nextInt(Integer.MAX_VALUE));
       readTestTrain();
 
       LOGGER.info("Updating weights");
@@ -347,7 +388,7 @@ public class FTRLProximalTest {
     double skAcc = 0;
 
     for (int i = 0; i < 10; i++) {
-      splitDatsetOrderedComplete(random.nextInt(Integer.MAX_VALUE));
+      splitDatasetOrderedComplete(random.nextInt(Integer.MAX_VALUE));
       readTestTrain();
 
       LOGGER.info("Updating weights");
@@ -367,7 +408,7 @@ public class FTRLProximalTest {
   public void testFTRLProximalMultinomial() {
 
     long splitTime = System.currentTimeMillis();
-    splitDatsetOrderedComplete(42); // 5 0.761 0.6936
+    splitDatasetOrderedComplete(42); // 5 0.761 0.6936
     splitTime = System.currentTimeMillis() - splitTime;
     LOGGER.info("Split time: {}", splitTime);
     readTestTrain();
@@ -414,7 +455,7 @@ public class FTRLProximalTest {
     for (Integer sz : windowSizes) {
       for (double lam : lams) {
         LOGGER.info("Started split");
-        splitDatsetWindow(42, sz, lam);
+        splitDatasetWindow(42);
         readStreaming();
         LOGGER.info("Streaming read");
         double acc = streamingAccuracy(optimizer);
@@ -439,7 +480,7 @@ public class FTRLProximalTest {
     );
     double optAlpha = 0;
     double maxAcc = 0;
-    splitDatsetOrderedComplete(42);
+    splitDatasetOrderedComplete(42);
     readTestTrain();
     for (double alpha : alphas) {
       double acc = accuracySKLearn(alpha);
@@ -452,7 +493,7 @@ public class FTRLProximalTest {
   }
 
   public void testCompleteOrdered() {
-    splitDatsetOrderedComplete(42);
+    splitDatasetOrderedComplete(42);
     readTestTrain();
 
     Mx newWeights = optimizeWeights(trainingSetList, startMx());
@@ -461,7 +502,7 @@ public class FTRLProximalTest {
 
   @Test
   public void testChooseRegularisationParams() {
-    //splitDatsetWindow(42);
+    //splitDatasetWindow(42);
     readStreaming();
     double optAcc = 0;
     double optLam = 0;
@@ -498,14 +539,14 @@ public class FTRLProximalTest {
 
     final int polIndex = Arrays.asList(allTopics).indexOf("политика");
 
-    for (int i = 0; i < offset; i++) {
+    for (int i = 0; i < warmUp; i++) {
       state = warmUpOptimizer.step(trainingSetList.get(i), state);
       for (int ind = 0; ind < trackingList.size(); ind++) {
         trackingList.get(ind).add(state.weights().get(polIndex, trackingIndices.get(ind)));
       }
     }
-    for (int i = offset; i < trainingSetList.size(); i++) {
-      if (isTrain[i]) {
+    for (int i = warmUp; i < trainingSetList.size(); i++) {
+      if (isTrain.get(i)) {
         state = optimizer.step(trainingSetList.get(i), state);
         for (int ind = 0; ind < trackingList.size(); ind++) {
           trackingList.get(ind).add(state.weights().get(polIndex, trackingIndices.get(ind)));
@@ -550,13 +591,13 @@ public class FTRLProximalTest {
     int truePositives = 0;
     int count = 0;
     for (int i = 0; i < trainingSetList.size(); i++) {
-      if (isTrain[i]) {
+      if (isTrain.get(i)) {
         state = optimizer.step(trainingSetList.get(i), state);
       }
     }
 
     for (int i = 0; i < trainingSetList.size(); i++) {
-      if (!isTrain[i]) {
+      if (!isTrain.get(i)) {
         Mx weights = state.weights();
         Vec x = trainingSetList.get(i).getFeatures();
         Vec p = new ArrayVec(weights.rows());
@@ -579,41 +620,13 @@ public class FTRLProximalTest {
   }
 
   @Test
-  public void graphsWords() {
-    final int russiaIndex = 143230;
-    final int ukraineIndex = 168018;
-    final int putinIndex = 135039;
-
-    splitDatsetWindow(42);
-    readStreaming();
-    ModelState state = new FTRLState(startMx());
-
-    final List<Double> russiaList = new ArrayList<>();
-    final List<Double> ukraineList = new ArrayList<>();
-    final List<Double> putinList = new ArrayList<>();
-
-    for (DataPoint t: trainingSetList) {
-      state = optimizer.step(t, state);
-      final int i = Arrays.asList(allTopics).indexOf("политика");
-      russiaList.add(state.weights().get(i, russiaIndex));
-      putinList.add(state.weights().get(i, putinIndex));
-      final int j = Arrays.asList(allTopics).indexOf("украина");
-      ukraineList.add(state.weights().get(j, ukraineIndex));
-    }
-
-    LOGGER.info("Russia {}", russiaList);
-    LOGGER.info("Putin {}", putinList);
-    LOGGER.info("Ukraine {}", ukraineList);
-  }
-
-  @Test
   public void testStreaming() {
-    //splitDatsetWindow(42); // 12 0.8 0.673
+    //splitDatasetWindow(42); // 12 0.8 0.673
     readStreaming();
     long time = System.currentTimeMillis();
     streamingAccuracy(warmUpOptimizer, optimizer);
     LOGGER.info("Execution time: {}", System.currentTimeMillis() - time);
-    //offlineAccuracy(optimizer);
+    offlineAccuracy(optimizer);
   }
 
   private Mx optimizeWeights(List<DataPoint> trainingSet, Mx prevWeights) {
