@@ -11,8 +11,10 @@
 
 - name: Download flink application
   get_url:
-    url: "{{ flink_url }}"
+    url: "https://archive.apache.org/dist/flink/flink-1.5.1/flink-1.5.1-bin-scala_2.11.tgz"
+    checksum: "sha512:https://archive.apache.org/dist/flink/flink-1.5.1/flink-1.5.1-bin-scala_2.11.tgz.sha512"
     dest: "{{ flink_tarball_dir }}/flink.tgz"
+  retries: 5
 
 - name: Unpack flink tarball
   command: tar -xf {{ flink_tarball_dir }}/flink.tgz --strip-components=1
