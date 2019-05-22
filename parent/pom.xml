@@ -40,8 +40,7 @@
         <leveldb.version>0.7</leveldb.version>
         <leveldb-jni.version>1.8</leveldb-jni.version>
         <jetbrains.version>13.0</jetbrains.version>
-        <akka-kryo-serialization.version>0.5.0</akka-kryo-serialization.version>
-        <akka-kryo-serialization.version>0.5.0</akka-kryo-serialization.version>
+        <akka-kryo-serialization.version>0.3.2</akka-kryo-serialization.version>
         <commons-cli.version>1.4</commons-cli.version>
         <trove.version>3.0.3</trove.version>
         <typesafe-config.version>1.3.1</typesafe-config.version>
