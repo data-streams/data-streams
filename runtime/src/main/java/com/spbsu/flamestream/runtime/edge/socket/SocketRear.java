@@ -33,6 +33,7 @@ public class SocketRear implements Rear {
   public SocketRear(EdgeContext edgeContext, String host, int port, Class[] classes) {
     edgeId = edgeContext.edgeId();
     client = new Client(1_000_000, 1234);
+    Arrays.stream(classes).forEach(clazz -> client.getKryo().register(clazz));
     { //register inners of data item
       client.getKryo().register(PayloadDataItem.class);
       client.getKryo().register(Meta.class);
@@ -40,7 +41,6 @@ public class SocketRear implements Rear {
       client.getKryo().register(EdgeId.class);
       client.getKryo().register(int[].class);
     }
-    Arrays.stream(classes).forEach(clazz -> client.getKryo().register(clazz));
 
     ((Kryo.DefaultInstantiatorStrategy) client.getKryo().getInstantiatorStrategy())
             .setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());

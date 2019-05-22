@@ -41,7 +41,9 @@ public class BenchStandBuilder {
   ) throws IOException {
     final Server producer = new Server(1_000_000, 1000);
     producer.getKryo().register(type);
-    producer.getKryo().setInstantiatorStrategy(new Kryo.DefaultInstantiatorStrategy(new StdInstantiatorStrategy()));
+    ((Kryo.DefaultInstantiatorStrategy) producer.getKryo()
+            .getInstantiatorStrategy())
+            .setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
 
     producer.addListener(new Listener() {
       boolean accepted = false;
@@ -79,18 +81,20 @@ public class BenchStandBuilder {
           Class<Payload> type,
           Consumer<Payload> consumer,
           int port,
-          Class<?>[] classesToRegister
+          Class<?> ...classesToRegister
   ) throws IOException {
     final Server server = new Server(2000, 1_000_000);
+    for (final Class<?> clazz : classesToRegister) {
+      server.getKryo().register(clazz);
+    }
     server.getKryo().register(PayloadDataItem.class);
     server.getKryo().register(Meta.class);
     server.getKryo().register(GlobalTime.class);
     server.getKryo().register(EdgeId.class);
     server.getKryo().register(int[].class);
-    for (final Class<?> clazz : classesToRegister) {
-      server.getKryo().register(clazz);
-    }
-    server.getKryo().setInstantiatorStrategy(new Kryo.DefaultInstantiatorStrategy(new StdInstantiatorStrategy()));
+    ((Kryo.DefaultInstantiatorStrategy) server.getKryo()
+            .getInstantiatorStrategy())
+            .setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
 
     server.addListener(new Listener() {
       @Override
