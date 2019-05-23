@@ -11,8 +11,8 @@
 
 - name: Download flink application
   get_url:
-    url: "https://archive.apache.org/dist/flink/flink-1.5.1/flink-1.5.1-bin-scala_2.11.tgz"
-    checksum: "sha512:https://archive.apache.org/dist/flink/flink-1.5.1/flink-1.5.1-bin-scala_2.11.tgz.sha512"
+    url: "https://archive.apache.org/dist/flink/flink-1.4.0/flink-1.4.0-bin-scala_2.11.tgz"
+    checksum: "md5:https://archive.apache.org/dist/flink/flink-1.4.0/flink-1.4.0-bin-scala_2.11.tgz.md5"
     dest: "{{ flink_tarball_dir }}/flink.tgz"
   retries: 5
 

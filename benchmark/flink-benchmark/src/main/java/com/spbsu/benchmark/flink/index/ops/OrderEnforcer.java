@@ -3,10 +3,9 @@ package com.spbsu.benchmark.flink.index.ops;
 import com.spbsu.flamestream.example.bl.index.model.WordIndexAdd;
 import com.spbsu.flamestream.example.bl.index.utils.IndexItemInLong;
 import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
-import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.util.Collector;
 
 import java.util.ArrayList;
@@ -14,7 +13,7 @@ import java.util.Collection;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 
-public class OrderEnforcer extends KeyedProcessFunction<Tuple, Tuple2<String, long[]>, Tuple2<String, long[]>> {
+public class OrderEnforcer extends ProcessFunction<Tuple2<String, long[]>, Tuple2<String, long[]>> {
   private transient NavigableMap<Long, Collection<Tuple2<String, long[]>>> buffer;
   private transient Tracing.Tracer inputTracer;
   private transient Tracing.Tracer outputTracer;

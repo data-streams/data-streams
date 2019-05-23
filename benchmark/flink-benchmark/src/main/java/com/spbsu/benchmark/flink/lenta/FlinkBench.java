@@ -40,6 +40,7 @@ import org.apache.flink.util.Collector;
 import org.jooq.lambda.Unchecked;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -115,7 +116,11 @@ public class FlinkBench {
         }
 
         final String rocksDbPath = deployerConfig.getString("rocksdb-path");
-        environment.setStateBackend(new FsStateBackend(new File(rocksDbPath).toURI(), true));
+        try {
+          environment.setStateBackend(new FsStateBackend(new File(rocksDbPath).toURI(), true));
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
 
         predictionDataStream(
                 new MainPredictor(),

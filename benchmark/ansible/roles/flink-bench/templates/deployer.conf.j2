@@ -1,7 +1,7 @@
 deployer {
   remote {
     manager-hostname = {{ groups['manager'][0] }}
-    manager-port = 8081
+    manager-port = 6123
     uber-jar = "{{ flink_dir }}/flink-benchmark-1.0-SNAPSHOT-uber.jar"
   }
   parallelism = {{ groups['workers'] | length }}
