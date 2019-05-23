@@ -3,7 +3,6 @@ package com.spbsu.flamestream.runtime.serialization;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.ByteBufferInput;
 import com.esotericsoftware.kryo.io.ByteBufferOutput;
-import com.esotericsoftware.kryo.serializers.FieldSerializer;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
 public class KryoSerializer implements FlameSerializer {
@@ -14,11 +13,7 @@ public class KryoSerializer implements FlameSerializer {
     final Kryo kryo = new Kryo();
     ((Kryo.DefaultInstantiatorStrategy) kryo.getInstantiatorStrategy())
             .setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
-    kryo.setDefaultSerializer(((kryo1, type) -> {
-      FieldSerializer fieldSerializer = new FieldSerializer(kryo1, type);
-      fieldSerializer.setIgnoreSyntheticFields(false);
-      return fieldSerializer;
-    }));
+    kryo.getFieldSerializerConfig().setIgnoreSyntheticFields(false);
     return kryo;
   });
 

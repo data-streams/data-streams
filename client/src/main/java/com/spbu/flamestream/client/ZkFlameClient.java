@@ -2,7 +2,6 @@ package com.spbu.flamestream.client;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.ByteBufferOutput;
-import com.esotericsoftware.kryo.serializers.FieldSerializer;
 import com.spbsu.flamestream.core.Job;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -25,11 +24,7 @@ public class ZkFlameClient implements FlameClient {
     this.kryo = new Kryo();
     ((Kryo.DefaultInstantiatorStrategy) kryo.getInstantiatorStrategy())
             .setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
-    kryo.setDefaultSerializer(((kryo1, type) -> {
-      FieldSerializer fieldSerializer = new FieldSerializer(kryo1, type);
-      fieldSerializer.setIgnoreSyntheticFields(false);
-      return fieldSerializer;
-    }));
+    kryo.getFieldSerializerConfig().setIgnoreSyntheticFields(false);
   }
 
   @Override
