@@ -21,7 +21,7 @@
         <maven-dependency-plugin.version>3.0.0</maven-dependency-plugin.version>
 
         <!-- java props -->
-        <java.source.level>1.11</java.source.level>
+        <java.source.level>1.9</java.source.level>
 
         <!-- lib versions -->
         <slf4j.version>1.7.24</slf4j.version>
