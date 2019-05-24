@@ -24,6 +24,7 @@ import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -71,6 +72,7 @@ public class LentaBenchStand {
 
   private static final Logger LOG = LoggerFactory.getLogger(LentaBenchStand.class);
 
+  public final List<Integer> indicesToFailAt;
   private final int sleepBetweenDocs;
   private final String lentaDumpPath;
   private final String validatorClass;
@@ -80,6 +82,7 @@ public class LentaBenchStand {
   public final int rearPort;
 
   public LentaBenchStand(Config benchConfig) {
+    indicesToFailAt = benchConfig.getIntList("numbers-to-fail-at");
     sleepBetweenDocs = benchConfig.getInt("sleep-between-docs-ms");
     lentaDumpPath = benchConfig.getString("lenta-dump-path");
     validatorClass = benchConfig.getString("validator");
@@ -151,8 +154,7 @@ public class LentaBenchStand {
 
   private Seq<TextDocument> documents(int maxSize) throws Exception {
     return Seq.seq(LentaCsvTextDocumentsReader.documents(new FileInputStream(lentaDumpPath)))
-            .limit(maxSize)
-            .shuffle(new Random(1));
+            .limit(maxSize);
   }
 
   private final Random payloadDelayRandom = new Random(7);

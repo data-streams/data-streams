@@ -43,15 +43,18 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
 
 public class FlinkBench {
+  private static List<Integer> numbersToFailAt;
+
   interface SerializableTopicsPredictor extends TopicsPredictor, Serializable {
   }
 
   static class MainPredictor implements SerializableTopicsPredictor {
     public static final SklearnSgdPredictor predictor = new SklearnSgdPredictor(
-            "/opt/flamestream/cnt_vectorizer",
-            "/opt/flamestream/classifier_weights"
+            "/Users/nikitasokolov/Code/flame-stream/flame-stream/examples/src/main/resources/cnt_vectorizer",
+            "/Users/nikitasokolov/Code/flame-stream/flame-stream/examples/src/main/resources/classifier_weights"
     );
 
     static {
@@ -75,6 +78,7 @@ public class FlinkBench {
       deployerConfig = ConfigFactory.load("flink-deployer.conf").getConfig("deployer");
     }
     LentaBenchStand benchStand = new LentaBenchStand(benchConfig);
+    numbersToFailAt = benchStand.indicesToFailAt;
     benchStand.run(new GraphDeployer() {
       @Override
       public void deploy() {
@@ -143,6 +147,13 @@ public class FlinkBench {
           DataStream<TextDocument> source
   ) {
     final SingleOutputStreamOperator<TfObject> splitterTf = source
+            .map(textDocument -> {
+              if (!numbersToFailAt.isEmpty() && textDocument.number() == numbersToFailAt.get(0)) {
+                numbersToFailAt.remove(0);
+                throw new RuntimeException("scheduled fail");
+              }
+              return textDocument;
+            })
             .shuffle()
             .map(TfObject::ofText);
     return splitterTf
