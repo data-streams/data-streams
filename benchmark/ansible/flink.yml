@@ -43,7 +43,7 @@
   roles:
     - { role: flink-task-manager-destroy }
 
-- hosts: all
+- hosts: bench
   tasks:
     - name: Fetch traces
       fetch:
