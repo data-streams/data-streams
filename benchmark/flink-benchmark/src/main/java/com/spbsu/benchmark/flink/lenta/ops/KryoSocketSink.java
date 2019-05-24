@@ -4,9 +4,10 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
-import com.spbsu.flamestream.example.bl.index.model.WordIndexAdd;
-import com.spbsu.flamestream.example.bl.index.model.WordIndexRemove;
+import com.spbsu.flamestream.example.benchmark.LentaBenchStand;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
+import com.spbsu.flamestream.example.bl.text_classifier.model.TfIdfObject;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Topic;
 import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.functions.sink.RichSinkFunction;
@@ -17,6 +18,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.HashMap;
 
 public class KryoSocketSink extends RichSinkFunction<Prediction> {
   private static final long serialVersionUID = 1L;
@@ -42,9 +44,9 @@ public class KryoSocketSink extends RichSinkFunction<Prediction> {
     //tracer = Tracing.TRACING.forEvent("sink-receive");
 
     client = new Client(OUTPUT_BUFFER_SIZE, 1234);
-    client.getKryo().register(WordIndexAdd.class);
-    client.getKryo().register(WordIndexRemove.class);
-    client.getKryo().register(long[].class);
+    for (final Class aClass : LentaBenchStand.CLASSES_TO_REGISTER) {
+      client.getKryo().register(aClass);
+    }
     ((Kryo.DefaultInstantiatorStrategy) client.getKryo()
             .getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
 

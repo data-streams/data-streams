@@ -43,7 +43,7 @@ public class KryoSocketSource extends RichParallelSourceFunction<TextDocument> i
     //tracer = Tracing.TRACING.forEvent("source-receive", 1000, 1);
 
     client = new Client(1000, INPUT_BUFFER_SIZE);
-    client.getKryo().register(WikipediaPage.class);
+    client.getKryo().register(TextDocument.class);
     ((Kryo.DefaultInstantiatorStrategy) client.getKryo()
             .getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
   }
