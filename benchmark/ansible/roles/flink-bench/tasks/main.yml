@@ -41,3 +41,11 @@
     flat: true
   tags:
     - lat
+
+- name: Fetch predictions
+  fetch:
+    src: /tmp/predictions.csv
+    dest: "{{ results_dir }}/flink/predictions.csv"
+    flat: true
+  tags:
+    - lat
