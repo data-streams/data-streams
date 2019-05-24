@@ -1,4 +1,4 @@
-package com.spbsu.flamestream.example.bl.text_classifier.ops.filtering;
+package com.spbsu.flamestream.example.bl.text_classifier.ops;
 
 import com.spbsu.flamestream.example.bl.text_classifier.model.IdfObject;
 import com.spbsu.flamestream.example.bl.text_classifier.model.WordCounter;

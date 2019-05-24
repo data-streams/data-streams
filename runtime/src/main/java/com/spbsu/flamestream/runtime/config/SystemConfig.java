@@ -1,21 +1,24 @@
 package com.spbsu.flamestream.runtime.config;
 
-public class CommitterConfig {
+public class SystemConfig {
   private final int maxElementsInGraph;
   private final int millisBetweenCommits;
   private final long defaultMinimalTime;
   private final boolean distributedAcker;
+  private final boolean barrierDisabled;
 
-  public CommitterConfig(
+  public SystemConfig(
           int maxElementsInGraph,
           int millisBetweenCommits,
           long defaultMinimalTime,
-          boolean distributedAcker
+          boolean distributedAcker,
+          boolean barrierDisabled
   ) {
     this.maxElementsInGraph = maxElementsInGraph;
     this.millisBetweenCommits = millisBetweenCommits;
     this.defaultMinimalTime = defaultMinimalTime;
     this.distributedAcker = distributedAcker;
+    this.barrierDisabled = barrierDisabled;
   }
 
   public long defaultMinimalTime() {
@@ -36,6 +39,10 @@ public class CommitterConfig {
 
   @Override
   public String toString() {
-    return "CommitterConfig{maxElementsInGraph=" + maxElementsInGraph + '}';
+    return "SystemConfig{maxElementsInGraph=" + maxElementsInGraph + '}';
+  }
+
+  public boolean barrierIsDisabled() {
+    return barrierDisabled;
   }
 }

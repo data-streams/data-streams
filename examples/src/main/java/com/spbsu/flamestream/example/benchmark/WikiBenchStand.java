@@ -26,7 +26,6 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.google.common.math.Quantiles.percentiles;
 
@@ -47,11 +46,11 @@ public class WikiBenchStand {
       benchConfig = ConfigFactory.load("bench.conf").getConfig("benchmark");
       deployerConfig = ConfigFactory.load("deployer.conf").getConfig("deployer");
     }
-    final BenchStandBuilder benchStandBuilder = new BenchStandBuilder();
+    final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
     final WikiBenchStand wikiBenchStand = new WikiBenchStand(benchConfig);
     try (
             GraphDeployer graphDeployer = new FlameGraphDeployer(
-                    benchStandBuilder.runtime(deployerConfig),
+                    benchStandComponentFactory.runtime(deployerConfig),
                     new InvertedIndexGraph().get(),
                     new SocketFrontType(wikiBenchStand.benchHost, wikiBenchStand.frontPort, WikipediaPage.class),
                     new SocketRearType(wikiBenchStand.benchHost, wikiBenchStand.rearPort, CLASSES_TO_REGISTER)
@@ -83,7 +82,7 @@ public class WikiBenchStand {
   }
 
   public void run(GraphDeployer graphDeployer) throws Exception {
-    final BenchStandBuilder benchStandBuilder = new BenchStandBuilder();
+    final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
 
     //noinspection unchecked
     BenchValidator<WordIndexAdd> validator =
@@ -91,7 +90,7 @@ public class WikiBenchStand {
     final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(validator.expectedOutputSize());
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
     try (
-            AutoCloseable ignored = benchStandBuilder.producer(
+            AutoCloseable ignored = benchStandComponentFactory.producer(
                     WikipediaPage.class,
                     pages(validator.inputLimit()).peek(page -> {
                       latencies.put(page.id(), new LatencyMeasurer());
@@ -100,7 +99,7 @@ public class WikiBenchStand {
                     inputHost,
                     frontPort
             )::stop;
-            AutoCloseable ignored1 = benchStandBuilder.consumer(
+            AutoCloseable ignored1 = benchStandComponentFactory.consumer(
                     WordIndexAdd.class,
                     wordIndexAdd -> {
                       latencies.get(IndexItemInLong.pageId(wordIndexAdd.positions()[0])).finish();

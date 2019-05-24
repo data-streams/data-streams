@@ -1,7 +1,7 @@
 package com.spbsu.flamestream.runtime;
 
 import akka.actor.ActorSystem;
-import com.spbsu.flamestream.runtime.config.CommitterConfig;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.utils.DumbInetSocketAddress;
 import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
 import com.typesafe.config.Config;
@@ -49,6 +49,7 @@ public class WorkerApplication implements Runnable {
             .millisBetweenCommits(Integer.parseInt(System.getenv("MILLIS_BETWEEN_COMMITS")))
             .maxElementsInGraph(Integer.parseInt(System.getenv("MAX_ELEMENTS_IN_GRAPH")))
             .distributedAcker(Boolean.parseBoolean(System.getenv("DISTRIBUTED_ACKER")))
+            .barrierDisabled(Boolean.parseBoolean(System.getenv("BARRIER_DISABLED")))
             .build(
                     System.getenv("ID"),
                     new DumbInetSocketAddress(System.getenv("LOCAL_ADDRESS")),
@@ -79,15 +80,16 @@ public class WorkerApplication implements Runnable {
 
     final Config config = ConfigFactory.parseMap(props).withFallback(ConfigFactory.load("remote"));
     this.system = ActorSystem.create("worker", config);
-    final CommitterConfig committerConfig = new CommitterConfig(
+    final SystemConfig systemConfig = new SystemConfig(
             workerConfig.maxElementsInGraph,
             workerConfig.millisBetweenCommits,
             workerConfig.defaultMinimalTime,
-            workerConfig.distributedAcker
+            workerConfig.distributedAcker,
+            workerConfig.barrierDisabled
     );
     //noinspection ConstantConditions
     system.actorOf(
-            StartupWatcher.props(workerConfig.id, workerConfig.zkString, workerConfig.snapshotPath, committerConfig),
+            StartupWatcher.props(workerConfig.id, workerConfig.zkString, workerConfig.snapshotPath, systemConfig),
             "watcher"
     );
 
@@ -122,16 +124,19 @@ public class WorkerApplication implements Runnable {
     private final int millisBetweenCommits;
     private final int defaultMinimalTime;
     private final boolean distributedAcker;
+    private final boolean barrierDisabled;
 
-    private WorkerConfig(String id,
-                         DumbInetSocketAddress localAddress,
-                         String zkString,
-                         String snapshotPath,
-                         Guarantees guarantees,
-                         int maxElementsInGraph,
-                         int millisBetweenCommits,
-                         int defaultMinimalTime,
-                         boolean distributedAcker
+    private WorkerConfig(
+            String id,
+            DumbInetSocketAddress localAddress,
+            String zkString,
+            String snapshotPath,
+            Guarantees guarantees,
+            int maxElementsInGraph,
+            int millisBetweenCommits,
+            int defaultMinimalTime,
+            boolean distributedAcker,
+            boolean barrierDisabled
     ) {
       this.guarantees = guarantees;
       this.id = id;
@@ -142,6 +147,7 @@ public class WorkerApplication implements Runnable {
       this.millisBetweenCommits = millisBetweenCommits;
       this.defaultMinimalTime = defaultMinimalTime;
       this.distributedAcker = distributedAcker;
+      this.barrierDisabled = barrierDisabled;
     }
 
     @Override
@@ -167,6 +173,7 @@ public class WorkerApplication implements Runnable {
       private int millisBetweenCommits = 100;
       private int defaultMinimalTime = 0;
       private boolean distributedAcker = false;
+      private boolean barrierDisabled = true;
 
       public Builder snapshotPath(String snapshotPath) {
         this.snapshotPath = snapshotPath;
@@ -208,8 +215,14 @@ public class WorkerApplication implements Runnable {
                 maxElementsInGraph,
                 millisBetweenCommits,
                 defaultMinimalTime,
-                distributedAcker
+                distributedAcker,
+                barrierDisabled
         );
+      }
+
+      public Builder barrierDisabled(boolean barrierDisabled) {
+        this.barrierDisabled = barrierDisabled;
+        return this;
       }
     }
   }

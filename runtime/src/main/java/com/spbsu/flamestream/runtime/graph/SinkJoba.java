@@ -16,6 +16,7 @@ import com.spbsu.flamestream.runtime.utils.FlameConfig;
 import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +26,7 @@ import java.util.stream.Stream;
 
 public class SinkJoba extends Joba {
   private final LoggingAdapter log;
+  private final boolean barrierDisabled;
   private final InvalidatingBucket invalidatingBucket = new ArrayInvalidatingBucket();
   private final Map<ActorRef, GlobalTime> rears = new HashMap<>();
 
@@ -33,15 +35,23 @@ public class SinkJoba extends Joba {
 
   private GlobalTime minTime = GlobalTime.MIN;
 
-  SinkJoba(Joba.Id id, ActorContext context) {
+  SinkJoba(Joba.Id id, ActorContext context, boolean barrierDisabled) {
     super(id);
     log = Logging.getLogger(context.system(), context.self());
+    this.barrierDisabled = barrierDisabled;
   }
 
   @Override
   public void accept(DataItem item, Consumer<DataItem> sink) {
     barrierReceiveTracer.log(item.xor());
-    invalidatingBucket.insert(item);
+    if (barrierDisabled) {
+      rears.forEach((rear, lastEmmit) -> emmitRearBatch(
+              rear,
+              new BatchImpl(item.meta().globalTime(), Collections.singletonList(item))
+      ));
+    } else {
+      invalidatingBucket.insert(item);
+    }
   }
 
   public void attachRear(ActorRef rear) {
@@ -81,13 +91,7 @@ public class SinkJoba extends Joba {
       });
 
       if (!data.isEmpty()) {
-        final BatchImpl batch = new BatchImpl(upTo, data);
-        try {
-          PatternsCS.ask(rear, batch, FlameConfig.config.smallTimeout()).toCompletableFuture().get();
-        } catch (InterruptedException | ExecutionException e) {
-          throw new RuntimeException(e);
-        }
-        barrierSendTracer.log(batch.time().time());
+        emmitRearBatch(rear, new BatchImpl(upTo, data));
       }
     });
 
@@ -98,6 +102,15 @@ public class SinkJoba extends Joba {
     if (!rears.isEmpty()) {
       invalidatingBucket.clearRange(0, pos);
     }
+  }
+
+  private void emmitRearBatch(ActorRef rear, BatchImpl batch) {
+    try {
+      PatternsCS.ask(rear, batch, FlameConfig.config.smallTimeout()).toCompletableFuture().get();
+    } catch (InterruptedException | ExecutionException e) {
+      throw new RuntimeException(e);
+    }
+    barrierSendTracer.log(batch.time().time());
   }
 
   public static class BatchImpl implements Batch {

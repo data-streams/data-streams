@@ -14,7 +14,7 @@ import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.runtime.config.ClusterConfig;
-import com.spbsu.flamestream.runtime.config.CommitterConfig;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.config.HashGroup;
 import com.spbsu.flamestream.runtime.config.HashUnit;
 import com.spbsu.flamestream.runtime.edge.Front;
@@ -47,16 +47,17 @@ class Cluster extends LoggingActor {
   private final boolean blinking;
   private final int blinkPeriodSec;
 
-  private Cluster
-          (Graph g,
-           StateStorage stateStorage,
-           int parallelism,
-           int maxElementsInGraph,
-           int millisBetweenCommits,
-           boolean distributedAcker,
-           boolean blinking,
-           int blinkPeriodSec
-          ) {
+  private Cluster(
+          Graph g,
+          StateStorage stateStorage,
+          int parallelism,
+          int maxElementsInGraph,
+          boolean barrierDisabled,
+          int millisBetweenCommits,
+          boolean distributedAcker,
+          boolean blinking,
+          int blinkPeriodSec
+  ) {
     this.blinking = blinking;
     this.blinkPeriodSec = blinkPeriodSec;
 
@@ -77,8 +78,8 @@ class Cluster extends LoggingActor {
       ranges.put(id, new HashGroup(Collections.singleton(range)));
     }
     final ClusterConfig clusterConfig = new ClusterConfig(paths, "node-0", ranges);
-    final CommitterConfig committerConfig =
-            new CommitterConfig(maxElementsInGraph, millisBetweenCommits, 0, distributedAcker);
+    final SystemConfig systemConfig =
+            new SystemConfig(maxElementsInGraph, millisBetweenCommits, 0, distributedAcker, false);
 
     final Registry registry = new InMemoryRegistry();
     inner = context().actorOf(FlameUmbrella.props(
@@ -99,7 +100,7 @@ class Cluster extends LoggingActor {
               );
               final ActorRef committer = context.actorOf(Committer.props(
                       clusterConfig.paths().size(),
-                      committerConfig,
+                      systemConfig,
                       registryHolder,
                       localAcker
               ));
@@ -111,6 +112,7 @@ class Cluster extends LoggingActor {
                       registryHolder,
                       committer,
                       maxElementsInGraph,
+                      false,
                       stateStorage
               ), id)).collect(Collectors.toList());
             },
@@ -122,6 +124,7 @@ class Cluster extends LoggingActor {
                      StateStorage stateStorage,
                      int parallelism,
                      int maxElementsInGraph,
+                     boolean barrierDisabled,
                      int millisBetweenCommits,
                      boolean distributedAcker,
                      boolean blinking,
@@ -133,6 +136,7 @@ class Cluster extends LoggingActor {
             stateStorage,
             parallelism,
             maxElementsInGraph,
+            barrierDisabled,
             millisBetweenCommits,
             distributedAcker,
             blinking,

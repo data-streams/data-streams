@@ -25,8 +25,9 @@ public class LocalRuntime implements FlameRuntime {
   private final StateStorage stateStorage;
   private final int parallelism;
   private final int maxElementsInGraph;
-  private final int millisBetweenCommits;
   private final boolean distributedAcker;
+  private final int millisBetweenCommits;
+  private final boolean barrierDisabled;
   private final boolean blinking;
   private final int blinkPeriodSec;
 
@@ -34,6 +35,7 @@ public class LocalRuntime implements FlameRuntime {
           ActorSystem system,
           int parallelism,
           int maxElementsInGraph,
+          boolean barrierDisabled,
           int millisBetweenCommits,
           boolean blinking,
           int blinkPeriodSec,
@@ -41,6 +43,7 @@ public class LocalRuntime implements FlameRuntime {
           StateStorage stateStorage
   ) {
     this.parallelism = parallelism;
+    this.barrierDisabled = barrierDisabled;
     this.blinking = blinking;
     this.maxElementsInGraph = maxElementsInGraph;
     this.millisBetweenCommits = millisBetweenCommits;
@@ -62,6 +65,7 @@ public class LocalRuntime implements FlameRuntime {
                     stateStorage,
                     parallelism,
                     maxElementsInGraph,
+                    barrierDisabled,
                     millisBetweenCommits,
                     distributedAcker,
                     blinking,
@@ -120,6 +124,7 @@ public class LocalRuntime implements FlameRuntime {
 
     @Nullable
     private ActorSystem system = null;
+    private boolean barrierDisabled;
 
     public Builder parallelism(int parallelism) {
       this.parallelism = parallelism;
@@ -161,6 +166,11 @@ public class LocalRuntime implements FlameRuntime {
       return this;
     }
 
+    public Builder barrierDisabled(boolean barrierDisabled) {
+      this.barrierDisabled = barrierDisabled;
+      return this;
+    }
+
     public LocalRuntime build() {
       if (system == null) {
         system = ActorSystem.create("local-runtime", ConfigFactory.load("local"));
@@ -169,6 +179,7 @@ public class LocalRuntime implements FlameRuntime {
               system,
               parallelism,
               maxElementsInGraph,
+              barrierDisabled,
               millisBetweenCommits,
               blinking,
               blinkPeriodSec,

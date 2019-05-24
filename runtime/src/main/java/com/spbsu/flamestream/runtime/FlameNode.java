@@ -16,7 +16,6 @@ import com.spbsu.flamestream.runtime.utils.akka.AwaitResolver;
 import com.spbsu.flamestream.runtime.utils.akka.LoggingActor;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 public class FlameNode extends LoggingActor {
@@ -30,6 +29,7 @@ public class FlameNode extends LoggingActor {
                     ActorRef registryHolder,
                     ActorRef committer,
                     int maxElementsInGraph,
+                    boolean barrierIsDisabled,
                     StateStorage storage) {
     this.config = config;
 
@@ -39,7 +39,7 @@ public class FlameNode extends LoggingActor {
             localAcker,
             registryHolder,
             committer,
-            new ComputationProps(config.hashGroups(), maxElementsInGraph),
+            new ComputationProps(config.hashGroups(), maxElementsInGraph, barrierIsDisabled),
             storage
     ), "graph");
     graph.tell(resolvedManagers(), self());
@@ -60,6 +60,7 @@ public class FlameNode extends LoggingActor {
                             ActorRef registryHolder,
                             ActorRef committer,
                             int maxElementsInGraph,
+                            boolean barrierIsDisabled,
                             StateStorage stateStorage) {
     return Props.create(
             FlameNode.class,
@@ -70,6 +71,7 @@ public class FlameNode extends LoggingActor {
             registryHolder,
             committer,
             maxElementsInGraph,
+            barrierIsDisabled,
             stateStorage
     );
   }

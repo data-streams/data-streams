@@ -1,4 +1,4 @@
-package com.spbsu.flamestream.example.bl.text_classifier.ops.filtering;
+package com.spbsu.flamestream.example.bl.text_classifier.ops;
 
 import java.util.Collections;
 import java.util.List;

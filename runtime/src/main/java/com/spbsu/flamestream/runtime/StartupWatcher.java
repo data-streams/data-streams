@@ -1,13 +1,10 @@
 package com.spbsu.flamestream.runtime;
 
-import akka.actor.ActorPath;
 import akka.actor.ActorPath$;
-import akka.actor.ActorRef;
 import akka.actor.Props;
 import akka.japi.pf.ReceiveBuilder;
 import akka.serialization.SerializationExtension;
-import com.spbsu.flamestream.runtime.config.ClusterConfig;
-import com.spbsu.flamestream.runtime.config.CommitterConfig;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.config.ZookeeperWorkersNode;
 import com.spbsu.flamestream.runtime.master.ClientWatcher;
 import com.spbsu.flamestream.runtime.master.acker.Acker;
@@ -17,7 +14,6 @@ import com.spbsu.flamestream.runtime.state.DevNullStateStorage;
 import com.spbsu.flamestream.runtime.state.RocksDBStateStorage;
 import com.spbsu.flamestream.runtime.state.StateStorage;
 import com.spbsu.flamestream.runtime.utils.FlameConfig;
-import com.spbsu.flamestream.runtime.utils.akka.AwaitResolver;
 import com.spbsu.flamestream.runtime.utils.akka.LoggingActor;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
@@ -38,20 +34,20 @@ public class StartupWatcher extends LoggingActor {
   private final String zkConnectString;
   private final String id;
   private final String snapshotPath;
-  private final CommitterConfig committerConfig;
+  private final SystemConfig systemConfig;
 
   private StateStorage stateStorage = null;
   private CuratorFramework curator = null;
 
-  private StartupWatcher(String id, String zkConnectString, String snapshotPath, CommitterConfig committerConfig) {
+  private StartupWatcher(String id, String zkConnectString, String snapshotPath, SystemConfig systemConfig) {
     this.zkConnectString = zkConnectString;
     this.id = id;
     this.snapshotPath = snapshotPath;
-    this.committerConfig = committerConfig;
+    this.systemConfig = systemConfig;
   }
 
-  public static Props props(String id, String zkConnectString, String snapshotPath, CommitterConfig committerConfig) {
-    return Props.create(StartupWatcher.class, id, zkConnectString, snapshotPath, committerConfig);
+  public static Props props(String id, String zkConnectString, String snapshotPath, SystemConfig systemConfig) {
+    return Props.create(StartupWatcher.class, id, zkConnectString, snapshotPath, systemConfig);
   }
 
   @Override
@@ -77,9 +73,9 @@ public class StartupWatcher extends LoggingActor {
             ActorPath$.MODULE$.fromString(self().path()
                     .toStringWithAddress(context().system().provider().getDefaultAddress()))
     );
-    if (committerConfig.distributedAcker() || zookeeperWorkersNode.isLeader(id)) {
+    if (systemConfig.distributedAcker() || zookeeperWorkersNode.isLeader(id)) {
       context().actorOf(
-              Acker.props(committerConfig.defaultMinimalTime(), !committerConfig.distributedAcker()),
+              Acker.props(systemConfig.defaultMinimalTime(), !systemConfig.distributedAcker()),
               "acker"
       );
     }
@@ -91,7 +87,7 @@ public class StartupWatcher extends LoggingActor {
                     id,
                     curator,
                     zookeeperWorkersNode,
-                    committerConfig,
+                    systemConfig,
                     stateStorage,
                     kryoSerializer
             ),

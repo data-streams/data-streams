@@ -21,7 +21,7 @@
         <maven-dependency-plugin.version>3.0.0</maven-dependency-plugin.version>
 
         <!-- java props -->
-        <java.source.level>1.11</java.source.level>
+        <java.source.level>1.9</java.source.level>
 
         <!-- lib versions -->
         <slf4j.version>1.7.24</slf4j.version>
@@ -41,11 +41,10 @@
         <leveldb-jni.version>1.8</leveldb-jni.version>
         <jetbrains.version>13.0</jetbrains.version>
         <akka-kryo-serialization.version>0.5.0</akka-kryo-serialization.version>
-        <akka-kryo-serialization.version>0.5.0</akka-kryo-serialization.version>
         <commons-cli.version>1.4</commons-cli.version>
         <trove.version>3.0.3</trove.version>
         <typesafe-config.version>1.3.1</typesafe-config.version>
-        <flink.version>1.5.0</flink.version>
+        <flink.version>1.4.0</flink.version>
         <jedis.version>2.9.0</jedis.version>
         <rocksdb.version>5.5.1</rocksdb.version>
         <curator.version>4.0.1</curator.version>
@@ -250,7 +249,7 @@
             <dependency>
                 <groupId>com.expleague</groupId>
                 <artifactId>commons</artifactId>
-                <version>1.1</version>
+                <version>1.4.9</version>
                 <exclusions>
                     <exclusion>
                         <groupId>com.fasterxml.jackson.core</groupId>

@@ -1,4 +1,4 @@
-package com.spbsu.flamestream.example.bl.text_classifier.ops.entries;
+package com.spbsu.flamestream.example.bl.text_classifier.ops;
 
 import com.spbsu.flamestream.example.bl.text_classifier.model.containers.WordContainer;
 import com.spbsu.flamestream.example.bl.text_classifier.model.WordCounter;

@@ -2,3 +2,4 @@ examples/src/main/resources/classifier_weights filter=lfs diff=lfs merge=lfs -te
 examples/src/main/resources/cnt_vectorizer filter=lfs diff=lfs merge=lfs -text
 examples/src/test/resources/sklearn_prediction filter=lfs diff=lfs merge=lfs -text
 examples/src/test/resources/idfs filter=lfs diff=lfs merge=lfs -text
+examples/src/main/resources/topics filter=lfs diff=lfs merge=lfs -text

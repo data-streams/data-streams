@@ -8,7 +8,7 @@ import akka.pattern.PatternsCS;
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.runtime.config.ClusterConfig;
-import com.spbsu.flamestream.runtime.config.CommitterConfig;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.config.ZookeeperWorkersNode;
 import com.spbsu.flamestream.runtime.edge.api.AttachFront;
 import com.spbsu.flamestream.runtime.edge.api.AttachRear;
@@ -41,7 +41,7 @@ public class ProcessingWatcher extends LoggingActor {
   private final String id;
   private final CuratorFramework curator;
   private final ZookeeperWorkersNode zookeeperWorkersNode;
-  private final CommitterConfig committerConfig;
+  private final SystemConfig systemConfig;
   private final StateStorage stateStorage;
   private final FlameSerializer serializer;
 
@@ -55,14 +55,14 @@ public class ProcessingWatcher extends LoggingActor {
   public ProcessingWatcher(String id,
                            CuratorFramework curator,
                            ZookeeperWorkersNode zookeeperWorkersNode,
-                           CommitterConfig committerConfig,
+                           SystemConfig systemConfig,
                            StateStorage stateStorage,
                            FlameSerializer serializer
   ) {
     this.id = id;
     this.curator = curator;
     this.zookeeperWorkersNode = zookeeperWorkersNode;
-    this.committerConfig = committerConfig;
+    this.systemConfig = systemConfig;
     this.stateStorage = stateStorage;
     this.serializer = serializer;
   }
@@ -70,7 +70,7 @@ public class ProcessingWatcher extends LoggingActor {
   public static Props props(String id,
                             CuratorFramework curator,
                             ZookeeperWorkersNode zookeeperWorkersNode,
-                            CommitterConfig committerConfig,
+                            SystemConfig systemConfig,
                             StateStorage stateStorage,
                             FlameSerializer serializer
   ) {
@@ -79,7 +79,7 @@ public class ProcessingWatcher extends LoggingActor {
             id,
             curator,
             zookeeperWorkersNode,
-            committerConfig,
+            systemConfig,
             stateStorage,
             serializer
     );
@@ -150,7 +150,7 @@ public class ProcessingWatcher extends LoggingActor {
     
     this.graph = graph;
     final ClusterConfig config = ClusterConfig.fromWorkers(zookeeperWorkersNode.workers());
-    final Stream<ActorPath> ackerPaths = committerConfig.distributedAcker() ? config.paths()
+    final Stream<ActorPath> ackerPaths = systemConfig.distributedAcker() ? config.paths()
             .values()
             .stream() : Stream.of(config.masterPath());
     final List<CompletableFuture<ActorRef>> ackerFutures = ackerPaths
@@ -170,7 +170,7 @@ public class ProcessingWatcher extends LoggingActor {
       registryHolder = context().actorOf(RegistryHolder.props(new ZkRegistry(curator), localAcker), "registry-holder");
       committer = context().actorOf(Committer.props(
               config.paths().size(),
-              committerConfig,
+              systemConfig,
               registryHolder,
               localAcker
       ), "committer");
@@ -189,7 +189,8 @@ public class ProcessingWatcher extends LoggingActor {
                     localAcker,
                     registryHolder,
                     committer,
-                    committerConfig.maxElementsInGraph(),
+                    systemConfig.maxElementsInGraph(),
+                    systemConfig.barrierIsDisabled(),
                     stateStorage
             ),
             "graph"

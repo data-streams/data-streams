@@ -5,8 +5,10 @@ import com.spbsu.flamestream.example.bl.text_classifier.TextClassifierGraph;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TextDocument;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TfIdfObject;
-import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.SklearnSgdPredictor;
-import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Topic;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.CountVectorizer;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.TextUtils;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.Topic;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.ftrl.FTRLProximal;
 import com.spbsu.flamestream.runtime.edge.socket.SocketFrontType;
 import com.spbsu.flamestream.runtime.edge.socket.SocketRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitCountConsumer;
@@ -56,10 +58,16 @@ public class LentaBenchStand {
     try (
             GraphDeployer graphDeployer = new FlameGraphDeployer(
                     benchStandBuilder.runtime(deployerConfig),
-                    new TextClassifierGraph(new SklearnSgdPredictor(
-                            "/opt/flamestream/cnt_vectorizer",
-                            "/opt/flamestream/classifier_weights"
-                    )).get(),
+                    new TextClassifierGraph(
+                            new CountVectorizer("/opt/flamestream/cnt_vectorizer"),
+                            FTRLProximal.builder()
+                                    .alpha(132)
+                                    .beta(0.1)
+                                    .lambda1(0.5)
+                                    .lambda2(0.095)
+                                    .build(TextUtils.readTopics("/opt/flamestream/classifier_weights"))
+
+                    ).get(),
                     new SocketFrontType(lentaBenchStand.benchHost, lentaBenchStand.frontPort, TextDocument.class),
                     new SocketRearType(lentaBenchStand.benchHost, lentaBenchStand.rearPort, CLASSES_TO_REGISTER)
             )

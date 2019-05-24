@@ -1,4 +1,4 @@
-package com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier;
+package com.spbsu.flamestream.example.bl.text_classifier.ops.classifier;
 
 import org.jetbrains.annotations.NotNull;
 
@@ -7,7 +7,7 @@ public class Topic implements Comparable<Topic> {
   private final String id;
   private final double probability;
 
-  Topic(String name, String id, double probability) {
+  public Topic(String name, String id, double probability) {
     this.name = name;
     this.id = id;
     this.probability = probability;

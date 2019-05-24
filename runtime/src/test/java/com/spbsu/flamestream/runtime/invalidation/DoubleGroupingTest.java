@@ -123,6 +123,13 @@ public class DoubleGroupingTest extends FlameStreamSuite {
     }
   }
 
+  @Test(invocationCount = 10)
+  public void disabledBarrierMultipleWorkersTest() throws InterruptedException {
+    try (LocalRuntime runtime = new LocalRuntime.Builder().parallelism(4).barrierDisabled(true).build()) {
+      doubleGroupingTest(runtime, 10000, false);
+    }
+  }
+
   @Test
   public void singleWorkerBlinkTest() throws InterruptedException {
     try (LocalRuntime runtime = new LocalRuntime.Builder().parallelism(1).withBlink().build()) {

@@ -37,7 +37,7 @@ public class LentaCsvTextDocumentsReader {
                     StandardCharsets.UTF_8
             )), CSVFormat.DEFAULT.withFirstRecordAsHeader()).iterator(),
             Spliterator.IMMUTABLE
-    ), false).map(r -> document(r.get(4), r.get(1), (int) r.getRecordNumber()));
+    ), false).map(r -> document(r.get(4), r.get(1), (int) r.getRecordNumber(), r.get(4)));
   }
 
   public static Stream<TextDocument> bootstrap(InputStream inputStream) throws IOException {
@@ -51,7 +51,7 @@ public class LentaCsvTextDocumentsReader {
     final Random random = new Random();
     AtomicInteger counter = new AtomicInteger(0);
     return Stream.generate(() -> sample.get(random.nextInt(sample.size()))).limit(20000)
-            .map(r -> document(r.get(4), r.get(1), counter.incrementAndGet()));
+            .map(r -> document(r.get(4), r.get(1), counter.incrementAndGet(), r.get(4)));
   }
 
   public static Stream<TextDocument> groupedBootstrap(InputStream inputStream) throws IOException {
@@ -71,10 +71,10 @@ public class LentaCsvTextDocumentsReader {
               final List<CSVRecord> csvRecords = byTopic.get(topic);
               return csvRecords.get(random.nextInt(csvRecords.size()));
             }).limit(100))
-            .map(r -> document(r.get(4), r.get(1), counter.incrementAndGet()));
+            .map(r -> document(r.get(4), r.get(1), counter.incrementAndGet(), r.get(4)));
   }
 
-  public static TextDocument document(String name, String recordText, int number) {
+  public static TextDocument document(String name, String recordText, int number, String label) {
     StringJoiner text = new StringJoiner(" ");
     Matcher matcher = WORD_PATTERN.matcher(recordText);
     while (matcher.find()) {
@@ -84,7 +84,8 @@ public class LentaCsvTextDocumentsReader {
             name, // url order
             text.toString().toLowerCase(),
             String.valueOf(ThreadLocalRandom.current().nextInt(0, 10)),
-            number
+            number,
+            label // label
     );
   }
 }

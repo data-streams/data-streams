@@ -1,11 +1,18 @@
 package com.spbsu.benchmark.flink.lenta;
 
+import com.expleague.commons.math.vectors.Vec;
 import com.spbsu.flamestream.example.bl.text_classifier.LentaCsvTextDocumentsReader;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TextDocument;
-import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Document;
-import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.SklearnSgdPredictor;
-import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Topic;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.CountVectorizer;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.DataPoint;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.Document;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.ModelState;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.OnlineModel;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.TextUtils;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.Topic;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.Vectorizer;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.ftrl.FTRLProximal;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVPrinter;
@@ -31,10 +38,8 @@ import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.stream.Collectors;
@@ -44,19 +49,46 @@ import java.util.stream.StreamSupport;
 public class FlinkBenchTest {
   static private long blinkAtMillis;
 
-  static class ExamplesTopicPredictor implements FlinkBench.SerializableTopicsPredictor {
-    public static final SklearnSgdPredictor predictor = new SklearnSgdPredictor(
-            "../../examples/src/main/resources/cnt_vectorizer",
-            "../../examples/src/main/resources/classifier_weights"
-    );
+  static class ExamplesVectorizer implements Vectorizer, Serializable {
+    static final Vectorizer vectorizer =
+            new CountVectorizer("../../examples/src/main/resources/cnt_vectorizer");
 
     static {
-      predictor.init();
+      vectorizer.init();
     }
 
     @Override
-    public Topic[] predict(Document document) {
-      return predictor.predict(document);
+    public Vec vectorize(Document document) {
+      return vectorizer.vectorize(document);
+    }
+
+    @Override
+    public int dim() {
+      return vectorizer.dim();
+    }
+  }
+
+  static class ExamplesOnlineModel implements OnlineModel, Serializable {
+    static final private OnlineModel onlineModel = FTRLProximal.builder()
+            .alpha(132)
+            .beta(0.1)
+            .lambda1(0.5)
+            .lambda2(0.095)
+            .build(TextUtils.readTopics("../../benchmark/ansible/roles/flamestream-worker/files/classifier_weights"));
+
+    @Override
+    public ModelState step(DataPoint trainingPoint, ModelState prevState) {
+      return onlineModel.step(trainingPoint, prevState);
+    }
+
+    @Override
+    public Topic[] predict(ModelState state, Vec vec) {
+      return onlineModel.predict(state, vec);
+    }
+
+    @Override
+    public int classes() {
+      return onlineModel.classes();
     }
   }
 
@@ -189,8 +221,9 @@ public class FlinkBenchTest {
       ), false)
               .filter(csvRecord -> {
                 String topic = csvRecord.get(0);
-                if (!counts.containsKey(topic) || counts.get(topic) == limit)
+                if (!counts.containsKey(topic) || counts.get(topic) == limit) {
                   return false;
+                }
                 counts.put(topic, counts.get(topic) + 1);
                 return true;
               })
@@ -273,63 +306,9 @@ public class FlinkBenchTest {
     final List<TextDocument> bootstrapped = LentaCsvTextDocumentsReader
             .documents(new FileInputStream("../../examples/src/main/resources/lenta/news_lenta.csv")).limit(1000)
             .collect(Collectors.toList());
-    //predictionDataStream(env.fromCollection(bootstrapped).setParallelism(1))
-    //        .map(value -> {
-    //          if (Stream.of(value.topics())
-    //                  .sorted(Comparator.comparing(Topic::probability).reversed())
-    //                  .findFirst()
-    //                  .get()
-    //                  .name()
-    //                  .equals("Зимние виды ") && Math.random() < 0.01) {
-    //            throw new RuntimeException("blink");
-    //          }
-    //          {
-    //            if (System.currentTimeMillis() > blinkAtMillis) {
-    //              blinkAtMillis = System.currentTimeMillis() + blinkPeriodMillis;
-    //              throw new RuntimeException("blink");
-    //            }
-    //          }
-    //          return value;
-    //        })
-    //        .addSink(new CSVSink("blinking_predictions_bootstrap5.csv")).setParallelism(1);
-    //env.execute();
-    //CSVSink.openedCsvPrinter.close();
-    //CSVSink.openedCsvPrinter = null;
-    //CSVSink.topicNames = null;
     predictionDataStream(env.fromCollection(bootstrapped).setParallelism(1))
-            .addSink(new CSVSink("stable_predictions-small-0.csv")).setParallelism(1);
+            .addSink(new CollectSink()).setParallelism(1);
     env.execute();
-    CSVSink.openedCsvPrinter.close();
-    CSVSink.openedCsvPrinter = null;
-    CSVSink.topicNames = null;
-    predictionDataStream(env.fromCollection(bootstrapped).setParallelism(1))
-            .addSink(new CSVSink("stable_predictions-small-1.csv")).setParallelism(1);
-    env.execute();
-    CSVSink.openedCsvPrinter.close();
-    CSVSink.openedCsvPrinter = null;
-    CSVSink.topicNames = null;
-    predictionDataStream(env.fromCollection(bootstrapped).setParallelism(1))
-            .addSink(new CSVSink("stable_predictions-small-2.csv")).setParallelism(1);
-    env.execute();
-    CSVSink.openedCsvPrinter.close();
-    CSVSink.openedCsvPrinter = null;
-    CSVSink.topicNames = null;
-    predictionDataStream(env.fromCollection(bootstrapped).setParallelism(1))
-            .addSink(new CSVSink("stable_predictions-small-3.csv")).setParallelism(1);
-    env.execute();
-    CSVSink.openedCsvPrinter.close();
-    CSVSink.openedCsvPrinter = null;
-    CSVSink.topicNames = null;
-    predictionDataStream(env.fromCollection(bootstrapped).setParallelism(1))
-            .addSink(new CSVSink("stable_predictions-small-4.csv")).setParallelism(1);
-    env.execute();
-    CSVSink.openedCsvPrinter.close();
-    CSVSink.openedCsvPrinter = null;
-    CSVSink.topicNames = null;
-    predictionDataStream(env.fromCollection(bootstrapped).setParallelism(1))
-            .addSink(new CSVSink("stable_predictions-small-5.csv")).setParallelism(1);
-    env.execute();
-    CSVSink.openedCsvPrinter.close();
   }
 
   @NotNull
@@ -377,7 +356,7 @@ public class FlinkBenchTest {
   }
 
   private DataStream<Prediction> predictionDataStream(DataStreamSource<TextDocument> source) {
-    return FlinkBench.predictionDataStream(new ExamplesTopicPredictor(), source);
+    return FlinkBench.predictionDataStream(new ExamplesVectorizer(), new ExamplesOnlineModel(), source);
   }
 
   private static class CollectSink implements SinkFunction<Prediction> {

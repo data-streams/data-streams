@@ -6,7 +6,7 @@ import akka.japi.pf.ReceiveBuilder;
 import akka.pattern.PatternsCS;
 import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
-import com.spbsu.flamestream.runtime.config.CommitterConfig;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
 import com.spbsu.flamestream.runtime.master.acker.api.commit.Commit;
 import com.spbsu.flamestream.runtime.master.acker.api.commit.GimmeLastCommit;
@@ -18,11 +18,8 @@ import com.spbsu.flamestream.runtime.master.acker.api.commit.Ready;
 import com.spbsu.flamestream.runtime.utils.FlameConfig;
 import com.spbsu.flamestream.runtime.utils.akka.LoggingActor;
 import com.spbsu.flamestream.runtime.utils.akka.PingActor;
-import org.jetbrains.annotations.Nullable;
 
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -60,15 +57,15 @@ public class Committer extends LoggingActor {
 
   public static Props props(
           int managersCount,
-          CommitterConfig committerConfig,
+          SystemConfig systemConfig,
           ActorRef registryHolder,
           ActorRef acker
   ) {
     return Props.create(
             Committer.class,
             managersCount,
-            committerConfig.defaultMinimalTime(),
-            committerConfig.millisBetweenCommits(),
+            systemConfig.defaultMinimalTime(),
+            systemConfig.millisBetweenCommits(),
             registryHolder,
             acker
     ).withDispatcher("processing-dispatcher");

@@ -1,17 +1,19 @@
 package com.spbsu.flamestream.example.bl.text_classifier.model;
 
 
+import com.spbsu.flamestream.example.bl.text_classifier.model.containers.ClassifierInput;
 import com.spbsu.flamestream.example.bl.text_classifier.model.containers.DocContainer;
 
 import java.util.Map;
 import java.util.Set;
 
-public class TfIdfObject implements DocContainer {
+public class TfIdfObject implements DocContainer, ClassifierInput {
   private final int number;
   private final Map<String, Integer> tf;
   private final Map<String, Integer> idf;
   private final String docName;
   private final String partitioning;
+  private final String label;
 
   public Set<String> words() {
     return tf.keySet();
@@ -31,6 +33,11 @@ public class TfIdfObject implements DocContainer {
     this.idf = idfObject.counts();
     this.partitioning = tfObject.partitioning();
     this.number = tfObject.number();
+    this.label = tfObject.label();
+  }
+
+  public String label() {
+    return label;
   }
 
   @Override

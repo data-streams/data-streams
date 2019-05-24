@@ -58,7 +58,7 @@ local_flink_bench() {
   docker_compose_up \
     && package \
     && copy_flink_artifacts \
-    && sudo ansible-playbook -v -i "${ANSIBLE_HOME}/local.yml" "${ANSIBLE_HOME}/flink.yml"
+    && ansible-playbook -v -i "${ANSIBLE_HOME}/local.yml" "${ANSIBLE_HOME}/flink.yml"
 }
 
 remote_flink_bench() {
@@ -67,4 +67,4 @@ remote_flink_bench() {
     && ansible-playbook -v -i "${ANSIBLE_HOME}/aws.yml" "${ANSIBLE_HOME}/flink.yml"
 }
 
-[[ "$0" == "$BASH_SOURCE" ]] && local_bench
+[[ "$0" == "$BASH_SOURCE" ]] && local_flink_bench

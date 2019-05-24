@@ -1,25 +1,17 @@
 package com.spbsu.flamestream.runtime.utils.collections;
 
+import com.spbsu.flamestream.core.HashFunction;
 import com.spbsu.flamestream.runtime.config.HashUnit;
 
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static java.util.stream.Collectors.toSet;
-
 public class ListHashUnitMap<T> implements HashUnitMap<T> {
   private final Set<Map.Entry<HashUnit, T>> mapping;
 
   public ListHashUnitMap() {
     mapping = new HashSet<>();
-  }
-
-  public ListHashUnitMap(Map<HashUnit, T> nodeMapping) {
-    this.mapping = nodeMapping.entrySet()
-            .stream()
-            .map(e -> new Entry<>(e.getKey(), e.getValue()))
-            .collect(toSet());
   }
 
   @Override
@@ -29,7 +21,10 @@ public class ListHashUnitMap<T> implements HashUnitMap<T> {
         return entry.getValue();
       }
     }
-
+    if (key == HashFunction.BROADCAST_GROUPING_HASH) {
+      //hack for broadcast
+      return mapping.iterator().next().getValue();
+    }
     return null;
   }
 
@@ -69,9 +64,8 @@ public class ListHashUnitMap<T> implements HashUnitMap<T> {
 
     @Override
     public V setValue(V value) {
-      final V tmp = value;
       this.value = value;
-      return tmp;
+      return value;
     }
   }
 }

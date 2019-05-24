@@ -1,11 +1,13 @@
 package com.spbsu.benchmark.flink.lenta;
 
-import com.spbsu.benchmark.flink.lenta.ops.WordCountFunction;
+import com.expleague.commons.math.vectors.Vec;
 import com.spbsu.benchmark.flink.lenta.ops.KryoSocketSink;
 import com.spbsu.benchmark.flink.lenta.ops.KryoSocketSource;
 import com.spbsu.benchmark.flink.lenta.ops.TwoPCKryoSocketSink;
+import com.spbsu.benchmark.flink.lenta.ops.WordCountFunction;
 import com.spbsu.flamestream.example.benchmark.GraphDeployer;
 import com.spbsu.flamestream.example.benchmark.LentaBenchStand;
+import com.spbsu.flamestream.example.bl.text_classifier.model.ClassifierState;
 import com.spbsu.flamestream.example.bl.text_classifier.model.IdfObject;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TextDocument;
@@ -13,21 +15,26 @@ import com.spbsu.flamestream.example.bl.text_classifier.model.TfIdfObject;
 import com.spbsu.flamestream.example.bl.text_classifier.model.TfObject;
 import com.spbsu.flamestream.example.bl.text_classifier.model.WordCounter;
 import com.spbsu.flamestream.example.bl.text_classifier.model.WordEntry;
-import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.Classifier;
-import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.IDFObjectCompleteFilter;
-import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Document;
-import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.SklearnSgdPredictor;
-import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.Topic;
-import com.spbsu.flamestream.example.bl.text_classifier.ops.filtering.classifier.TopicsPredictor;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.Classifier;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.IDFObjectCompleteFilter;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.CountVectorizer;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.DataPoint;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.Document;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.ModelState;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.OnlineModel;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.TextUtils;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.Topic;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.Vectorizer;
+import com.spbsu.flamestream.example.bl.text_classifier.ops.classifier.ftrl.FTRLProximal;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
+import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.java.typeutils.GenericTypeInfo;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.runtime.state.StateBackend;
 import org.apache.flink.runtime.state.filesystem.FsStateBackend;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.TimeCharacteristic;
@@ -40,27 +47,51 @@ import org.apache.flink.util.Collector;
 import org.jooq.lambda.Unchecked;
 
 import java.io.File;
+import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 
 public class FlinkBench {
-  interface SerializableTopicsPredictor extends TopicsPredictor, Serializable {
-  }
-
-  static class MainPredictor implements SerializableTopicsPredictor {
-    public static final SklearnSgdPredictor predictor = new SklearnSgdPredictor(
-            "/opt/flamestream/cnt_vectorizer",
-            "/opt/flamestream/classifier_weights"
-    );
+  static class MainVectorizer implements Vectorizer, Serializable {
+    static final private Vectorizer vectorizer = new CountVectorizer("/opt/flamestream/cnt_vectorizer");
 
     static {
-      predictor.init();
+      vectorizer.init();
     }
 
     @Override
-    public Topic[] predict(Document document) {
-      return predictor.predict(document);
+    public Vec vectorize(Document document) {
+      return vectorizer.vectorize(document);
+    }
+
+    @Override
+    public int dim() {
+      return vectorizer.dim();
+    }
+  }
+
+  static class MainOnlineModel implements OnlineModel, Serializable {
+    static final private OnlineModel onlineModel = FTRLProximal.builder()
+            .alpha(132)
+            .beta(0.1)
+            .lambda1(0.5)
+            .lambda2(0.095)
+            .build(TextUtils.readTopics("/opt/flamestream/classifier_weights"));
+
+    @Override
+    public ModelState step(DataPoint trainingPoint, ModelState prevState) {
+      return onlineModel.step(trainingPoint, prevState);
+    }
+
+    @Override
+    public Topic[] predict(ModelState state, Vec vec) {
+      return onlineModel.predict(state, vec);
+    }
+
+    @Override
+    public int classes() {
+      return onlineModel.classes();
     }
   }
 
@@ -114,11 +145,18 @@ public class FlinkBench {
                   .setCheckpointingMode(guarantees.equals("EXACTLY_ONCE") ? CheckpointingMode.EXACTLY_ONCE : CheckpointingMode.AT_LEAST_ONCE);
         }
 
-        final String rocksDbPath = deployerConfig.getString("rocksdb-path");
-        environment.setStateBackend(new FsStateBackend(new File(rocksDbPath).toURI(), true));
+        try {
+          environment.setStateBackend(new FsStateBackend(
+                  new File(deployerConfig.getString("rocksdb-path")).toURI(),
+                  true
+          ));
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
 
         predictionDataStream(
-                new MainPredictor(),
+                new MainVectorizer(),
+                new MainOnlineModel(),
                 environment
                         .addSource(new KryoSocketSource(benchStand.benchHost, benchStand.frontPort))
                         .setParallelism(parallelism)
@@ -134,8 +172,12 @@ public class FlinkBench {
     System.exit(0);
   }
 
-  static DataStream<Prediction> predictionDataStream(
-          SerializableTopicsPredictor topicsPredictor,
+  static <
+          SerializableVectorizer extends Vectorizer & Serializable,
+          SerializableOnlineModel extends OnlineModel & Serializable
+          > DataStream<Prediction> predictionDataStream(
+          SerializableVectorizer vectorizer,
+          SerializableOnlineModel onlineModel,
           DataStream<TextDocument> source
   ) {
     final SingleOutputStreamOperator<TfObject> splitterTf = source
@@ -196,7 +238,30 @@ public class FlinkBench {
                 }
               }
             })
-            .map(tfIdfObject -> new Classifier(topicsPredictor).apply(tfIdfObject));
+            .map(new RichMapFunction<>() {
+              private transient ValueState<ClassifierState> classifierState;
+
+              @Override
+              public void open(Configuration parameters) throws Exception {
+                super.open(parameters);
+
+                classifierState = getRuntimeContext().getState(new ValueStateDescriptor<>(
+                        "classifierState",
+                        new GenericTypeInfo<>(ClassifierState.class)
+                ));
+              }
+
+              @Override
+              public Prediction map(TfIdfObject tfIdfObject) throws Exception {
+                Classifier classifier = new Classifier(vectorizer, onlineModel);
+                if (classifierState.value() == null) {
+                  classifierState.update(classifier.initialState(tfIdfObject));
+                }
+                Topic[] topics = classifier.topics(classifierState.value(), tfIdfObject);
+                classifierState.update(classifier.newState(classifierState.value(), tfIdfObject));
+                return new Prediction(tfIdfObject, topics);
+              }
+            });
   }
 
   private static class IdfObjectCompleteFilter extends RichFlatMapFunction<WordCounter, IdfObject> {
