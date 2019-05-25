@@ -31,12 +31,12 @@ import java.io.Serializable;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -163,6 +163,32 @@ public class FlinkBenchTest {
     }
   }
 
+  static <T> Spliterator<T> takeWhile(
+          Spliterator<T> splitr, Predicate<? super T> predicate) {
+    return new Spliterators.AbstractSpliterator<T>(splitr.estimateSize(), 0) {
+      boolean stillGoing = true;
+
+      @Override
+      public boolean tryAdvance(Consumer<? super T> consumer) {
+        if (stillGoing) {
+          boolean hadNext = splitr.tryAdvance(elem -> {
+            if (predicate.test(elem)) {
+              consumer.accept(elem);
+            } else {
+              stillGoing = false;
+            }
+          });
+          return hadNext && stillGoing;
+        }
+        return false;
+      }
+    };
+  }
+
+  static <T> Stream<T> takeWhile(Stream<T> stream, Predicate<? super T> predicate) {
+    return StreamSupport.stream(takeWhile(stream.spliterator(), predicate), false);
+  }
+
   @Test
   void prepareBalancedFewTopics() throws IOException {
     try (
@@ -180,7 +206,7 @@ public class FlinkBenchTest {
       counts.put("Украина", 0);
       counts.put("Футбол", 0);
       final int limit = 200;
-      StreamSupport.stream(Spliterators.spliteratorUnknownSize(
+      takeWhile(StreamSupport.stream(Spliterators.spliteratorUnknownSize(
               new CSVParser(new BufferedReader(new InputStreamReader(
                       in,
                       StandardCharsets.UTF_8
@@ -189,12 +215,12 @@ public class FlinkBenchTest {
       ), false)
               .filter(csvRecord -> {
                 String topic = csvRecord.get(0);
-                if (!counts.containsKey(topic) || counts.get(topic) == limit)
+                if (!counts.containsKey(topic) || counts.get(topic) == limit) {
                   return false;
+                }
                 counts.put(topic, counts.get(topic) + 1);
                 return true;
-              })
-              .takeWhile(csvRecord -> !counts.entrySet().stream().allMatch(entry -> entry.getValue() == limit))
+              }), csvRecord -> !counts.entrySet().stream().allMatch(entry -> entry.getValue() == limit))
               .forEach(values -> {
                 try {
                   csvPrinter.printRecord(values);
