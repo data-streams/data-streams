@@ -17,6 +17,9 @@ public class Lenta1100Validator implements BenchValidator<Prediction> {
           new FileOutputStream("/tmp/predictions.csv"),
           StandardCharsets.UTF_8
   ), CSVFormat.DEFAULT);
+  {
+    csvPrinter.print("document");
+  }
 
   public Lenta1100Validator() throws IOException {}
 
