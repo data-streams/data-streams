@@ -27,6 +27,7 @@ import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.java.typeutils.GenericTypeInfo;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
 import org.apache.flink.runtime.state.filesystem.FsStateBackend;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.TimeCharacteristic;
@@ -38,6 +39,7 @@ import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.util.Collector;
 import org.jooq.lambda.Unchecked;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.Serializable;
@@ -46,24 +48,42 @@ import java.nio.file.Paths;
 import java.util.List;
 
 public class FlinkBench {
-  private static List<Integer> numbersToFailAt;
-
   interface SerializableTopicsPredictor extends TopicsPredictor, Serializable {
   }
 
-  static class MainPredictor implements SerializableTopicsPredictor {
-    public static final SklearnSgdPredictor predictor = new SklearnSgdPredictor(
-            "/Users/nikitasokolov/Code/flame-stream/flame-stream/examples/src/main/resources/cnt_vectorizer",
-            "/Users/nikitasokolov/Code/flame-stream/flame-stream/examples/src/main/resources/classifier_weights"
-    );
+  private static String getSystemEnv(String name, String orElse) {
+    if (System.getenv(name) == null) {
+      return orElse;
+    }
+    return System.getenv(name);
+  }
+
+  static class WorkerConfig {
+    static final SklearnSgdPredictor predictor;
+    static final List<Integer> numbersToFailAt;
 
     static {
-      predictor.init();
+      try (BufferedReader worker_config_path = Files.newBufferedReader(Paths.get(getSystemEnv(
+              "WORKER_CONFIG_PATH",
+              "benchmark/flink-benchmark/src/main/resources/worker.conf"
+      )))) {
+        Config config = ConfigFactory.parseReader(worker_config_path).getConfig("worker");
+        predictor = new SklearnSgdPredictor(
+                config.getString("cnt-vectorizer-path"),
+                config.getString("weights-path")
+        );
+        predictor.init();
+        numbersToFailAt = config.getIntList("numbers-to-fail-at");
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
     }
+  }
 
+  static class MainPredictor implements SerializableTopicsPredictor {
     @Override
     public Topic[] predict(Document document) {
-      return predictor.predict(document);
+      return WorkerConfig.predictor.predict(document);
     }
   }
 
@@ -78,60 +98,59 @@ public class FlinkBench {
       deployerConfig = ConfigFactory.load("flink-deployer.conf").getConfig("deployer");
     }
     LentaBenchStand benchStand = new LentaBenchStand(benchConfig);
-    numbersToFailAt = benchStand.indicesToFailAt;
     benchStand.run(new GraphDeployer() {
       @Override
       public void deploy() {
-        final int parallelism = deployerConfig.getInt("parallelism");
-        final StreamExecutionEnvironment environment;
-        if (deployerConfig.hasPath("remote")) {
-          environment = StreamExecutionEnvironment.createRemoteEnvironment(
-                  deployerConfig.getString("remote.manager-hostname"),
-                  deployerConfig.getInt("remote.manager-port"),
-                  parallelism,
-                  deployerConfig.getString("remote.uber-jar")
-          );
-        } else {
-          environment = StreamExecutionEnvironment.createLocalEnvironment(parallelism);
-        }
-        environment.setBufferTimeout(0);
-        environment.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-        environment.setRestartStrategy(new RestartStrategies.NoRestartStrategyConfiguration());
-
-        final String guarantees = deployerConfig.getString("guarantees");
-        final SinkFunction<Prediction> sinkFunction;
-        if (guarantees.equals("EXACTLY_ONCE")) {
-          sinkFunction = new TwoPCKryoSocketSink(
-                  benchStand.benchHost,
-                  benchStand.rearPort,
-                  environment.getConfig()
-          );
-        } else {
-          sinkFunction = new KryoSocketSink(benchStand.benchHost, benchStand.rearPort);
-        }
-
-        if (guarantees.equals("EXACTLY_ONCE") || guarantees.equals("AT_LEAST_ONCE")) {
-          final int millisBetweenCommits = deployerConfig.getInt("millis-between-commits");
-          environment.enableCheckpointing(millisBetweenCommits);
-          environment.getCheckpointConfig().setMinPauseBetweenCheckpoints(1);
-          environment.getCheckpointConfig()
-                  .setCheckpointingMode(guarantees.equals("EXACTLY_ONCE") ? CheckpointingMode.EXACTLY_ONCE : CheckpointingMode.AT_LEAST_ONCE);
-        }
-
-        final String rocksDbPath = deployerConfig.getString("rocksdb-path");
         try {
-          environment.setStateBackend(new FsStateBackend(new File(rocksDbPath).toURI(), true));
+          final int parallelism = deployerConfig.getInt("parallelism");
+          final StreamExecutionEnvironment environment;
+          if (deployerConfig.hasPath("remote")) {
+            environment = StreamExecutionEnvironment.createRemoteEnvironment(
+                    deployerConfig.getString("remote.manager-hostname"),
+                    deployerConfig.getInt("remote.manager-port"),
+                    parallelism,
+                    deployerConfig.getString("remote.uber-jar")
+            );
+          } else {
+            environment = StreamExecutionEnvironment.createLocalEnvironment(parallelism);
+          }
+          environment.setBufferTimeout(0);
+          environment.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+
+          final String guarantees = deployerConfig.getString("guarantees");
+          final SinkFunction<Prediction> sinkFunction;
+          if (guarantees.equals("EXACTLY_ONCE")) {
+            sinkFunction = new TwoPCKryoSocketSink(
+                    benchStand.benchHost,
+                    benchStand.rearPort,
+                    environment.getConfig()
+            );
+          } else {
+            sinkFunction = new KryoSocketSink(benchStand.benchHost, benchStand.rearPort);
+          }
+
+          if (guarantees.equals("EXACTLY_ONCE") || guarantees.equals("AT_LEAST_ONCE")) {
+            final int millisBetweenCommits = deployerConfig.getInt("millis-between-commits");
+            environment.enableCheckpointing(millisBetweenCommits);
+            environment.getCheckpointConfig().setMinPauseBetweenCheckpoints(1);
+            environment.getCheckpointConfig()
+                    .setCheckpointingMode(guarantees.equals("EXACTLY_ONCE") ? CheckpointingMode.EXACTLY_ONCE : CheckpointingMode.AT_LEAST_ONCE);
+          }
+          environment.setStateBackend(new FsStateBackend(
+                  new File(deployerConfig.getString("rocksdb-path")).toURI(),
+                  true
+          ));
+
+          predictionDataStream(
+                  new MainPredictor(),
+                  environment
+                          .addSource(new KryoSocketSource(benchStand.benchHost, benchStand.frontPort))
+                          .setParallelism(parallelism)
+          ).addSink(sinkFunction);
+          new Thread(Unchecked.runnable(environment::execute)).start();
         } catch (IOException e) {
           throw new RuntimeException(e);
         }
-
-        predictionDataStream(
-                new MainPredictor(),
-                environment
-                        .addSource(new KryoSocketSource(benchStand.benchHost, benchStand.frontPort))
-                        .setParallelism(parallelism)
-        ).addSink(sinkFunction);
-        new Thread(Unchecked.runnable(environment::execute)).start();
       }
 
       @Override
@@ -145,11 +164,16 @@ public class FlinkBench {
   static DataStream<Prediction> predictionDataStream(
           SerializableTopicsPredictor topicsPredictor,
           DataStream<TextDocument> source
-  ) {
+  ) throws IOException {
+    StreamExecutionEnvironment env = source.getExecutionEnvironment();
+    env.setStateBackend(new RocksDBStateBackend(new File("rocksdb").toURI(), true));
+    env.setRestartStrategy(RestartStrategies.fixedDelayRestart(2000, 0));
+    env.getCheckpointConfig().setCheckpointingMode(CheckpointingMode.AT_LEAST_ONCE);
     final SingleOutputStreamOperator<TfObject> splitterTf = source
             .map(textDocument -> {
-              if (!numbersToFailAt.isEmpty() && textDocument.number() == numbersToFailAt.get(0)) {
-                numbersToFailAt.remove(0);
+              if (!WorkerConfig.numbersToFailAt.isEmpty()
+                      && textDocument.number() == WorkerConfig.numbersToFailAt.get(0)) {
+                WorkerConfig.numbersToFailAt.remove(0);
                 throw new RuntimeException("scheduled fail");
               }
               return textDocument;

@@ -4,7 +4,7 @@ benchmark {
   bench-source-port = 4567
   bench-sink-port = 5678
 
-  wiki-dump-path = "{{ flink_dir }}/wiki.xml"
+  lenta-dump-path = "{{ flink_dir }}/news_lenta.csv"
   sleep-between-docs-ms = {{ rate }}
   validator = com.spbsu.flamestream.example.benchmark.validators.{{ validator }}
 }

@@ -402,7 +402,7 @@ public class FlinkBenchTest {
     CSVSink.topicNames = null;
   }
 
-  private DataStream<Prediction> predictionDataStream(DataStreamSource<TextDocument> source) {
+  private DataStream<Prediction> predictionDataStream(DataStreamSource<TextDocument> source) throws IOException {
     return FlinkBench.predictionDataStream(new ExamplesTopicPredictor(), source);
   }
 

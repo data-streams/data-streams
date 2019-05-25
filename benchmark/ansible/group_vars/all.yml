@@ -1,5 +1,5 @@
 rate: 50
-guarantees: AT_MOST_ONCE
+guarantees: AT_LEAST_ONCE
 millis_between_commits: 1000
 validator: classifier.Lenta1100Validator
 base_dir: /opt

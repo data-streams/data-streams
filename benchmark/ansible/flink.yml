@@ -21,11 +21,13 @@
 - name: Run flink manager
   hosts: manager
   roles:
+    - { role: flink-worker-common }
     - { role: flink-job-manager }
 
 - name: Run flink worker
   hosts: workers
   roles:
+    - { role: flink-worker-common }
     - { role: flink-task-manager }
 
 - name: Run flink bench

@@ -17,6 +17,7 @@ import org.jooq.lambda.Seq;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.PrintWriter;
 import java.nio.file.Files;
@@ -72,7 +73,6 @@ public class LentaBenchStand {
 
   private static final Logger LOG = LoggerFactory.getLogger(LentaBenchStand.class);
 
-  public final List<Integer> indicesToFailAt;
   private final int sleepBetweenDocs;
   private final String lentaDumpPath;
   private final String validatorClass;
@@ -82,7 +82,6 @@ public class LentaBenchStand {
   public final int rearPort;
 
   public LentaBenchStand(Config benchConfig) {
-    indicesToFailAt = benchConfig.getIntList("numbers-to-fail-at");
     sleepBetweenDocs = benchConfig.getInt("sleep-between-docs-ms");
     lentaDumpPath = benchConfig.getString("lenta-dump-path");
     validatorClass = benchConfig.getString("validator");

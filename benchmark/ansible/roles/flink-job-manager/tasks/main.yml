@@ -4,4 +4,5 @@
 
 - name: Starting flink jobmanager
   shell: nohup bash {{ flink_dir }}/bin/jobmanager.sh start cluster
-
+  environment:
+    WORKER_CONFIG_PATH: "{{ flink_dir }}/worker.conf"

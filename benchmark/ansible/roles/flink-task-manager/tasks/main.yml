@@ -12,3 +12,5 @@
 
 - name: Starting flink taskmanager
   shell: nohup bash {{ flink_dir }}/bin/taskmanager.sh start
+  environment:
+    WORKER_CONFIG_PATH: "{{ flink_dir }}/worker.conf"
