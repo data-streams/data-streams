@@ -7,4 +7,5 @@ benchmark {
   lenta-dump-path = "{{ flink_dir }}/news_lenta.csv"
   sleep-between-docs-ms = {{ rate }}
   validator = com.spbsu.flamestream.example.benchmark.validators.{{ validator }}
+  consumer-await-timeout-in-minutes = 5
 }

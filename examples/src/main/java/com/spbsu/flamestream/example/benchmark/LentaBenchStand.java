@@ -17,7 +17,6 @@ import org.jooq.lambda.Seq;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.FileInputStream;
 import java.io.PrintWriter;
 import java.nio.file.Files;
@@ -25,7 +24,6 @@ import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -80,6 +78,7 @@ public class LentaBenchStand {
   private final String inputHost;
   public final int frontPort;
   public final int rearPort;
+  public final long consumerAwaitTimeoutInMinutes;
 
   public LentaBenchStand(Config benchConfig) {
     sleepBetweenDocs = benchConfig.getInt("sleep-between-docs-ms");
@@ -89,6 +88,7 @@ public class LentaBenchStand {
     inputHost = benchConfig.getString("input-host");
     frontPort = benchConfig.getInt("bench-source-port");
     rearPort = benchConfig.getInt("bench-sink-port");
+    consumerAwaitTimeoutInMinutes = benchConfig.getLong("consumer-await-timeout-in-minutes");
   }
 
   public void run(GraphDeployer graphDeployer) throws Exception {
@@ -124,7 +124,7 @@ public class LentaBenchStand {
             )::stop
     ) {
       graphDeployer.deploy();
-      awaitConsumer.await(60, TimeUnit.MINUTES);
+      awaitConsumer.await(consumerAwaitTimeoutInMinutes, TimeUnit.MINUTES);
       Tracing.TRACING.flush(Paths.get("/tmp/trace.csv"));
       validator.stop();
     }
