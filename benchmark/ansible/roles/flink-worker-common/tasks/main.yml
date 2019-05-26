@@ -1,0 +1,12 @@
+---
+- template:
+    src: worker.conf.j2
+    dest: "{{ flink_dir }}/worker.conf"
+
+- copy:
+    src: cnt_vectorizer
+    dest: "{{ flink_dir }}/cnt_vectorizer"
+
+- copy:
+    src: classifier_weights
+    dest: "{{ flink_dir }}/classifier_weights"

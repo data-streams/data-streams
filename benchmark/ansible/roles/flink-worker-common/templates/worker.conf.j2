@@ -1,0 +1,5 @@
+worker {
+  cnt-vectorizer-path = "{{ flink_dir }}/cnt_vectorizer"
+  weights-path = "{{ flink_dir }}/classifier_weights"
+  numbers-to-fail-at = [200]
+}
