@@ -1,7 +1,16 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy as sp
+import scipy.stats
 
-def draw_graph():
+def mean_confidence_interval(data, confidence=0.95):
+    a = 1.0*np.array(data)
+    n = len(a)
+    m, se = np.mean(a), scipy.stats.sem(a)
+    h = se * sp.stats.t._ppf((1+confidence)/2., n-1)
+    return m, m-h, m+h
+
+def draw_graph(axvs, topic):
     inf = open("tmp.txt", "r")
     legend = []
     for line in inf.readlines():
@@ -10,10 +19,10 @@ def draw_graph():
         legend.append(tmp[0])
 
     inf.close()
-
-    plt.axvline(5000, color='red')
+    for axv in axvs:
+        plt.axvline(axv, color='red')
     plt.legend(legend)
-    plt.title("политика")
+    plt.title(topic)
     plt.xlabel("n_docs")
     plt.ylabel("weight")
     plt.show()
@@ -28,12 +37,12 @@ def draw_hists():
 
     counts = np.array(list(map(float, inf.readline().split(' '))))
     counts /= np.sum(counts)
-    plt.bar(x - bar_width / 2, counts, color='b', width=bar_width / 3)
+    plt.bar(x - bar_width / 2, counts, color='r', width=bar_width / 3)
 
 
     counts = np.array(list(map(float, inf.readline().split(' '))))
     counts /= np.sum(counts)
-    plt.bar(x - bar_width / 6, counts, color='r', width=bar_width / 3)
+    plt.bar(x - bar_width / 6, counts, color='b', width=bar_width / 3)
 
     counts = np.array(list(map(float, inf.readline().split(' '))))
     counts /= np.sum(counts)
@@ -41,7 +50,7 @@ def draw_hists():
 
     fig.set_size_inches(18.5, 8.5, forward=True)
     plt.xticks(x, topics, rotation='vertical')
-    plt.legend(['online test=3100, train=3100, warmup=1900', 'offline test=3100, warmup=5000', 'correct'])
+    plt.legend(['offline test=4000, warmup=8000', 'online test=4000, train=4000, warmup=4000', 'correct'])
     plt.ylabel('docs percentage')
     plt.show()
 
@@ -52,7 +61,7 @@ def draw_topics():
     offline = np.array(list(map(float, inf.readline().split(' '))))
     correct = np.array(list(map(float, inf.readline().split(' '))))
 
-    interesting = ['политика', 'происшествия', 'госэкономика', 'украина', 'люди', 'звери', 'мир']
+    interesting = ['футбол', 'госэкономика', 'люди', 'музыка', 'кино', 'наука']
 
     fig, axs = plt.subplots(1, len(interesting), sharey=True)
 
@@ -63,15 +72,15 @@ def draw_topics():
         bar_width = 0.8
         x = np.array([0])
 
-        axs[i].bar(x - bar_width / 2, [online[j] / np.sum(online)], color='b', width=bar_width / 3)
-        axs[i].bar(x - bar_width / 6, [offline[j] / np.sum(offline)], color='r', width=bar_width / 3)
+        axs[i].bar(x - bar_width / 2, [online[j] / np.sum(online)], color='r', width=bar_width / 3)
+        axs[i].bar(x - bar_width / 6, [offline[j] / np.sum(offline)], color='b', width=bar_width / 3)
         axs[i].bar(x + bar_width / 6, [correct[j] / np.sum(correct)], color='g', width=bar_width / 3)
 
         axs[i].set_xticks(x)
 
     fig.set_size_inches(18.5, 8.5, forward=True)
 
-    plt.legend(['online test=3100, train=3100, warmup=1900', 'offline test=3100, warmup=5000', 'correct'])
+    plt.legend(['offline test=4000, warmup=8000', 'online test=4000, train=4000, warmup=4000', 'correct'])
     plt.ylabel('docs percentage')
     plt.show()
 

@@ -42,7 +42,7 @@ public class FTRLProximalTest {
   private static final String WEIGHTS_PATH = "src/main/resources/classifier_weights";
   private static final String TMP_TRAIN_PATH = "src/test/resources/tmp_train";
   private static final String TMP_TEST_PATH = "src/test/resources/tmp_test";
-  private static final String CNT_VECTORIZER = "src/test/resources/cnt_vectorizer";
+  static final String CNT_VECTORIZER = "src/test/resources/cnt_vectorizer";
   private int testSize;
   private int trainSize;
   private int warmUp;
@@ -66,13 +66,13 @@ public class FTRLProximalTest {
     predictor.init();
     allTopics = Arrays.stream(predictor.getTopics()).map(String::trim).map(String::toLowerCase).toArray(String[]::new);
     optimizer = FTRLProximal.builder()
-            .alpha(1.8)
+            .alpha(1.0)
             .beta(0.0138)
             .lambda1(0.0062)
             .lambda2(0.010)
             .build(allTopics);
     warmUpOptimizer = FTRLProximal.builder()
-            .alpha(2.4)
+            .alpha(2.3)
             .beta(0.0138)
             .lambda1(0.009)
             .lambda2(0.084)
@@ -121,6 +121,25 @@ public class FTRLProximalTest {
   @Test
   public void split() {
     splitDatasetWindow(42);
+  }
+
+
+  private void splitDatasetCompleteStreaming(int seed) {
+    splitDatasetCompleteStreaming(seed, 0, trainSize, testSize, warmUp);
+  }
+
+  private void splitDatasetCompleteStreaming(int seed, int offset, int trainSize, int testSize, int warmUp) {
+    String pythonCommand = String.format(
+            Locale.US,
+            "sklearn_split_dataset.py %d %d %d %d %d %s",
+            trainSize,
+            testSize,
+            warmUp,
+            offset,
+            seed,
+            "complete_streaming"
+    );
+    LOGGER.info(callPython(pythonCommand));
   }
 
   private void splitDatasetWindow(int seed) {
@@ -621,12 +640,26 @@ public class FTRLProximalTest {
 
   @Test
   public void testStreaming() {
-    //splitDatasetWindow(42); // 12 0.8 0.673
+    splitDatasetWindow(42); // 12 0.8 0.673
     readStreaming();
     long time = System.currentTimeMillis();
     streamingAccuracy(warmUpOptimizer, optimizer);
     LOGGER.info("Execution time: {}", System.currentTimeMillis() - time);
     offlineAccuracy(optimizer);
+  }
+
+  @Test
+  public void testStreamingCompareFeatures() {
+    splitDatasetWindow(42, 4000, 4000, 4000, 0); // 12 0.8 0.673
+    readStreaming();
+    long time = System.currentTimeMillis();
+    streamingAccuracy(warmUpOptimizer, optimizer);
+    LOGGER.info("Execution time: {}", System.currentTimeMillis() - time);
+    splitDatasetCompleteStreaming(42, 0, 4000, 4000, 4000); // 12 0.8 0.673
+    readStreaming();
+    time = System.currentTimeMillis();
+    streamingAccuracy(warmUpOptimizer, optimizer);
+    LOGGER.info("Execution time: {}", System.currentTimeMillis() - time);
   }
 
   private Mx optimizeWeights(List<DataPoint> trainingSet, Mx prevWeights) {

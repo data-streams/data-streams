@@ -6,6 +6,7 @@ import time
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
+from scipy.sparse import vstack
 
 
 def put(X, y, file):
@@ -49,7 +50,7 @@ def calcWindowIdf(X, windowSizeDays, lam):
             idf *= lam
             cur = index
 
-        # Update cur_idf    
+        # Update cur_idf
         for j in tf.nonzero()[1]:
             idf[j] += 1
 
@@ -64,6 +65,32 @@ def calcWindowIdf(X, windowSizeDays, lam):
 
     return ans
 
+def calcStreamingIdf(X):
+    X = X.astype(float)
+    size, features = X.shape
+
+    idf = np.array([0.0001] * features, dtype=float)
+    ans = []
+    cur = 0
+    index = 0
+    for tf in X:
+        cur += 1
+        # Update cur_idf
+        for j in tf.nonzero()[1]:
+            idf[j] += 1
+
+        tf = tf / tf.sum()
+        tf = tf.multiply(np.log(cur / idf))
+        #tf.data = tf.data + 1
+        tf /= np.sqrt(tf.multiply(tf).sum())
+
+        ans.append(tf)
+
+        index += 1
+
+    return ans
+
+
 def main(argv):
     if len(argv) < 7:
         print("Usage {} trainSize testSize warmUp offset seed splitStrategy [windowSizeDays] [dampingFactor]".format(argv[0]))
@@ -76,7 +103,7 @@ def main(argv):
     splitStrategy = argv[6]
     windowSize = 0
     lam = 0
-    if (splitStrategy == 'window'):
+    if (splitStrategy == 'window' or splitStrategy == 'window_test_train'):
         if (len(argv) < 8):
             print("{}: windowSizeDays and dampingFactor are necessary for window splitStrategy".format(argv[0]))
             exit(0)
@@ -93,6 +120,29 @@ def main(argv):
 
     X = df['text']
     y = df['tags']
+
+    if (splitStrategy == 'complete_streaming'):
+        vectorizer = CountVectorizer()
+        X = vectorizer.fit_transform(X)
+
+        voc = vectorizer.vocabulary_
+
+        ouf = open('cnt_vectorizer', 'w')
+        for key, val in voc.items():
+            ouf.write(str(key) + ' ' + str(val) + '\n')
+        ouf.close()
+
+        transformer = TfidfTransformer(sublinear_tf=True)
+        # X = list(transformer.fit_transform(X))
+        X = calcStreamingIdf(X)
+
+        size = trainSize + testSize + warmUp
+        _, test = train_test_split(range(warmUp, size), test_size=testSize, random_state=seed)
+        isTrain = list(map(str, map(int, [i not in test for i in range(size)])))
+
+        putWindow(X, y, isTrain, 'tmp_train')
+
+        exit(0)
 
     if (splitStrategy == 'window'):
         vectorizer = CountVectorizer()
@@ -112,24 +162,62 @@ def main(argv):
 
         size = trainSize + testSize + warmUp
         _, test = train_test_split(range(warmUp, size), test_size=testSize, random_state=seed)
-        print(size)
-        print(len(range(warmUp, size)))
-        print(len(test))
         isTrain = list(map(str, map(int, [i not in test for i in range(size)])))
 
         putWindow(X, y, isTrain, 'tmp_train')
 
         exit(0)
 
+    if (splitStrategy == 'window_test_train'):
+        vectorizer = CountVectorizer()
+        X = vectorizer.fit_transform(X)
+
+        voc = vectorizer.vocabulary_
+
+        ouf = open('cnt_vectorizer', 'w')
+        for key, val in voc.items():
+            ouf.write(str(key) + ' ' + str(val) + '\n')
+        ouf.close()
+
+        print("Step inside calcWindowIdf")
+        tm = time.monotonic()
+        X = calcWindowIdf(X, windowSize, lam)
+        print("Execution time is: ", time.monotonic() - tm)
+
+        X1 = list(X[warmUp:])
+        y1 = list(y[warmUp:])
+        X = list(X[:warmUp])
+        y = list(y[:warmUp])
+
+        X1 = list(enumerate(X1))
+        y1 = list(enumerate(y1))
+
+        X_train, X_test, y_train, y_test = train_test_split(X1, y1, test_size=testSize, random_state=seed)
+
+        X_train = [t[1] for t in sorted(X_train, key = lambda t: t[0])]
+        y_train = [t[1] for t in sorted(y_train, key = lambda t: t[0])]
+
+        X_test = [t[1] for t in sorted(X_test, key = lambda t: t[0])]
+        y_test = [t[1] for t in sorted(y_test, key = lambda t: t[0])]
+
+        X_train = X + X_train
+        y_train = y + y_train
+
+        put(X_train, y_train, "tmp_train")
+        put(X_test, y_test, "tmp_test")
+
+        exit(0)
+
     if splitStrategy == 'no_shuffle_complete':
+        vectorizer = CountVectorizer()
+        X = vectorizer.fit_transform(X)
+
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=testSize, random_state=seed, shuffle=False)
 
-        processing = Pipeline([
-            ('vect', CountVectorizer()),
-            ('tfidf', TfidfTransformer(sublinear_tf=True))])
+        transformer = TfidfTransformer(sublinear_tf=True)
 
-        X_train = list(processing.fit_transform(X_train))
-        X_test = list(processing.transform(X_test))
+        X_train = list(transformer.fit_transform(X_train))
+        X_test = list(transformer.transform(vstack(X_test)))
 
         put(X_train, y_train, "tmp_train")
         put(X_test, y_test, "tmp_test")
@@ -137,6 +225,9 @@ def main(argv):
         exit(0)
 
     if splitStrategy == 'warmup_test_complete':
+        vectorizer = CountVectorizer()
+        X = vectorizer.fit_transform(X)
+
         X_train = X[:warmUp]
         y_train = y[:warmUp]
         X = list(enumerate(X[warmUp:]))
@@ -146,12 +237,10 @@ def main(argv):
         X_test = [t[1] for t in sorted(X_test, key = lambda t: t[0])]
         y_test = [t[1] for t in sorted(y_test, key = lambda t: t[0])]
 
-        processing = Pipeline([
-            ('vect', CountVectorizer()),
-            ('tfidf', TfidfTransformer(sublinear_tf=True))])
+        transformer = TfidfTransformer(sublinear_tf=True)
 
-        X_train = list(processing.fit_transform(X_train))
-        X_test = list(processing.transform(X_test))
+        X_train = list(transformer.fit_transform(X_train))
+        X_test = list(transformer.transform(vstack(X_test)))
 
         put(X_train, y_train, "tmp_train")
         put(X_test, y_test, "tmp_test")
@@ -169,13 +258,11 @@ def main(argv):
     X = list(X[:warmUp])
     y = list(y[:warmUp])
 
-    shuffle = (splitStrategy != "no_shuffle_complete")
-
     if (splitStrategy == 'ordered_complete'):
         X1 = list(enumerate(X1))
         y1 = list(enumerate(y1))
 
-    X_train, X_test, y_train, y_test = train_test_split(X1, y1, test_size=testSize, random_state=seed, shuffle=shuffle)
+    X_train, X_test, y_train, y_test = train_test_split(X1, y1, test_size=testSize, random_state=seed)
 
     if (splitStrategy == 'ordered_complete'):
         X_train = [t[1] for t in sorted(X_train, key = lambda t: t[0])]
