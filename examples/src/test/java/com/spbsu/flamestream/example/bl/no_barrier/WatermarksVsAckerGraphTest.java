@@ -1,14 +1,17 @@
-package com.spbsu.flamestream.example.bl;
+package com.spbsu.flamestream.example.bl.no_barrier;
 
 import akka.actor.ActorSystem;
+import com.spbsu.flamestream.example.bl.WatermarksVsAckerGraph;
 import com.spbsu.flamestream.runtime.FlameRuntime;
 import com.spbsu.flamestream.runtime.LocalClusterRuntime;
 import com.spbsu.flamestream.runtime.WorkerApplication;
+import com.spbsu.flamestream.runtime.acceptance.FlameAkkaSuite;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFront;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitResultConsumer;
 import com.typesafe.config.ConfigFactory;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import scala.concurrent.Await;
 import scala.concurrent.duration.Duration;
@@ -21,17 +24,30 @@ import java.util.stream.IntStream;
 
 import static org.testng.Assert.assertEquals;
 
-public class AckerGraphTest {
-  @Test(invocationCount = 5)
-  public void test() throws InterruptedException, TimeoutException {
+public class WatermarksVsAckerGraphTest extends FlameAkkaSuite {
+  @DataProvider
+  public Object[][] dataProvider() {
+    return new Object[][]{
+            {false, 0},
+            {false, 1},
+            {false, 10},
+            {true, 0},
+            {true, 1},
+            {true, 10},
+    };
+  }
+
+  @Test(dataProvider = "dataProvider")
+  public void test(Boolean watermarks, Integer iterations) throws InterruptedException, TimeoutException {
     final int parallelism = 4;
     final ActorSystem system = ActorSystem.create("testStand", ConfigFactory.load("remote"));
     try (
             final LocalClusterRuntime runtime = new LocalClusterRuntime(
                     parallelism,
-                    new WorkerApplication.WorkerConfig.Builder().millisBetweenCommits(10000)::build
+                    new WorkerApplication.WorkerConfig.Builder()
+                            .millisBetweenCommits(10000).barrierDisabled(watermarks)::build
             );
-            final FlameRuntime.Flame flame = runtime.run(AckerGraph.apply(4))
+            final FlameRuntime.Flame flame = runtime.run(WatermarksVsAckerGraph.apply(parallelism, watermarks, iterations))
     ) {
       int streamLength = 100;
       final AwaitResultConsumer<Integer> awaitConsumer = new AwaitResultConsumer<>(streamLength);

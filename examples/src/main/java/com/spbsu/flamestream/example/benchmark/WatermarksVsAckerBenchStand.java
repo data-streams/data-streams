@@ -1,7 +1,6 @@
 package com.spbsu.flamestream.example.benchmark;
 
-import com.spbsu.flamestream.example.bl.AckerGraph;
-import com.spbsu.flamestream.example.bl.no_barrier.WatermarksGraph;
+import com.spbsu.flamestream.example.bl.WatermarksVsAckerGraph;
 import com.spbsu.flamestream.runtime.edge.socket.SocketFrontType;
 import com.spbsu.flamestream.runtime.edge.socket.SocketRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitCountConsumer;
@@ -29,7 +28,7 @@ import static com.google.common.math.Quantiles.percentiles;
  * User: Artem
  * Date: 28.12.2017
  */
-public class AckerBenchStand {
+public class WatermarksVsAckerBenchStand {
   public static void main(String[] args) throws Exception {
     final Config benchConfig;
     final Config deployerConfig;
@@ -41,21 +40,21 @@ public class AckerBenchStand {
       deployerConfig = ConfigFactory.load("deployer.conf").getConfig("deployer");
     }
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
-    final AckerBenchStand lentaBenchStand = new AckerBenchStand(benchConfig);
+    final WatermarksVsAckerBenchStand benchStand = new WatermarksVsAckerBenchStand(benchConfig);
     try (
             GraphDeployer graphDeployer = new FlameGraphDeployer(
-                    benchStandComponentFactory.runtime(deployerConfig),
-                    AckerGraph.apply(lentaBenchStand.iterations),
-                    new SocketFrontType(lentaBenchStand.benchHost, lentaBenchStand.frontPort, Integer.class),
-                    new SocketRearType(lentaBenchStand.benchHost, lentaBenchStand.rearPort)
+                    benchStandComponentFactory.runtime(deployerConfig, benchStand.watermarks),
+                    WatermarksVsAckerGraph.apply(benchStand.parallelism, benchStand.watermarks, benchStand.iterations),
+                    new SocketFrontType(benchStand.benchHost, benchStand.frontPort, Integer.class),
+                    new SocketRearType(benchStand.benchHost, benchStand.rearPort)
             )
     ) {
-      lentaBenchStand.run(graphDeployer);
+      benchStand.run(graphDeployer);
     }
     System.exit(0);
   }
 
-  private static final Logger LOG = LoggerFactory.getLogger(AckerBenchStand.class);
+  private static final Logger LOG = LoggerFactory.getLogger(WatermarksVsAckerBenchStand.class);
 
   private final int sleepBetweenDocs;
   private final int streamLength;
@@ -64,9 +63,10 @@ public class AckerBenchStand {
   private final int frontPort;
   private final int rearPort;
   private final int parallelism;
+  private final boolean watermarks;
   private final int iterations;
 
-  public AckerBenchStand(Config benchConfig) {
+  public WatermarksVsAckerBenchStand(Config benchConfig) {
     sleepBetweenDocs = benchConfig.getInt("sleep-between-docs-ms");
     streamLength = benchConfig.getInt("stream-length");
     benchHost = benchConfig.getString("bench-host");
@@ -74,6 +74,7 @@ public class AckerBenchStand {
     frontPort = benchConfig.getInt("bench-source-port");
     rearPort = benchConfig.getInt("bench-sink-port");
     parallelism = benchConfig.getInt("parallelism");
+    watermarks = benchConfig.getBoolean("watermarks");
     iterations = benchConfig.getInt("iterations");
   }
 

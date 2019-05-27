@@ -131,13 +131,18 @@ public class BenchStandComponentFactory {
   }
 
   public FlameRuntime runtime(Config config) {
+    return runtime(config, false);
+  }
+
+  public FlameRuntime runtime(Config config, boolean barrierDisabled) {
     final FlameRuntime runtime;
     if (config.hasPath("local")) {
       runtime = new LocalRuntime.Builder().parallelism(config.getConfig("local").getInt("parallelism")).build();
     } else if (config.hasPath("local-cluster")) {
       runtime = new LocalClusterRuntime(
               config.getConfig("local-cluster").getInt("parallelism"),
-              new WorkerApplication.WorkerConfig.Builder().millisBetweenCommits(10000)::build
+              new WorkerApplication.WorkerConfig.Builder().millisBetweenCommits(10000)
+                      .barrierDisabled(barrierDisabled)::build
       );
     } else {
       // temporary solution to keep bench stand in working state

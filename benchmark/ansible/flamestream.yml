@@ -49,7 +49,7 @@
 - name: Run the benchmark
   hosts: bench
   roles:
-    - { role: flamestream-acker-bench , bench_class: com.spbsu.flamestream.example.benchmark.WatermarksBenchStand }
+    - { role: flamestream-acker-bench , bench_class: com.spbsu.flamestream.example.benchmark.WatermarksVsAckerBenchStand }
   environment:
     PATH: "/usr/lib/jvm/java-8-oracle/jre/bin/:{{ ansible_env.PATH }}"
 
