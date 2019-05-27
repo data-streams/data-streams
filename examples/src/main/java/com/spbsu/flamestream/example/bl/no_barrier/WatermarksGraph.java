@@ -6,7 +6,7 @@ import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.HashMap;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -27,7 +27,7 @@ public class WatermarksGraph {
     for (int iteration = 0; iteration < iterations; iteration++) {
       FlameMap<Integer, Integer> counter = new FlameMap<>(
               new Function<Integer, Stream<Integer>>() {
-                final ConcurrentHashMap<Integer, Integer> counts = new ConcurrentHashMap<>();
+                final HashMap<Integer, Integer> counts = new HashMap<>();
 
                 @Override
                 public Stream<Integer> apply(Integer integer) {
