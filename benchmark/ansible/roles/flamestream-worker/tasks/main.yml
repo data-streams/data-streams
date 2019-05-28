@@ -18,3 +18,4 @@
     DEFAULT_MINIMAL_TIME: 0
     MAX_ELEMENTS_IN_GRAPH: 100
     MILLIS_BETWEEN_COMMITS: "{{ millis_between_commits }}"
+    BARRIER_DISABLED: "{{ watermarks | lower }}"

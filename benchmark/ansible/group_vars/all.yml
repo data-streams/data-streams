@@ -1,4 +1,7 @@
-rate: 50
+rate: 1
+watermarks: true
+iterations: 3
+
 guarantees: AT_MOST_ONCE
 millis_between_commits: 50
 validator: index.Wiki1000Validator
@@ -10,7 +13,7 @@ bench_dir: "{{ base_dir }}/flamestream"
 flink_dir: "{{ base_dir }}/flink"
 tarball_dir: "{{ base_dir }}/src"
 
-results_dir: results/{{ lookup("pipe", "git rev-parse --short HEAD") }}/{{ groups['workers'] | length }}/{{ rate }}/{{ guarantees }}/{{ millis_between_commits }}
+results_dir: results/watermarks_vs_acker/rate={{ rate }}/watermarks={{ watermarks }}/iterations={{ iterations }}
 
 zookeeper_version: 3.4.14
 zookeeper_client_port: 2181

@@ -5,8 +5,8 @@ benchmark {
   bench-sink-port = 5678
 
   sleep-between-docs-ms = {{ rate }}
-  stream-length = 1000
-  parallelism = 3
-  watermarks = false
-  iterations = 3
+  stream-length = 2000
+  parallelism = {{ groups['workers'] | length }}
+  watermarks = {{ watermarks | lower }}
+  iterations = {{ iterations }}
 }
