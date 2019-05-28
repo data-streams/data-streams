@@ -9,4 +9,5 @@ benchmark {
   parallelism = {{ groups['workers'] | length }}
   watermarks = {{ watermarks | lower }}
   iterations = {{ iterations }}
+  children-number = {{ children }}
 }

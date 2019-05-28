@@ -28,17 +28,25 @@ public class WatermarksVsAckerGraphTest extends FlameAkkaSuite {
   @DataProvider
   public Object[][] dataProvider() {
     return new Object[][]{
-            {false, 0},
-            {false, 1},
-            {false, 10},
-            {true, 0},
-            {true, 1},
-            {true, 10},
+            {false, 0, 0},
+            {false, 1, 0},
+            {false, 10, 0},
+            {true, 0, 0},
+            {true, 1, 0},
+            {true, 10, 0},
+            {false, 0, 10},
+            {false, 1, 10},
+            {false, 10, 10},
+            {true, 0, 10},
+            {true, 1, 10},
+            {true, 10, 10}
     };
   }
 
   @Test(dataProvider = "dataProvider")
-  public void test(Boolean watermarks, Integer iterations) throws InterruptedException, TimeoutException {
+  public void test(Boolean watermarks, Integer iterations, Integer childrenNumber) throws
+                                                                                   InterruptedException,
+                                                                                   TimeoutException {
     final int parallelism = 4;
     final ActorSystem system = ActorSystem.create("testStand", ConfigFactory.load("remote"));
     try (
@@ -47,7 +55,12 @@ public class WatermarksVsAckerGraphTest extends FlameAkkaSuite {
                     new WorkerApplication.WorkerConfig.Builder()
                             .millisBetweenCommits(10000).barrierDisabled(watermarks)::build
             );
-            final FlameRuntime.Flame flame = runtime.run(WatermarksVsAckerGraph.apply(parallelism, watermarks, iterations))
+            final FlameRuntime.Flame flame = runtime.run(WatermarksVsAckerGraph.apply(
+                    parallelism,
+                    watermarks,
+                    iterations,
+                    childrenNumber
+            ))
     ) {
       int streamLength = 100;
       final AwaitResultConsumer<Integer> awaitConsumer = new AwaitResultConsumer<>(streamLength);

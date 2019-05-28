@@ -44,7 +44,12 @@ public class WatermarksVsAckerBenchStand {
     try (
             GraphDeployer graphDeployer = new FlameGraphDeployer(
                     benchStandComponentFactory.runtime(deployerConfig, benchStand.watermarks),
-                    WatermarksVsAckerGraph.apply(benchStand.parallelism, benchStand.watermarks, benchStand.iterations),
+                    WatermarksVsAckerGraph.apply(
+                            benchStand.parallelism,
+                            benchStand.watermarks,
+                            benchStand.iterations,
+                            benchStand.childrenNumber
+                    ),
                     new SocketFrontType(benchStand.benchHost, benchStand.frontPort, Integer.class),
                     new SocketRearType(benchStand.benchHost, benchStand.rearPort)
             )
@@ -65,6 +70,7 @@ public class WatermarksVsAckerBenchStand {
   private final int parallelism;
   private final boolean watermarks;
   private final int iterations;
+  private final int childrenNumber;
 
   public WatermarksVsAckerBenchStand(Config benchConfig) {
     sleepBetweenDocs = benchConfig.getInt("sleep-between-docs-ms");
@@ -76,6 +82,7 @@ public class WatermarksVsAckerBenchStand {
     parallelism = benchConfig.getInt("parallelism");
     watermarks = benchConfig.getBoolean("watermarks");
     iterations = benchConfig.getInt("iterations");
+    childrenNumber = benchConfig.getInt("children-number");
   }
 
   public void run(GraphDeployer graphDeployer) throws Exception {
