@@ -1,8 +1,6 @@
 children: 0
 distributed_acker: false
-rate: 5
-watermarks: false
-iterations: 5
+iterations: 10
 
 guarantees: AT_MOST_ONCE
 millis_between_commits: 5000000
@@ -15,9 +13,9 @@ bench_dir: "{{ base_dir }}/flamestream"
 flink_dir: "{{ base_dir }}/flink"
 tarball_dir: "{{ base_dir }}/src"
 
-results_dir: results/watermarks_vs_acker/no_committer/children={{ children }}/distributed_acker={{ distributed_acker }}/rate={{ rate }}/watermarks={{ watermarks }}/iterations={{ iterations }}
+results_dir: results/sigmod/parallelism={{ parallelism }}/distributed_acker={{ distributed_acker }}/rate={{ rate }}/watermarks={{ watermarks }}/iterations={{ iterations }}
 
 zookeeper_version: 3.4.14
-zookeeper_client_port: 2181
+zookeeper_client_port: 12181
 
 flamestream_worker_port: 5412

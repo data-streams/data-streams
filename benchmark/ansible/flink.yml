@@ -24,7 +24,7 @@
     - { role: flink-job-manager }
 
 - name: Run flink worker
-  hosts: workers
+  hosts: "workers[0:{{ parallelism|int - 1 }}]"
   roles:
     - { role: flink-task-manager }
 
@@ -39,7 +39,7 @@
     - { role: flink-job-manager-destroy }
 
 - name: Destroy flink worker
-  hosts: workers
+  hosts: "workers[0:{{ parallelism|int - 1 }}]"
   roles:
     - { role: flink-task-manager-destroy }
 

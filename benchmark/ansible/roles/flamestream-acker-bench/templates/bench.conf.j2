@@ -6,7 +6,7 @@ benchmark {
 
   sleep-between-docs-ms = {{ rate }}
   stream-length = 2000
-  parallelism = {{ groups['workers'] | length }}
+  parallelism = {{ parallelism }}
   watermarks = {{ watermarks | lower }}
   iterations = {{ iterations }}
   children-number = {{ children }}

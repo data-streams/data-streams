@@ -28,3 +28,8 @@
     src: /tmp/lat.data
     dest: "{{ results_dir }}/flamestream/latency/lat.data"
     flat: true
+
+- fetch:
+    src: /tmp/duration
+    dest: "{{ results_dir }}/flamestream/duration.txt"
+    flat: true

@@ -41,7 +41,3 @@
     flat: true
   tags:
     - lat
-
-- fetch:
-    src: /tmp/duration
-    dest: "{{ results_dir }}/flink/duration.data"
