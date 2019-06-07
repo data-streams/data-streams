@@ -10,6 +10,8 @@ import com.typesafe.config.ConfigFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
+import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -91,6 +93,8 @@ public class WatermarksVsAckerBenchStand {
     final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(streamLength);
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
     try (
+            FileWriter durationOutput = new FileWriter("/tmp/duration");
+            Closeable ignored2 = benchStandComponentFactory.recordNanoDuration(durationOutput);
             AutoCloseable ignored = benchStandComponentFactory.producer(
                     Integer.class,
                     IntStream.range(0, streamLength).peek(id -> {

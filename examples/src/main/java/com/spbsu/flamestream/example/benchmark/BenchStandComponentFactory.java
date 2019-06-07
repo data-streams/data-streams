@@ -27,7 +27,9 @@ import org.objenesis.strategy.StdInstantiatorStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.io.Writer;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.function.Consumer;
@@ -165,5 +167,10 @@ public class BenchStandComponentFactory {
     }
 
     return runtime;
+  }
+
+  public Closeable recordNanoDuration(Writer output) {
+    long start = System.nanoTime();
+    return () -> output.write(String.valueOf(System.nanoTime() - start));
   }
 }
