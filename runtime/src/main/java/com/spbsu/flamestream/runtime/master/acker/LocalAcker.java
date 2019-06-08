@@ -46,8 +46,8 @@ public class LocalAcker extends LoggingActor {
     long previous = Long.MIN_VALUE, current = Long.MIN_VALUE;
   }
 
-  private static final int FLUSH_DELAY_IN_MILLIS = 5;
-  private static final int FLUSH_COUNT = 1000;
+  private final int flushDelayInMillis;
+  private final int flushCount;
 
   private long nodeTime = Long.MIN_VALUE;
   private final SortedMap<GlobalTime, Long> ackCache = new TreeMap<>(Comparator.reverseOrder());
@@ -63,23 +63,40 @@ public class LocalAcker extends LoggingActor {
 
   private int flushCounter = 0;
 
-  public LocalAcker(List<ActorRef> ackers, String nodeId) {
+  public LocalAcker(List<ActorRef> ackers, String nodeId, int flushDelayInMillis, int flushCount) {
     this.ackers = ackers;
     partitions = new Partitions(ackers.size());
     minTimeUpdater = new MinTimeUpdater(ackers);
     this.nodeId = nodeId;
     pingActor = context().actorOf(PingActor.props(self(), Flush.FLUSH));
+    this.flushDelayInMillis = flushDelayInMillis;
+    this.flushCount = flushCount;
   }
 
-  public static Props props(List<ActorRef> ackers, String nodeId) {
-    return Props.create(LocalAcker.class, ackers, nodeId).withDispatcher("processing-dispatcher");
+  public static class Builder {
+    private int flushDelayInMillis = 5;
+    private int flushCount = 1000;
+
+    public Props props(List<ActorRef> ackers, String nodeId) {
+      return Props.create(LocalAcker.class, ackers, nodeId, flushDelayInMillis, flushCount).withDispatcher("processing-dispatcher");
+    }
+
+    public Builder flushDelayInMillis(int flushDelayInMillis) {
+      this.flushDelayInMillis = flushDelayInMillis;
+      return this;
+    }
+
+    public Builder flushCount(int flushCount) {
+      this.flushCount = flushCount;
+      return this;
+    }
   }
 
   @Override
   public void preStart() throws Exception {
     super.preStart();
     minTimeUpdater.subscribe(self());
-    pingActor.tell(new PingActor.Start(TimeUnit.MILLISECONDS.toNanos(FLUSH_DELAY_IN_MILLIS)), self());
+    pingActor.tell(new PingActor.Start(TimeUnit.MILLISECONDS.toNanos(flushDelayInMillis)), self());
   }
 
   @Override
@@ -115,7 +132,7 @@ public class LocalAcker extends LoggingActor {
   }
 
   private void tick() {
-    if (flushCounter == FLUSH_COUNT) {
+    if (flushCounter == flushCount) {
       flush();
     } else {
       flushCounter++;

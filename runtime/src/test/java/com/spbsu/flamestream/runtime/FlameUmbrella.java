@@ -81,7 +81,14 @@ class Cluster extends LoggingActor {
     final ClusterConfig clusterConfig = new ClusterConfig(paths, "node-0");
     final int defaultMinimalTime = 0;
     final SystemConfig systemConfig =
-            new SystemConfig(maxElementsInGraph, millisBetweenCommits, defaultMinimalTime, acking, barrierDisabled);
+            new SystemConfig(
+                    maxElementsInGraph,
+                    millisBetweenCommits,
+                    defaultMinimalTime,
+                    acking,
+                    barrierDisabled,
+                    new LocalAcker.Builder()
+            );
 
     final Registry registry = new InMemoryRegistry();
     inner = context().actorOf(FlameUmbrella.props(
@@ -104,7 +111,7 @@ class Cluster extends LoggingActor {
                   throw new IllegalStateException("Unexpected value: " + acking);
               }
               final ActorRef localAcker = ackers.isEmpty() ? null : context.actorOf(
-                      LocalAcker.props(ackers, ""),
+                      systemConfig.getLocalAckerBuilder().props(ackers, ""),
                       "localAcker"
               );
               final ActorRef registryHolder = context.actorOf(

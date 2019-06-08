@@ -163,7 +163,9 @@ public class ProcessingWatcher extends LoggingActor {
     config.paths().keySet().forEach(s -> ranges.put(s, new HashGroup(Collections.singleton(covering.remove(0)))));
     assert covering.isEmpty();
     final List<ActorRef> ackers = ackers(config);
-    final @Nullable ActorRef localAcker = ackers.isEmpty() ? null : context().actorOf(LocalAcker.props(ackers, id));
+    final @Nullable ActorRef localAcker = ackers.isEmpty() ? null : context().actorOf(
+            systemConfig.getLocalAckerBuilder().props(ackers, id)
+    );
     final ActorRef committer, registryHolder;
     if (zookeeperWorkersNode.isLeader(id)) {
       registryHolder = context().actorOf(

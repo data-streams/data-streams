@@ -3,6 +3,7 @@ package com.spbsu.flamestream.runtime;
 import akka.actor.ActorSystem;
 import akka.actor.CoordinatedShutdown;
 import com.spbsu.flamestream.runtime.config.SystemConfig;
+import com.spbsu.flamestream.runtime.master.acker.LocalAcker;
 import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
@@ -44,7 +45,14 @@ public class WorkerApplication implements Runnable {
 
   public static void main(String... args) {
     final String[] localAddressHostAndPort = System.getenv("LOCAL_ADDRESS").split(":");
-    final WorkerConfig config = new WorkerConfig.Builder()
+    LocalAcker.Builder localAckerBuilder = new LocalAcker.Builder();
+    if (System.getenv().containsKey("LOCAL_ACKER_FLUSH_DELAY_IN_MILLIS")) {
+      localAckerBuilder.flushDelayInMillis(Integer.parseInt(System.getenv("LOCAL_ACKER_FLUSH_DELAY_IN_MILLIS")));
+    }
+    if (System.getenv().containsKey("LOCAL_ACKER_FLUSH_COUNT")) {
+      localAckerBuilder.flushCount(Integer.parseInt(System.getenv("LOCAL_ACKER_FLUSH_COUNT")));
+    }
+    WorkerConfig.Builder configBuilder = new WorkerConfig.Builder()
             .snapshotPath(System.getenv("SNAPSHOT_PATH"))
             .guarantees(Guarantees.valueOf(System.getenv("GUARANTEES")))
             .defaultMinimalTime(Integer.parseInt(System.getenv("DEFAULT_MINIMAL_TIME")))
@@ -52,6 +60,8 @@ public class WorkerApplication implements Runnable {
             .maxElementsInGraph(Integer.parseInt(System.getenv("MAX_ELEMENTS_IN_GRAPH")))
             .acking(SystemConfig.Acking.valueOf(System.getenv("ACKING")))
             .barrierDisabled(Boolean.parseBoolean(System.getenv("BARRIER_DISABLED")))
+            .localAckerBuilder(localAckerBuilder);
+    final WorkerConfig config = configBuilder
             .build(
                     System.getenv("ID"),
                     new InetSocketAddress(localAddressHostAndPort[0], Integer.parseInt(localAddressHostAndPort[1])),
@@ -87,7 +97,8 @@ public class WorkerApplication implements Runnable {
             workerConfig.millisBetweenCommits,
             workerConfig.defaultMinimalTime,
             workerConfig.acking,
-            workerConfig.barrierDisabled
+            workerConfig.barrierDisabled,
+            workerConfig.localAckerBuilder
     );
     //noinspection ConstantConditions
     system.actorOf(
@@ -127,6 +138,7 @@ public class WorkerApplication implements Runnable {
     private final int defaultMinimalTime;
     private final SystemConfig.Acking acking;
     private final boolean barrierDisabled;
+    private final LocalAcker.Builder localAckerBuilder;
 
     private WorkerConfig(
             String id,
@@ -138,7 +150,8 @@ public class WorkerApplication implements Runnable {
             int millisBetweenCommits,
             int defaultMinimalTime,
             SystemConfig.Acking acking,
-            boolean barrierDisabled
+            boolean barrierDisabled,
+            LocalAcker.Builder localAckerBuilder
     ) {
       this.guarantees = guarantees;
       this.id = id;
@@ -150,6 +163,7 @@ public class WorkerApplication implements Runnable {
       this.defaultMinimalTime = defaultMinimalTime;
       this.acking = acking;
       this.barrierDisabled = barrierDisabled;
+      this.localAckerBuilder = localAckerBuilder;
     }
 
     @Override
@@ -176,6 +190,7 @@ public class WorkerApplication implements Runnable {
       private int defaultMinimalTime = 0;
       private SystemConfig.Acking acking = SystemConfig.Acking.CENTRALIZED;
       private boolean barrierDisabled = false;
+      private LocalAcker.Builder localAckerBuilder = new LocalAcker.Builder();
 
       public Builder snapshotPath(String snapshotPath) {
         this.snapshotPath = snapshotPath;
@@ -218,12 +233,18 @@ public class WorkerApplication implements Runnable {
                 millisBetweenCommits,
                 defaultMinimalTime,
                 acking,
-                barrierDisabled
+                barrierDisabled,
+                localAckerBuilder
         );
       }
 
       public Builder barrierDisabled(boolean barrierDisabled) {
         this.barrierDisabled = barrierDisabled;
+        return this;
+      }
+
+      public Builder localAckerBuilder(LocalAcker.Builder localAckerBuilder) {
+        this.localAckerBuilder = localAckerBuilder;
         return this;
       }
     }

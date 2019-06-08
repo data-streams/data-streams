@@ -1,5 +1,7 @@
 package com.spbsu.flamestream.runtime.config;
 
+import com.spbsu.flamestream.runtime.master.acker.LocalAcker;
+
 public class SystemConfig {
   public enum Acking {
     DISABLED,
@@ -12,13 +14,15 @@ public class SystemConfig {
   private final long defaultMinimalTime;
   private final Acking acking;
   private final boolean barrierDisabled;
+  private final LocalAcker.Builder localAckerBuilder;
 
   public SystemConfig(
           int maxElementsInGraph,
           int millisBetweenCommits,
           long defaultMinimalTime,
           Acking acking,
-          boolean barrierDisabled
+          boolean barrierDisabled,
+          LocalAcker.Builder localAckerBuilder
   ) {
     if (acking == SystemConfig.Acking.DISABLED && !barrierDisabled)
       throw new IllegalArgumentException("barrier should be disabled when acking is");
@@ -27,6 +31,7 @@ public class SystemConfig {
     this.defaultMinimalTime = defaultMinimalTime;
     this.acking = acking;
     this.barrierDisabled = barrierDisabled;
+    this.localAckerBuilder = localAckerBuilder;
   }
 
   public long defaultMinimalTime() {
@@ -52,5 +57,9 @@ public class SystemConfig {
 
   public boolean barrierIsDisabled() {
     return barrierDisabled;
+  }
+
+  public LocalAcker.Builder getLocalAckerBuilder() {
+    return localAckerBuilder;
   }
 }
