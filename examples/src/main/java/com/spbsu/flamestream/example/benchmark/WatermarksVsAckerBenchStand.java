@@ -98,7 +98,7 @@ public class WatermarksVsAckerBenchStand {
             AutoCloseable ignored = benchStandComponentFactory.producer(
                     Integer.class,
                     IntStream.range(0, streamLength).peek(id -> {
-                      LockSupport.parkNanos((long) (nextExp(1.0 / sleepBetweenDocs) * 1.0e6));
+                      LockSupport.parkNanos((long) (sleepBetweenDocs * 1.0e6));
                       latencies.put(id, new LatencyMeasurer());
                     }).boxed(),
                     inputHost,
