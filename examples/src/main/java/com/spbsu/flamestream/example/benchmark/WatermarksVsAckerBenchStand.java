@@ -15,8 +15,10 @@ import java.io.FileWriter;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -92,6 +94,8 @@ public class WatermarksVsAckerBenchStand {
 
     final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(streamLength);
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
+    final long start = System.nanoTime();
+    final List<Long> durations = Collections.synchronizedList(new ArrayList<>());
     try (
             FileWriter durationOutput = new FileWriter("/tmp/duration");
             Closeable ignored2 = benchStandComponentFactory.recordNanoDuration(durationOutput);
@@ -107,6 +111,7 @@ public class WatermarksVsAckerBenchStand {
             AutoCloseable ignored1 = benchStandComponentFactory.consumer(
                     Integer.class,
                     id -> {
+                      durations.add(System.nanoTime() - start);
                       latencies.get(id).finish();
                       awaitConsumer.accept(id);
                       if (awaitConsumer.got() % 100 == 0) {
@@ -118,6 +123,11 @@ public class WatermarksVsAckerBenchStand {
     ) {
       graphDeployer.deploy();
       awaitConsumer.await(60, TimeUnit.MINUTES);
+      try (FileWriter durationsOutput = new FileWriter("/tmp/durations")) {
+        durationsOutput.write(
+                durations.stream().map(duration -> Long.toString(duration)).collect(Collectors.joining(", "))
+        );
+      }
       Tracing.TRACING.flush(Paths.get("/tmp/trace.csv"));
     }
     final String latenciesString = latencies.values()
