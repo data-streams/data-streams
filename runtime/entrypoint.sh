@@ -19,14 +19,14 @@ stop() {
   echo "Stopping flamestream worker"
   if [[ ! -f flamestream.pid ]]; then
     echo "No flamestream worker was found"
-    return 1
+    return 0
   fi
 
   # Kill the whole process group
   local pid=$(cat flamestream.pid)
   local pgid=$(ps -o pgid= $pid | grep -o [0-9]*)
   echo "Pid=${pid}, pgid=${pgid}"
-  kill -- "-$pgid"
+  kill -- "-$pgid" || :
 }
 
 main() {

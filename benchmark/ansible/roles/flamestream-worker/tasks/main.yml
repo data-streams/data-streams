@@ -4,8 +4,10 @@
     path: "{{ flamestream_dir }}/data/"
     state: absent
 
+- shell: "cd {{ flamestream_dir }} && bash entrypoint.sh stop"
+
 - name: Run flamestream
-  shell: "cd {{ flamestream_dir }} && bash entrypoint.sh restart"
+  shell: "cd {{ flamestream_dir }} && bash entrypoint.sh start"
   environment:
     ID: "{{ inventory_hostname }}"
     LOCAL_ADDRESS: "{{ inventory_hostname }}:{{ flamestream_worker_port }}"
