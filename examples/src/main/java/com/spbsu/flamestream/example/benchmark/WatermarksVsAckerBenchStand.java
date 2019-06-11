@@ -140,7 +140,6 @@ public class WatermarksVsAckerBenchStand {
     LOG.info("Result: {}", latenciesString);
     final long[] skipped = latencies.values()
             .stream()
-            .skip(200)
             .mapToLong(l -> l.statistics().getMax())
             .toArray();
     LOG.info("Median: {}", (long) percentiles().index(50).compute(skipped));
