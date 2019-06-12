@@ -90,6 +90,8 @@ public class WatermarksVsAckerBenchStand {
   }
 
   public void run(GraphDeployer graphDeployer) throws Exception {
+    final int warmUpStreamLength = Integer.parseInt(System.getenv().getOrDefault("WARM_UP_STREAM_LENGTH", "200"));
+    final long warmUpDelayNanos = Integer.parseInt(System.getenv().getOrDefault("WARM_UP_DELAY_MS", "50")) * 1000000;
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
 
     final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(streamLength);
@@ -101,7 +103,11 @@ public class WatermarksVsAckerBenchStand {
             Closeable ignored2 = benchStandComponentFactory.recordNanoDuration(durationOutput);
             AutoCloseable ignored = benchStandComponentFactory.producer(
                     Integer.class,
-                    IntStream.range(0, streamLength).peek(id -> {
+                    IntStream.range(-warmUpStreamLength, streamLength).peek(id -> {
+                      if (id < 0) {
+                        LockSupport.parkNanos(warmUpDelayNanos);
+                        return;
+                      }
                       LockSupport.parkNanos((long) (sleepBetweenDocs * 1.0e6));
                       latencies.put(id, new LatencyMeasurer());
                     }).boxed(),
@@ -111,6 +117,9 @@ public class WatermarksVsAckerBenchStand {
             AutoCloseable ignored1 = benchStandComponentFactory.consumer(
                     Integer.class,
                     id -> {
+                      if (id < 0) {
+                        return;
+                      }
                       durations.add(System.nanoTime() - start);
                       latencies.get(id).finish();
                       awaitConsumer.accept(id);

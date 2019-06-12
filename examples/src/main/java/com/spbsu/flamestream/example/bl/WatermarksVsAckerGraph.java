@@ -136,10 +136,10 @@ public class WatermarksVsAckerGraph {
                         Object payload = dataItem.payload(Object.class);
                         final int partition;
                         if (payload instanceof Integer) {
-                          partition = (((Integer) payload) + iteration) % parallelism;
+                          partition = Math.floorMod((((Integer) payload) + iteration), parallelism);
                         } else if (payload instanceof Child) {
                           Child child = (Child) payload;
-                          partition = (child.parentId + child.childId + iteration) % parallelism;
+                          partition = Math.floorMod(child.parentId + child.childId + iteration, parallelism);
                         } else {
                           partition = ((Watermark) payload).partition;
                         }

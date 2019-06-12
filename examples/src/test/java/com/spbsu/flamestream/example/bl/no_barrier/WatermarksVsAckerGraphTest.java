@@ -75,7 +75,7 @@ public class WatermarksVsAckerGraphTest extends FlameAkkaSuite {
       }
 
       final AkkaFront.FrontHandle<Object> sink = consumers.get(0);
-      IntStream.range(0, streamLength).boxed().forEach(sink);
+      IntStream.range(-streamLength, 0).boxed().forEach(sink);
       sink.unregister();
 
       awaitConsumer.await(5, TimeUnit.MINUTES);
