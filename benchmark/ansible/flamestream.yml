@@ -23,11 +23,10 @@
   roles:
     - { role: flamestream-common  }
 
-- hosts: "workers[0:{{ parallelism|int - 1 }}]"
+- name: Stop workers
+  hosts: workers
   tasks:
-    - file:
-        state: absent
-        path: /tmp/flame_stream
+    - shell: "cd {{ flamestream_dir }} && bash entrypoint.sh stop"
 
 - name: Init workers
   hosts: "workers[0:{{ parallelism|int - 1 }}]"
@@ -35,11 +34,6 @@
     - { role: flamestream-worker }
   environment:
     PATH: "/usr/lib/jvm/java-8-oracle/jre/bin/:{{ ansible_env.PATH }}"
-
-- hosts: "workers[0:{{ parallelism|int - 1 }}]"
-  tasks:
-    - wait_for:
-        path: /tmp/flame_stream
 
 #- name: Pause
 #  hosts: bench

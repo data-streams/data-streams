@@ -4,7 +4,9 @@
     path: "{{ flamestream_dir }}/data/"
     state: absent
 
-- shell: "cd {{ flamestream_dir }} && bash entrypoint.sh stop"
+- file:
+    state: absent
+    path: /tmp/flame_stream
 
 - name: Run flamestream
   shell: "cd {{ flamestream_dir }} && bash entrypoint.sh start"
@@ -19,3 +21,6 @@
     MILLIS_BETWEEN_COMMITS: "{{ millis_between_commits }}"
     BARRIER_DISABLED: "{{ watermarks | lower }}"
     DISTRIBUTED_ACKER: "{{ distributed_acker }}"
+
+- wait_for:
+    path: /tmp/flame_stream
