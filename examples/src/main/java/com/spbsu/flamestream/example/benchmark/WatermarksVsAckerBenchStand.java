@@ -65,7 +65,7 @@ public class WatermarksVsAckerBenchStand {
 
   private static final Logger LOG = LoggerFactory.getLogger(WatermarksVsAckerBenchStand.class);
 
-  private final int sleepBetweenDocs;
+  private final double sleepBetweenDocs;
   private final int streamLength;
   private final String benchHost;
   private final String inputHost;
@@ -77,7 +77,7 @@ public class WatermarksVsAckerBenchStand {
   private final int childrenNumber;
 
   public WatermarksVsAckerBenchStand(Config benchConfig) {
-    sleepBetweenDocs = benchConfig.getInt("sleep-between-docs-ms");
+    sleepBetweenDocs = benchConfig.getDouble("sleep-between-docs-ms");
     streamLength = benchConfig.getInt("stream-length");
     benchHost = benchConfig.getString("bench-host");
     inputHost = benchConfig.getString("input-host");

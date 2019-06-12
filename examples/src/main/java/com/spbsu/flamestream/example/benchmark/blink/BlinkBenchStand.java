@@ -178,14 +178,14 @@ public class BlinkBenchStand implements AutoCloseable {
   }
 
   public static class StandConfig {
-    private final int sleepBetweenDocs;
+    private final double sleepBetweenDocs;
     private final String wikiDumpPath;
     private final String validatorClass;
     private final String benchHost;
     private final int frontPort;
 
     public StandConfig(Config config) {
-      sleepBetweenDocs = config.getInt("sleep-between-docs-ms");
+      sleepBetweenDocs = config.getDouble("sleep-between-docs-ms");
       wikiDumpPath = config.getString("wiki-dump-path");
       validatorClass = config.getString("validator");
       benchHost = config.getString("bench-host");
@@ -200,7 +200,7 @@ public class BlinkBenchStand implements AutoCloseable {
       return frontPort;
     }
 
-    public int sleepBetweenDocs() {
+    public double sleepBetweenDocs() {
       return sleepBetweenDocs;
     }
 

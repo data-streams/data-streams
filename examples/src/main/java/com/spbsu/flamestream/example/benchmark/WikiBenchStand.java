@@ -63,7 +63,7 @@ public class WikiBenchStand {
 
   private static final Logger LOG = LoggerFactory.getLogger(WikiBenchStand.class);
 
-  private final int sleepBetweenDocs;
+  private final double sleepBetweenDocs;
   private final String wikiDumpPath;
   private final String validatorClass;
   public final String benchHost;
@@ -72,7 +72,7 @@ public class WikiBenchStand {
   public final int rearPort;
 
   public WikiBenchStand(Config benchConfig) {
-    sleepBetweenDocs = benchConfig.getInt("sleep-between-docs-ms");
+    sleepBetweenDocs = benchConfig.getDouble("sleep-between-docs-ms");
     wikiDumpPath = benchConfig.getString("wiki-dump-path");
     validatorClass = benchConfig.getString("validator");
     benchHost = benchConfig.getString("bench-host");
