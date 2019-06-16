@@ -76,9 +76,6 @@ public class FTRLProximal implements OnlineModel {
         final int xindex = iterator.index();
         final double z = zed.get(j, xindex);
         if (Math.abs(z) > lambda1) {
-          /*if (j == 57 && xindex == 143230) {
-            System.out.println();
-          }*/
           double val = -(z - Math.signum(z) * lambda1) /
                   ((beta + Math.sqrt(norm.get(j, xindex))) / alpha + lambda2);
           weights.set(j, xindex, val);

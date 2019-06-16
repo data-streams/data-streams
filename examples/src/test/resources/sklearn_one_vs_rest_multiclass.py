@@ -1,6 +1,7 @@
 import numpy as np
 from sklearn.linear_model import SGDClassifier
 from scipy.sparse import csc_matrix
+import time
 import sys
 
 
@@ -42,10 +43,12 @@ def main(argv):
     #classifier = SGDClassifier(loss='log', class_weight='balanced', n_jobs=-1, tol=1e-6, max_iter=2000, random_state=42)
     classifier = SGDClassifier(
         loss="log", class_weight='balanced', tol=1e-6,
-        penalty='l1', alpha=alpha, n_jobs=-1, random_state=42, max_iter=5000
+        penalty='l1', alpha=alpha, n_jobs=-1, random_state=42, max_iter=1000
     )
+    #tm = time.monotonic()
     classifier.fit(X_train, y_train)
     predicted = classifier.predict(X_test)
+    #print("Execution time {}".format(time.monotonic() - tm))
     print(np.mean(predicted == y_test))
 
 if __name__ == "__main__":

@@ -50,7 +50,7 @@ public class ChampionshipTest {
   private final SklearnSgdPredictor predictor = new SklearnSgdPredictor(WEIGHTS_PATH);
   private List<DataPoint> trainingSetList = new ArrayList<>();
   private List<DataPoint> testSetList = new ArrayList<>();
-  private final List<String> trackingWords = Arrays.asList("франции", "хорватии", "аргентины", "англии", "гол");
+  private final List<String> trackingWords = Arrays.asList("франции", "хорватии", "аргентины", "англии", "германии");
   private final List<Integer> trackingIndices = new ArrayList<>();
   private List<Boolean> isTrain = new ArrayList<>();
   private FTRLProximal optimizer;
@@ -90,7 +90,7 @@ public class ChampionshipTest {
     splitDatasetWarmUpTestComplete(seed, trainSize, testSize, warmUp, offset);
   }
 
-  private void splitDatasetWarmUpTestComplete(int seed, int trainSize, int testSize, int warmUp, int offset) {
+  static void splitDatasetWarmUpTestComplete(int seed, int trainSize, int testSize, int warmUp, int offset) {
     String pythonCommand = String.format(
             Locale.US,
             "sklearn_split_dataset.py %d %d %d %d %d %s",

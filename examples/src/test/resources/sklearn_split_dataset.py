@@ -192,16 +192,13 @@ def main(argv):
         X1 = list(enumerate(X1))
         y1 = list(enumerate(y1))
 
-        X_train, X_test, y_train, y_test = train_test_split(X1, y1, test_size=testSize, random_state=seed)
-
-        X_train = [t[1] for t in sorted(X_train, key = lambda t: t[0])]
-        y_train = [t[1] for t in sorted(y_train, key = lambda t: t[0])]
+        _, X_test, _, y_test = train_test_split(X1, y1, test_size=testSize, random_state=seed)
 
         X_test = [t[1] for t in sorted(X_test, key = lambda t: t[0])]
         y_test = [t[1] for t in sorted(y_test, key = lambda t: t[0])]
 
-        X_train = X + X_train
-        y_train = y + y_train
+        X_train = X
+        y_train = y
 
         put(X_train, y_train, "tmp_train")
         put(X_test, y_test, "tmp_test")

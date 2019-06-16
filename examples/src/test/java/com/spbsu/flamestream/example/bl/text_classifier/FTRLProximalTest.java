@@ -329,7 +329,7 @@ public class FTRLProximalTest {
   private double accuracySKLearn(double alpha) {
     final String pythonCommand = String.format(
             Locale.US,
-            "sklearn_one_vs_rest_multiclass.py %f",
+            "sklearn_one_vs_rest_multiclass.py %.8f",
             alpha
     );
     final double accuracy = Double.parseDouble(callPython(pythonCommand));
@@ -488,20 +488,14 @@ public class FTRLProximalTest {
     }
   }
 
+  @Test
   public void testSelectSKLearnAlpha() {
-    List<Double> alphas = Arrays.asList(
-            0.0000008,
-            0.00000085,
-            0.00000095,
-            0.0000007,
-            0.00000075,
-            0.0000009
-    );
     double optAlpha = 0;
     double maxAcc = 0;
-    splitDatasetOrderedComplete(42);
+    ChampionshipTest.splitDatasetWarmUpTestComplete(42, 4000, 4000, 8000, 0);
     readTestTrain();
-    for (double alpha : alphas) {
+    for (int i = 1; i <= 500; i++) {
+      double alpha = 0.00000002 * i;
       double acc = accuracySKLearn(alpha);
       if (acc > maxAcc) {
         optAlpha = alpha;
