@@ -8,11 +8,11 @@
       register: test
       changed_when: test.stdout
 
-#- name: Prepare cluster
-#  hosts: all
-#  roles:
-#    - { role: common-packages }
-#
+- name: Prepare cluster
+  hosts: all
+  roles:
+    - { role: common-packages }
+
 - name: Setup zookeeper
   hosts: manager
   roles:

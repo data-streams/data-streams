@@ -5,7 +5,7 @@ benchmark {
   bench-sink-port = 5678
 
   sleep-between-docs-ms = {{ rate }}
-  stream-length = 2000
+  stream-length = {{ stream_length }}
   parallelism = {{ parallelism }}
   watermarks = {{ watermarks | lower }}
   iterations = {{ iterations }}

@@ -12,10 +12,12 @@
 - name: Start the flamestream bench
   shell: >
     java
-    -Daeron.term.buffer.length=4194304 -Daeron.mtu.length=16384 -Xms500m -Xmx500m -XX:+PrintGC -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps -XX:+HeapDumpOnOutOfMemoryError
+    -Daeron.term.buffer.length=4194304 -Daeron.mtu.length=16384 -Xms1500m -Xmx1500m -XX:+PrintGC -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps -XX:+HeapDumpOnOutOfMemoryError
     -cp '{{ flamestream_dir }}/lib/*'
     {{ bench_class }}
     {{ flamestream_dir }}/bench.conf {{ flamestream_dir }}/deployer.conf > {{ flamestream_dir }}/bench.log 2>&1
+  environment:
+    WARM_UP_STREAM_LENGTH: 1000
 
 - name: Fetch bench logs
   fetch:
@@ -32,4 +34,9 @@
 - fetch:
     src: /tmp/duration
     dest: "{{ results_dir }}/flamestream/duration.txt"
+    flat: true
+
+- fetch:
+    src: /tmp/durations
+    dest: "{{ results_dir }}/flamestream/durations.txt"
     flat: true

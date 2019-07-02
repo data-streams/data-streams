@@ -44,7 +44,7 @@ public class BenchStandComponentFactory {
           String remoteHost,
           int port
   ) throws IOException {
-    final Server producer = new Server(1_000_000, 1000);
+    final Server producer = new Server(200_000_000, 1000);
     producer.getKryo().register(type);
     ((Kryo.DefaultInstantiatorStrategy) producer.getKryo()
             .getInstantiatorStrategy())
@@ -62,10 +62,8 @@ public class BenchStandComponentFactory {
             accepted = true;
             LOG.info("Accepting connection: {}", newConnection.getRemoteAddressTCP());
             new Thread(() -> {
-              int i = 0;
               for (final Payload payload : (Iterable<Payload>) payloadStream::iterator) {
                 newConnection.sendTCP(payload);
-                LOG.info("Sending: {}", i++);
               }
             }).start();
           } else {
