@@ -12,7 +12,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.FileWriter;
-import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -23,10 +22,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static com.google.common.math.Quantiles.percentiles;
 
@@ -52,12 +51,25 @@ public class WatermarksVsAckerBenchStand {
                     benchStandComponentFactory.runtime(deployerConfig, benchStand.watermarks),
                     WatermarksVsAckerGraph.apply(
                             benchStand.parallelism,
-                            benchStand.watermarks,
                             benchStand.iterations,
                             benchStand.childrenNumber
                     ),
-                    new SocketFrontType(benchStand.benchHost, benchStand.frontPort, Integer.class),
-                    new SocketRearType(benchStand.benchHost, benchStand.rearPort)
+                    new SocketFrontType(
+                            benchStand.benchHost,
+                            benchStand.frontPort,
+                            WatermarksVsAckerGraph.Element.class,
+                            WatermarksVsAckerGraph.Data.class,
+                            WatermarksVsAckerGraph.Child.class,
+                            WatermarksVsAckerGraph.Watermark.class
+                    ),
+                    new SocketRearType(
+                            benchStand.benchHost,
+                            benchStand.rearPort,
+                            WatermarksVsAckerGraph.Element.class,
+                            WatermarksVsAckerGraph.Data.class,
+                            WatermarksVsAckerGraph.Child.class,
+                            WatermarksVsAckerGraph.Watermark.class
+                    )
             )
     ) {
       benchStand.run(graphDeployer);
@@ -104,7 +116,6 @@ public class WatermarksVsAckerBenchStand {
             FileWriter durationOutput = new FileWriter("/tmp/duration");
             Closeable ignored2 = benchStandComponentFactory.recordNanoDuration(durationOutput);
             AutoCloseable ignored = benchStandComponentFactory.producer(
-                    Integer.class,
                     IntStream.range(-warmUpStreamLength, streamLength).peek(id -> {
                       if (id < 0) {
                         LockSupport.parkNanos(warmUpDelayNanos);
@@ -112,24 +123,47 @@ public class WatermarksVsAckerBenchStand {
                       }
                       LockSupport.parkNanos((long) (sleepBetweenDocs * 1.0e6));
                       latencies.put(id, new LatencyMeasurer());
-                    }).boxed(),
+                      if ((id + 1) % 100 == 0) {
+                        LOG.info("Sending: {}", id + 1);
+                      }
+                    }).boxed().flatMap(id ->
+                            Stream.concat(
+                                    Stream.of(new WatermarksVsAckerGraph.Data(id)),
+                                    watermarks ? Stream.of(new WatermarksVsAckerGraph.Watermark(id)) : Stream.empty()
+                            )
+                    ),
                     inputHost,
-                    frontPort
+                    frontPort,
+                    WatermarksVsAckerGraph.Element.class,
+                    WatermarksVsAckerGraph.Data.class,
+                    WatermarksVsAckerGraph.Child.class,
+                    WatermarksVsAckerGraph.Watermark.class
             )::stop;
             AutoCloseable ignored1 = benchStandComponentFactory.consumer(
-                    Integer.class,
-                    id -> {
-                      if (id < 0) {
+                    WatermarksVsAckerGraph.Element.class,
+                    element -> {
+                      if (element.id < 0) {
+                        return;
+                      }
+                      if (watermarks && element instanceof WatermarksVsAckerGraph.Data) {
                         return;
                       }
                       durations.add(System.nanoTime() - start);
-                      latencies.get(id).finish();
-                      awaitConsumer.accept(id);
+                      latencies.get(element.id).finish();
+                      awaitConsumer.accept(element.id);
                       if (awaitConsumer.got() % 100 == 0) {
                         LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
                       }
+                      if (element.id % 100 == 0) {
+                        LOG.info("Got id {}", element.id);
+                      }
                     },
-                    rearPort
+                    rearPort,
+                    WatermarksVsAckerGraph.Element.class,
+                    WatermarksVsAckerGraph.Data.class,
+                    WatermarksVsAckerGraph.Child.class,
+                    WatermarksVsAckerGraph.Watermark.class
+
             )::stop
     ) {
       graphDeployer.deploy();

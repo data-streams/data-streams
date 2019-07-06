@@ -17,20 +17,35 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class WatermarksVsAckerGraph {
-  static final class Child {
-    final int parentId, childId;
+  static public abstract class Element {
+    public final int id;
+
+    protected Element(int id) {this.id = id;}
+  }
+
+  static public final class Data extends Element {
+    public Data(int id) {
+      super(id);
+    }
+  }
+  static public final class Child extends Element {
+    final int childId;
 
     Child(int parentId, int childId) {
-      this.parentId = parentId;
+      super(parentId);
       this.childId = childId;
     }
   }
 
-  static final class Watermark {
-    final int id, partition;
+  static public final class Watermark extends Element {
+    private final int partition;
 
-    Watermark(int id, int partition) {
-      this.id = id;
+    public Watermark(int id) {
+      this(id, 0);
+    }
+
+    public Watermark(int id, int partition) {
+      super(id);
       this.partition = partition;
     }
 
@@ -40,47 +55,41 @@ public class WatermarksVsAckerGraph {
     }
   }
 
-  private static Stream<Object> watermarkStream(int parallelism, int id) {
+  private static Stream<Element> watermarkStream(int parallelism, int id) {
     return IntStream.range(0, parallelism).mapToObj(partition -> new Watermark(
             id,
             partition
     ));
   }
 
-  public static Graph apply(int parallelism, boolean watermarks, int iterations, int childrenNumber) {
+  public static Graph apply(int parallelism, int iterations, int childrenNumber) {
     final List<HashUnit> covering = HashUnit.covering(parallelism).collect(Collectors.toCollection(ArrayList::new));
 
     final Graph.Builder graphBuilder = new Graph.Builder();
     final Source source = new Source();
     final Sink sink = new Sink();
-    @SuppressWarnings("Convert2Lambda") Graph.Vertex start = new FlameMap<>(new Function<Integer, Stream<Object>>() {
+    @SuppressWarnings("Convert2Lambda") Graph.Vertex start = new FlameMap<>(new Function<Element, Stream<Element>>() {
       @Override
-      public Stream<Object> apply(Integer id) {
-        Stream<Object> payload = Stream.concat(
-                IntStream.range(0, childrenNumber).mapToObj(childId -> new Child(id, childId)),
-                Stream.of(id)
-        );
-        if (!watermarks) {
-          return payload;
+      public Stream<Element> apply(Element element) {
+        if (element instanceof Data) {
+          final int id = ((Data) element).id;
+          return Stream.concat(
+                  IntStream.range(0, childrenNumber).mapToObj(childId -> new Child(id, childId)),
+                  Stream.of(element)
+          );
         }
-        return Stream.concat(payload, watermarkStream(parallelism, id));
+        return watermarkStream(parallelism, element.id);
       }
-    }, Integer.class);
+    }, Element.class);
 
     final Graph.Vertex end = new FlameMap<>(
-            new Function<Object, Stream<Integer>>() {
+            new Function<Element, Stream<Element>>() {
               final HashMap<Integer, Integer> counts = new HashMap<>();
 
               @Override
-              public Stream<Integer> apply(Object payload) {
-                if (payload instanceof Integer) {
-                  if (!watermarks) {
-                    return Stream.of((Integer) payload);
-                  }
-                  return Stream.empty();
-                }
-                if (payload instanceof Child) {
-                  return Stream.empty();
+              public Stream<Element> apply(Element payload) {
+                if (payload instanceof Data || payload instanceof Child) {
+                  return Stream.of(payload);
                 }
                 final Watermark watermark = (Watermark) payload;
                 Integer updated = counts.compute(watermark.id, (ignored, count) -> {
@@ -93,23 +102,23 @@ public class WatermarksVsAckerGraph {
                   }
                   return null;
                 });
-                return updated == null ? Stream.of(watermark.id) : Stream.empty();
+                return updated == null ? Stream.of(watermark) : Stream.empty();
               }
             },
-            Object.class,
+            Element.class,
             HashFunction.constantHash(0)
     );
 
     //noinspection Convert2Lambda
     graphBuilder
             .link(source, start)
-            .link(IntStream.range(0, iterations).boxed().<Graph.Vertex>map(iteration -> new FlameMap<Object, Object>(
-                    new Function<Object, Stream<Object>>() {
+            .link(IntStream.range(0, iterations).boxed().<Graph.Vertex>map(iteration -> new FlameMap<>(
+                    new Function<Element, Stream<Element>>() {
                       final HashMap<Integer, Integer> counts = new HashMap<>();
 
                       @Override
-                      public Stream<Object> apply(Object payload) {
-                        if (payload instanceof Integer || payload instanceof Child) {
+                      public Stream<Element> apply(Element payload) {
+                        if (payload instanceof Data || payload instanceof Child) {
                           return Stream.of(payload);
                         }
                         final Watermark watermark = (Watermark) payload;
@@ -129,17 +138,17 @@ public class WatermarksVsAckerGraph {
                         ) : Stream.empty();
                       }
                     },
-                    Object.class,
+                    Element.class,
                     new HashFunction() {
                       @Override
                       public int hash(DataItem dataItem) {
-                        Object payload = dataItem.payload(Object.class);
+                        Element payload = dataItem.payload(Element.class);
                         final int partition;
-                        if (payload instanceof Integer) {
-                          partition = Math.floorMod((((Integer) payload) + iteration), parallelism);
+                        if (payload instanceof Data) {
+                          partition = Math.floorMod(payload.id + iteration, parallelism);
                         } else if (payload instanceof Child) {
                           Child child = (Child) payload;
-                          partition = Math.floorMod(child.parentId + child.childId + iteration, parallelism);
+                          partition = Math.floorMod(child.id + child.childId + iteration, parallelism);
                         } else {
                           partition = ((Watermark) payload).partition;
                         }

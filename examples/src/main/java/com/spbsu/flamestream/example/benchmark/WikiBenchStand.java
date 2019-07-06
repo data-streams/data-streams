@@ -91,13 +91,13 @@ public class WikiBenchStand {
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
     try (
             AutoCloseable ignored = benchStandComponentFactory.producer(
-                    WikipediaPage.class,
                     pages(validator.inputLimit()).peek(page -> {
                       LockSupport.parkNanos((long) (nextExp(1.0 / sleepBetweenDocs) * 1.0e6));
                       latencies.put(page.id(), new LatencyMeasurer());
                     }),
                     inputHost,
-                    frontPort
+                    frontPort,
+                    WikipediaPage.class
             )::stop;
             AutoCloseable ignored1 = benchStandComponentFactory.consumer(
                     WordIndexAdd.class,

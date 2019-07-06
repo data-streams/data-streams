@@ -39,13 +39,15 @@ public class BenchStandComponentFactory {
   private static final Logger LOG = LoggerFactory.getLogger(BenchStandComponentFactory.class);
 
   public <Payload> Server producer(
-          Class<Payload> type,
           Stream<Payload> payloadStream,
           String remoteHost,
-          int port
+          int port,
+          Class<?>... classesToRegister
   ) throws IOException {
     final Server producer = new Server(200_000_000, 1000);
-    producer.getKryo().register(type);
+    for (final Class<?> clazz : classesToRegister) {
+      producer.getKryo().register(clazz);
+    }
     ((Kryo.DefaultInstantiatorStrategy) producer.getKryo()
             .getInstantiatorStrategy())
             .setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
@@ -81,7 +83,7 @@ public class BenchStandComponentFactory {
   }
 
   public <Payload> Server consumer(
-          Class<Payload> type,
+          Class<? extends Payload> type,
           Consumer<Payload> consumer,
           int port,
           Class<?>... classesToRegister
@@ -141,7 +143,7 @@ public class BenchStandComponentFactory {
     } else if (config.hasPath("local-cluster")) {
       runtime = new LocalClusterRuntime(
               config.getConfig("local-cluster").getInt("parallelism"),
-              new WorkerApplication.WorkerConfig.Builder().millisBetweenCommits(10000)
+              new WorkerApplication.WorkerConfig.Builder().millisBetweenCommits(1000000000)
                       .barrierDisabled(barrierDisabled)::build
       );
     } else {
