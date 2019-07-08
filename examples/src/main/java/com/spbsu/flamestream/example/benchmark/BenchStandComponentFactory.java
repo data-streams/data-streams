@@ -82,12 +82,7 @@ public class BenchStandComponentFactory {
     return producer;
   }
 
-  public <Payload> Server consumer(
-          Class<? extends Payload> type,
-          Consumer<Payload> consumer,
-          int port,
-          Class<?>... classesToRegister
-  ) throws IOException {
+  public Server consumer(Consumer<Object> consumer, int port, Class<?>... classesToRegister) throws IOException {
     final Server server = new Server(2000, 1_000_000);
     for (final Class<?> clazz : classesToRegister) {
       server.getKryo().register(clazz);
@@ -119,11 +114,7 @@ public class BenchStandComponentFactory {
     server.addListener(new Listener() {
       @Override
       public void received(Connection connection, Object object) {
-        if (object instanceof DataItem) {
-          consumer.accept(((DataItem) object).payload(type));
-        } else if (type.isInstance(object)) {
-          consumer.accept(type.cast(object));
-        }
+        consumer.accept(object);
       }
     });
 

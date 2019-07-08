@@ -99,8 +99,9 @@ public class ProcessingWatcher extends LoggingActor {
 
     graphCache = new NodeCache(curator, "/graph");
     graphCache.getListenable().addListener(() -> {
-      final Graph graph = serializer.deserialize(graphCache.getCurrentData().getData(), Graph.class);
-      self().tell(graph, self());
+      if (graphCache.getCurrentData().getData().length > 0) {
+        self().tell(serializer.deserialize(graphCache.getCurrentData().getData(), Graph.class), self());
+      }
     });
     graphCache.start();
 

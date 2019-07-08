@@ -1,5 +1,6 @@
 package com.spbsu.flamestream.example.benchmark;
 
+import com.spbsu.flamestream.core.OutputPayload;
 import com.spbsu.flamestream.example.bl.WatermarksVsAckerGraph;
 import com.spbsu.flamestream.runtime.edge.socket.SocketFrontType;
 import com.spbsu.flamestream.runtime.edge.socket.SocketRearType;
@@ -12,16 +13,20 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -90,6 +95,217 @@ public class WatermarksVsAckerBenchStand {
   private final int iterations;
   private final int childrenNumber;
 
+  static interface Flow<Input, Output> extends Closeable {
+    static class Control {
+    }
+
+    static class Continue extends Control {
+      static Continue INSTANCE = new Continue();
+
+      private Continue() {}
+    }
+
+    static class Interrupt extends Control {
+      static Interrupt INSTANCE = new Interrupt();
+
+      private Interrupt() {}
+    }
+
+    Control beforeSend(Input input);
+
+    Control onReceive(Output output);
+  }
+
+  static class ContinueFlow<Input, Output> implements Flow<Input, Output> {
+    @Override
+    public Control beforeSend(Input input) {
+      return Continue.INSTANCE;
+    }
+
+    @Override
+    public Control onReceive(Output output) {
+      return Continue.INSTANCE;
+    }
+
+    @Override
+    public void close() throws IOException {
+      notify();
+    }
+  }
+
+  static class ProcessingLimitFlow<Input, Output> implements Flow<Input, Output> {
+    final int limit;
+    final Flow<? super Input, ? super Output> other;
+    final AtomicInteger count = new AtomicInteger();
+
+    ProcessingLimitFlow(int limit, Flow other) {
+      this.limit = limit;
+      this.other = other;
+    }
+
+    @Override
+    public Control beforeSend(Input input) {
+      if (count.incrementAndGet() < limit) {
+        return other.beforeSend(input);
+      }
+      return Interrupt.INSTANCE;
+    }
+
+    @Override
+    public Control onReceive(Output output) {
+      count.decrementAndGet();
+      return other.onReceive(output);
+    }
+
+    @Override
+    public void close() throws IOException {
+    }
+  }
+
+  //static class WarmupFlow implements Flow {
+  //  final int length;
+  //  final Flow other;
+  //  private long delayNanos;
+  //
+  //  WarmupFlow(int length, long delayNanos, Flow other) {
+  //    this.length = length;
+  //    this.other = other;
+  //    this.delayNanos = delayNanos;
+  //  }
+  //
+  //  @Override
+  //  public Control beforeSend(int id) {
+  //    if (id < 0) {
+  //      LockSupport.parkNanos(delayNanos);
+  //      return Continue.INSTANCE;
+  //    }
+  //    return other.beforeSend(id);
+  //  }
+  //
+  //  @Override
+  //  public Control onReceive(int id) {
+  //    if (id < 0) {
+  //      return Continue.INSTANCE;
+  //    }
+  //    return other.onReceive(id);
+  //  }
+  //
+  //  @Override
+  //  public void close() throws IOException {
+  //  }
+  //}
+
+  static interface FlowV2<Input, Output> extends Iterator<Input>, Sink<Output> {
+  }
+
+  public static interface Sink<Output> {
+    void accept(Output output) throws Done;
+
+    static class Control {
+    }
+
+    static class Continue extends Control {
+      static Continue INSTANCE = new Continue();
+
+      private Continue() {}
+    }
+
+    static class Interrupt extends Control {
+      static Interrupt INSTANCE = new Interrupt();
+
+      private Interrupt() {}
+    }
+
+    static class Done extends Exception {
+    }
+  }
+
+  static interface IndexedProgressTracker<Progress> {
+    void start(int index, Progress progress);
+
+    Progress get(int index);
+
+    void update(int index, Progress progress);
+
+    void finish(int index);
+  }
+
+  static class RingBufferIndexedProgressTracker<Progress> implements IndexedProgressTracker<Progress> {
+    private final Progress[] progresses;
+    private int currentIndex = 0, currentIndexArrayIndex = 0;
+
+    RingBufferIndexedProgressTracker(int bufferSize) {
+      progresses = (Progress[]) new Object[bufferSize];
+    }
+
+    @Override
+    public void start(int index, Progress progress) {
+    }
+
+    @Override
+    public Progress get(int index) {
+      return null;
+    }
+
+    @Override
+    public void update(int index, Progress progress) {
+
+    }
+
+    @Override
+    public void finish(int index) {
+
+    }
+  }
+
+  static class InfinityLikeFlow implements FlowV2<Integer, Integer> {
+
+    private final boolean[] received;
+    private final Sink<Integer> sink;
+    private int emittedCount = 0, receivedCount = 0;
+    private boolean isDone = false;
+
+    InfinityLikeFlow(int length, Sink<Integer> sink) {
+      this.received = new boolean[length];
+      this.sink = sink;
+    }
+
+    @Override
+    public boolean hasNext() {
+      if (!isDone) {
+        return true;
+      }
+      //noinspection ConstantConditions
+      isDone = true;
+      return false;
+    }
+
+    @Override
+    public Integer next() {
+      if (!hasNext()) {
+        throw new NoSuchElementException();
+      }
+      return emittedCount++;
+    }
+
+    @Override
+    public void accept(Integer output) throws Done {
+      assert !received[output];
+      received[output] = true;
+      ++receivedCount;
+
+      try {
+        sink.accept(output);
+        if (receivedCount == received.length) {
+          throw new Done();
+        }
+      } catch (Done done) {
+        isDone = true;
+        throw done;
+      }
+    }
+  }
+
   public WatermarksVsAckerBenchStand(Config benchConfig) {
     sleepBetweenDocs = benchConfig.getDouble("sleep-between-docs-ms");
     streamLength = benchConfig.getInt("stream-length");
@@ -112,11 +328,14 @@ public class WatermarksVsAckerBenchStand {
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
     final long start = System.nanoTime();
     final List<Long> durations = Collections.synchronizedList(new ArrayList<>());
+    final long[] notificationAwaitTimes = new long[streamLength];
+    final AtomicInteger processingCount = new AtomicInteger();
     try (
             FileWriter durationOutput = new FileWriter("/tmp/duration");
             Closeable ignored2 = benchStandComponentFactory.recordNanoDuration(durationOutput);
             AutoCloseable ignored = benchStandComponentFactory.producer(
                     IntStream.range(-warmUpStreamLength, streamLength).peek(id -> {
+                      processingCount.incrementAndGet();
                       if (id < 0) {
                         LockSupport.parkNanos(warmUpDelayNanos);
                         return;
@@ -140,13 +359,29 @@ public class WatermarksVsAckerBenchStand {
                     WatermarksVsAckerGraph.Watermark.class
             )::stop;
             AutoCloseable ignored1 = benchStandComponentFactory.consumer(
-                    WatermarksVsAckerGraph.Element.class,
-                    element -> {
+                    object -> {
+                      final WatermarksVsAckerGraph.Element element;
+                      if (object instanceof OutputPayload) {
+                        element = ((OutputPayload) object).payload(WatermarksVsAckerGraph.Element.class);
+                      } else if (object instanceof WatermarksVsAckerGraph.Element) {
+                        element = (WatermarksVsAckerGraph.Element) object;
+                      } else {
+                        return;
+                      }
+                      processingCount.decrementAndGet();
                       if (element.id < 0) {
                         return;
                       }
-                      if (watermarks && element instanceof WatermarksVsAckerGraph.Data) {
-                        return;
+                      if (watermarks) {
+                        if (element instanceof WatermarksVsAckerGraph.Data) {
+                          notificationAwaitTimes[element.id] = -System.nanoTime();
+                          return;
+                        }
+                        notificationAwaitTimes[element.id] += System.nanoTime();
+                      } else {
+                        if (object instanceof OutputPayload) {
+                          notificationAwaitTimes[element.id] = ((OutputPayload) object).notificationAwaitTime;
+                        }
                       }
                       durations.add(System.nanoTime() - start);
                       latencies.get(element.id).finish();
@@ -174,6 +409,14 @@ public class WatermarksVsAckerBenchStand {
         );
       }
       Tracing.TRACING.flush(Paths.get("/tmp/trace.csv"));
+    }
+    try (final PrintWriter printWriter = new PrintWriter(Files.newBufferedWriter(Paths.get(
+            "/tmp/notification_await_times.csv"
+    )))) {
+      for (final long notificationAwaitTime : notificationAwaitTimes) {
+        assert notificationAwaitTime >= 0;
+        printWriter.println(notificationAwaitTime);
+      }
     }
     final String latenciesString = latencies.values()
             .stream()

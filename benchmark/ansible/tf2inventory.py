@@ -27,8 +27,7 @@ result = {'all': {
         'manager': group([manager]),
         'workers': group(workers),
         'bench': group([manager]),
-        'acker': group([workers[0]]),
-        'input': group([workers[1] if len(workers) > 1 else workers[0]])
+        'input': group([workers[0]])
     },
     'vars': {
         'ansible_user': 'ubuntu',
