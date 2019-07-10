@@ -4,8 +4,6 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
-import com.spbsu.flamestream.core.Batch;
-import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.data.PayloadDataItem;
 import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
@@ -124,18 +122,17 @@ public class BenchStandComponentFactory {
   }
 
   public FlameRuntime runtime(Config config) {
-    return runtime(config, false);
+    return runtime(config, new WorkerApplication.WorkerConfig.Builder()::build);
   }
 
-  public FlameRuntime runtime(Config config, boolean barrierDisabled) {
+  public FlameRuntime runtime(Config config, LocalClusterRuntime.WorkerConfigFactory workerConfigFactory) {
     final FlameRuntime runtime;
     if (config.hasPath("local")) {
       runtime = new LocalRuntime.Builder().parallelism(config.getConfig("local").getInt("parallelism")).build();
     } else if (config.hasPath("local-cluster")) {
       runtime = new LocalClusterRuntime(
               config.getConfig("local-cluster").getInt("parallelism"),
-              new WorkerApplication.WorkerConfig.Builder().millisBetweenCommits(1000000000)
-                      .barrierDisabled(barrierDisabled)::build
+              workerConfigFactory
       );
     } else {
       // temporary solution to keep bench stand in working state

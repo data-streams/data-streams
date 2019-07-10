@@ -1,6 +1,6 @@
 package com.spbsu.flamestream.example.benchmark;
 
-import com.spbsu.flamestream.core.OutputPayload;
+import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.example.bl.index.InvertedIndexGraph;
 import com.spbsu.flamestream.example.bl.index.model.WikipediaPage;
 import com.spbsu.flamestream.example.bl.index.model.WordIndexAdd;
@@ -103,8 +103,8 @@ public class WikiBenchStand {
             AutoCloseable ignored1 = benchStandComponentFactory.consumer(
                     object -> {
                       final WordIndexAdd wordIndexAdd;
-                      if (object instanceof OutputPayload) {
-                        wordIndexAdd = ((OutputPayload) object).payload(WordIndexAdd.class);
+                      if (object instanceof DataItem) {
+                        wordIndexAdd = ((DataItem) object).payload(WordIndexAdd.class);
                       } else if (object instanceof WordIndexAdd) {
                         wordIndexAdd = (WordIndexAdd) object;
                       } else {

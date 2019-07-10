@@ -40,3 +40,8 @@
     src: /tmp/durations
     dest: "{{ results_dir }}/flamestream/durations.txt"
     flat: true
+
+- fetch:
+    src: /tmp/notification_await_times.csv
+    dest: "{{ results_dir }}/flamestream/notification_await_times.csv"
+    flat: true

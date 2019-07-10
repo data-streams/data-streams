@@ -1,7 +1,10 @@
 package com.spbsu.flamestream.example.benchmark;
 
-import com.spbsu.flamestream.core.OutputPayload;
+import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.example.bl.WatermarksVsAckerGraph;
+import com.spbsu.flamestream.runtime.WorkerApplication;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
+import com.spbsu.flamestream.runtime.edge.Rear;
 import com.spbsu.flamestream.runtime.edge.socket.SocketFrontType;
 import com.spbsu.flamestream.runtime.edge.socket.SocketRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitCountConsumer;
@@ -19,11 +22,13 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.PriorityQueue;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -53,7 +58,18 @@ public class WatermarksVsAckerBenchStand {
     final WatermarksVsAckerBenchStand benchStand = new WatermarksVsAckerBenchStand(benchConfig);
     try (
             GraphDeployer graphDeployer = new FlameGraphDeployer(
-                    benchStandComponentFactory.runtime(deployerConfig, benchStand.watermarks),
+                    benchStandComponentFactory.runtime(
+                            deployerConfig,
+                            new WorkerApplication.WorkerConfig.Builder()
+                                    .millisBetweenCommits(1000000000)
+                                    .barrierDisabled(true)
+                                    .acking(
+                                            benchStand.watermarks ?
+                                                    SystemConfig.Acking.DISABLED :
+                                                    SystemConfig.Acking.CENTRALIZED
+                                    )
+                                    ::build
+                    ),
                     WatermarksVsAckerGraph.apply(
                             benchStand.parallelism,
                             benchStand.iterations,
@@ -330,6 +346,8 @@ public class WatermarksVsAckerBenchStand {
     final List<Long> durations = Collections.synchronizedList(new ArrayList<>());
     final long[] notificationAwaitTimes = new long[streamLength];
     final AtomicInteger processingCount = new AtomicInteger();
+    final PriorityQueue<DataItem> awaitingMinTimes =
+            new PriorityQueue<>(Comparator.comparing(o -> o.meta().globalTime()));
     try (
             FileWriter durationOutput = new FileWriter("/tmp/duration");
             Closeable ignored2 = benchStandComponentFactory.recordNanoDuration(durationOutput);
@@ -361,11 +379,20 @@ public class WatermarksVsAckerBenchStand {
             AutoCloseable ignored1 = benchStandComponentFactory.consumer(
                     object -> {
                       final WatermarksVsAckerGraph.Element element;
-                      if (object instanceof OutputPayload) {
-                        element = ((OutputPayload) object).payload(WatermarksVsAckerGraph.Element.class);
+                      if (object instanceof DataItem) {
+                        element = ((DataItem) object).payload(WatermarksVsAckerGraph.Element.class);
                       } else if (object instanceof WatermarksVsAckerGraph.Element) {
                         element = (WatermarksVsAckerGraph.Element) object;
                       } else {
+                        if (object instanceof Rear.MinTime) {
+                          Rear.MinTime minTime = (Rear.MinTime) object;
+                          while (!awaitingMinTimes.isEmpty()
+                                  && awaitingMinTimes.peek().meta().globalTime().compareTo(minTime.time) <= 0) {
+                            int id = awaitingMinTimes.peek().payload(WatermarksVsAckerGraph.Element.class).id;
+                            notificationAwaitTimes[id] += System.nanoTime();
+                            awaitingMinTimes.poll();
+                          }
+                        }
                         return;
                       }
                       processingCount.decrementAndGet();
@@ -379,8 +406,9 @@ public class WatermarksVsAckerBenchStand {
                         }
                         notificationAwaitTimes[element.id] += System.nanoTime();
                       } else {
-                        if (object instanceof OutputPayload) {
-                          notificationAwaitTimes[element.id] = ((OutputPayload) object).notificationAwaitTime;
+                        if (object instanceof DataItem) {
+                          awaitingMinTimes.add((DataItem) object);
+                          notificationAwaitTimes[element.id] = -System.nanoTime();
                         }
                       }
                       durations.add(System.nanoTime() - start);
@@ -414,7 +442,7 @@ public class WatermarksVsAckerBenchStand {
             "/tmp/notification_await_times.csv"
     )))) {
       for (final long notificationAwaitTime : notificationAwaitTimes) {
-        assert notificationAwaitTime >= 0;
+        assert notificationAwaitTime > 0;
         printWriter.println(notificationAwaitTime);
       }
     }

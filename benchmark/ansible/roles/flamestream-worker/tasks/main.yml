@@ -19,8 +19,8 @@
     DEFAULT_MINIMAL_TIME: 0
     MAX_ELEMENTS_IN_GRAPH: 100
     MILLIS_BETWEEN_COMMITS: "{{ millis_between_commits }}"
-    BARRIER_DISABLED: "{{ watermarks | lower }}"
-    DISTRIBUTED_ACKER: "{{ distributed_acker }}"
+    BARRIER_DISABLED: "{{ not distributed_acker }}"
+    ACKING: "{{ 'DISABLED' if watermarks else 'DISTRIBUTED' if distributed_acker else 'CENTRALIZED' }}"
 
 - wait_for:
     path: /tmp/flame_stream
