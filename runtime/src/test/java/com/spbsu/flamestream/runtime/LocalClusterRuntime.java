@@ -30,11 +30,7 @@ public class LocalClusterRuntime implements FlameRuntime {
   private final String zkString;
   private final CuratorFramework curator;
 
-  public interface WorkerConfigFactory {
-    WorkerApplication.WorkerConfig create(String name, InetSocketAddress localAddress, String zkString);
-  }
-
-  public LocalClusterRuntime(int parallelism, WorkerConfigFactory workerConfigFactory) {
+  public LocalClusterRuntime(int parallelism, WorkerApplication.WorkerConfig.Factory workerConfigFactory) {
     final List<Integer> ports;
     try {
       ports = new ArrayList<>(freePorts(parallelism + 1));

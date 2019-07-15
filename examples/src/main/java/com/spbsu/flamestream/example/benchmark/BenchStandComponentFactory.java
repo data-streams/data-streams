@@ -125,7 +125,7 @@ public class BenchStandComponentFactory {
     return runtime(config, new WorkerApplication.WorkerConfig.Builder()::build);
   }
 
-  public FlameRuntime runtime(Config config, LocalClusterRuntime.WorkerConfigFactory workerConfigFactory) {
+  public FlameRuntime runtime(Config config, WorkerApplication.WorkerConfig.Factory workerConfigFactory) {
     final FlameRuntime runtime;
     if (config.hasPath("local")) {
       runtime = new LocalRuntime.Builder().parallelism(config.getConfig("local").getInt("parallelism")).build();

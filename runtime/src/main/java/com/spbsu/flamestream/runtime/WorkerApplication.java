@@ -177,8 +177,13 @@ public class WorkerApplication implements Runnable {
               ", maxElementsInGraph=" + maxElementsInGraph +
               ", millisBetweenCommits=" + millisBetweenCommits +
               ", defaultMinimalTime=" + defaultMinimalTime +
+              ", barrierDisabled=" + barrierDisabled +
               ", acking=" + acking +
               '}';
+    }
+
+    public interface Factory {
+      WorkerConfig create(String name, InetSocketAddress localAddress, String zkString);
     }
 
     public static class Builder {
