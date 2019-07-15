@@ -33,6 +33,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
+import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -110,6 +111,7 @@ public class WatermarksVsAckerBenchStand {
   private final boolean watermarks;
   private final int iterations;
   private final int childrenNumber;
+  private final int watermarksFrequency;
 
   static interface Flow<Input, Output> extends Closeable {
     static class Control {
@@ -333,6 +335,10 @@ public class WatermarksVsAckerBenchStand {
     watermarks = benchConfig.getBoolean("watermarks");
     iterations = benchConfig.getInt("iterations");
     childrenNumber = benchConfig.getInt("children-number");
+    watermarksFrequency = benchConfig.getInt("watermarks-frequency");
+    if (streamLength % watermarksFrequency != 0) {
+      throw new IllegalArgumentException("watermarks frequency should be a stream length divisor");
+    }
   }
 
   public void run(GraphDeployer graphDeployer) throws Exception {
@@ -348,6 +354,17 @@ public class WatermarksVsAckerBenchStand {
     final AtomicInteger processingCount = new AtomicInteger();
     final PriorityQueue<DataItem> awaitingMinTimes =
             new PriorityQueue<>(Comparator.comparing(o -> o.meta().globalTime()));
+    final IntConsumer finishedIds = id -> {
+      durations.add(System.nanoTime() - start);
+      latencies.get(id).finish();
+      awaitConsumer.accept(id);
+      if (awaitConsumer.got() % 100 == 0) {
+        LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
+      }
+      if (id % 100 == 0) {
+        LOG.info("Got id {}", id);
+      }
+    };
     try (
             FileWriter durationOutput = new FileWriter("/tmp/duration");
             Closeable ignored2 = benchStandComponentFactory.recordNanoDuration(durationOutput);
@@ -366,7 +383,8 @@ public class WatermarksVsAckerBenchStand {
                     }).boxed().flatMap(id ->
                             Stream.concat(
                                     Stream.of(new WatermarksVsAckerGraph.Data(id)),
-                                    watermarks ? Stream.of(new WatermarksVsAckerGraph.Watermark(id)) : Stream.empty()
+                                    watermarks && ((id + 1) % watermarksFrequency == 0) ?
+                                            Stream.of(new WatermarksVsAckerGraph.Watermark(id)) : Stream.empty()
                             )
                     ),
                     inputHost,
@@ -388,9 +406,10 @@ public class WatermarksVsAckerBenchStand {
                           Rear.MinTime minTime = (Rear.MinTime) object;
                           while (!awaitingMinTimes.isEmpty()
                                   && awaitingMinTimes.peek().meta().globalTime().compareTo(minTime.time) <= 0) {
-                            int id = awaitingMinTimes.peek().payload(WatermarksVsAckerGraph.Element.class).id;
+                            final int id = awaitingMinTimes.peek().payload(WatermarksVsAckerGraph.Element.class).id;
                             notificationAwaitTimes[id] += System.nanoTime();
                             awaitingMinTimes.poll();
+                            finishedIds.accept(id);
                           }
                         }
                         return;
@@ -402,23 +421,20 @@ public class WatermarksVsAckerBenchStand {
                       if (watermarks) {
                         if (element instanceof WatermarksVsAckerGraph.Data) {
                           notificationAwaitTimes[element.id] = -System.nanoTime();
-                          return;
+                        } else {
+                          for (int offset = 0; offset < watermarksFrequency; offset++) {
+                            final int id = element.id - offset;
+                            notificationAwaitTimes[id] += System.nanoTime();
+                            finishedIds.accept(id);
+                          }
                         }
-                        notificationAwaitTimes[element.id] += System.nanoTime();
                       } else {
                         if (object instanceof DataItem) {
                           awaitingMinTimes.add((DataItem) object);
                           notificationAwaitTimes[element.id] = -System.nanoTime();
+                        } else {
+                          finishedIds.accept(element.id);
                         }
-                      }
-                      durations.add(System.nanoTime() - start);
-                      latencies.get(element.id).finish();
-                      awaitConsumer.accept(element.id);
-                      if (awaitConsumer.got() % 100 == 0) {
-                        LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
-                      }
-                      if (element.id % 100 == 0) {
-                        LOG.info("Got id {}", element.id);
                       }
                     },
                     rearPort,

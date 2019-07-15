@@ -8,6 +8,7 @@ benchmark {
   stream-length = {{ stream_length }}
   parallelism = {{ parallelism }}
   watermarks = {{ watermarks | lower }}
+  watermarks-frequency = 10
   iterations = {{ iterations }}
   children-number = {{ children }}
 }

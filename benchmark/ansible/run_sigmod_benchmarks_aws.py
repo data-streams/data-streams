@@ -7,19 +7,21 @@ import os
 def run_benchmarks(**kwargs):
     extra_vars = {**dict(
         results_name="sigmod.07.15", warm_up_stream_length=1000, parallelism=3, rate=5., watermarks=False,
-               iterations=10, distributed_acker=False, stream_length=2000
+        iterations=10, distributed_acker=False, stream_length=2000
     ), **kwargs}
-    print(kwargs)
+    print(extra_vars)
     return os.system(
         f"ansible-playbook --extra-vars '{json.dumps(extra_vars)}' -i aws.yml flamestream.yml"
     )
 
 
-for rate in reversed([1.4, 2.]):
-    for parallelism in [3]:
-        run_benchmarks(
-            warm_up_stream_length=5000, rate=rate, watermarks=True, parallelism=parallelism, iterations=50, stream_length=80000
-        )
+for parallelism in [2, 4, 8]:
+    for iterations in [10, 50, 100]:
+        for watermarks in [True, False]:
+            run_benchmarks(
+                warm_up_stream_length=5000, rate=20, watermarks=watermarks, parallelism=parallelism,
+                iterations=iterations, stream_length=10000
+            )
 
 exit(0)
 
