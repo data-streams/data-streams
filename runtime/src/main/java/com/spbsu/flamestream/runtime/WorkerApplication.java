@@ -61,6 +61,8 @@ public class WorkerApplication implements Runnable {
             .acking(SystemConfig.Acking.valueOf(System.getenv("ACKING")))
             .barrierDisabled(Boolean.parseBoolean(System.getenv("BARRIER_DISABLED")))
             .localAckerBuilder(localAckerBuilder);
+    if (System.getenv().containsKey("ACKER_WINDOW"))
+      configBuilder.ackerWindow(Integer.parseInt(System.getenv("ACKER_WINDOW")));
     final WorkerConfig config = configBuilder
             .build(
                     System.getenv("ID"),
@@ -98,7 +100,8 @@ public class WorkerApplication implements Runnable {
             workerConfig.defaultMinimalTime,
             workerConfig.acking,
             workerConfig.barrierDisabled,
-            workerConfig.localAckerBuilder
+            workerConfig.localAckerBuilder,
+            workerConfig.ackerWindow
     );
     //noinspection ConstantConditions
     system.actorOf(
@@ -139,6 +142,7 @@ public class WorkerApplication implements Runnable {
     private final SystemConfig.Acking acking;
     private final boolean barrierDisabled;
     private final LocalAcker.Builder localAckerBuilder;
+    private final int ackerWindow;
 
     private WorkerConfig(
             String id,
@@ -151,7 +155,8 @@ public class WorkerApplication implements Runnable {
             int defaultMinimalTime,
             SystemConfig.Acking acking,
             boolean barrierDisabled,
-            LocalAcker.Builder localAckerBuilder
+            LocalAcker.Builder localAckerBuilder,
+            int ackerWindow
     ) {
       this.guarantees = guarantees;
       this.id = id;
@@ -164,6 +169,7 @@ public class WorkerApplication implements Runnable {
       this.acking = acking;
       this.barrierDisabled = barrierDisabled;
       this.localAckerBuilder = localAckerBuilder;
+      this.ackerWindow = ackerWindow;
     }
 
     @Override
@@ -196,6 +202,7 @@ public class WorkerApplication implements Runnable {
       private SystemConfig.Acking acking = SystemConfig.Acking.CENTRALIZED;
       private boolean barrierDisabled = false;
       private LocalAcker.Builder localAckerBuilder = new LocalAcker.Builder();
+      private int ackerWindow = 1;
 
       public Builder snapshotPath(String snapshotPath) {
         this.snapshotPath = snapshotPath;
@@ -239,7 +246,8 @@ public class WorkerApplication implements Runnable {
                 defaultMinimalTime,
                 acking,
                 barrierDisabled,
-                localAckerBuilder
+                localAckerBuilder,
+                ackerWindow
         );
       }
 
@@ -250,6 +258,11 @@ public class WorkerApplication implements Runnable {
 
       public Builder localAckerBuilder(LocalAcker.Builder localAckerBuilder) {
         this.localAckerBuilder = localAckerBuilder;
+        return this;
+      }
+
+      public Builder ackerWindow(int window) {
+        this.ackerWindow = window;
         return this;
       }
     }

@@ -87,24 +87,30 @@ class Cluster extends LoggingActor {
                     defaultMinimalTime,
                     acking,
                     barrierDisabled,
-                    new LocalAcker.Builder()
+                    new LocalAcker.Builder(),
+                    1
             );
 
     final Registry registry = new InMemoryRegistry();
     inner = context().actorOf(FlameUmbrella.props(
             context -> {
+              final Props ackerProps = Acker.props(
+                      defaultMinimalTime,
+                      false,
+                      systemConfig.ackerWindow()
+              );
               final List<ActorRef> ackers;
               switch (acking) {
                 case DISABLED:
                   ackers = Collections.emptyList();
                   break;
                 case CENTRALIZED:
-                  ackers = Collections.singletonList(context.actorOf(Acker.props(defaultMinimalTime, true), "acker"));
+                  ackers = Collections.singletonList(context.actorOf(ackerProps, "acker"));
                   break;
                 case DISTRIBUTED:
                   ackers = paths.keySet()
                           .stream()
-                          .map(id -> context.actorOf(Acker.props(defaultMinimalTime, false), "acker-" + id))
+                          .map(id -> context.actorOf(ackerProps, "acker-" + id))
                           .collect(Collectors.toList());
                   break;
                 default:

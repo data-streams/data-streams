@@ -6,7 +6,7 @@ import os
 
 def run_benchmarks(**kwargs):
     extra_vars = {**dict(
-        results_name="sigmod.07.15", warm_up_stream_length=1000, parallelism=3, rate=5., watermarks=False,
+        results_name="sigmod.07.16", warm_up_stream_length=1000, parallelism=3, rate=5., watermarks=False,
         iterations=10, distributed_acker=False, stream_length=2000
     ), **kwargs}
     print(extra_vars)

@@ -75,7 +75,11 @@ public class StartupWatcher extends LoggingActor {
     );
     boolean distributedAcking = systemConfig.acking() == SystemConfig.Acking.DISTRIBUTED;
     if (distributedAcking || zookeeperWorkersNode.isLeader(id)) {
-      context().actorOf(Acker.props(systemConfig.defaultMinimalTime(), !distributedAcking), "acker");
+      context().actorOf(Acker.props(
+              systemConfig.defaultMinimalTime(),
+              !distributedAcking,
+              systemConfig.ackerWindow()
+      ), "acker");
     }
     if (zookeeperWorkersNode.isLeader(id)) {
       context().actorOf(ClientWatcher.props(curator, kryoSerializer, zookeeperWorkersNode), "client-watcher");

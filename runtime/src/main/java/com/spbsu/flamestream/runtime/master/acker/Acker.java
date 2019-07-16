@@ -47,7 +47,6 @@ import java.util.Set;
  * </ol>
  */
 public class Acker extends LoggingActor {
-  private static final int WINDOW = 1;
   private static final int SIZE = 100000;
 
   private NodeTimes nodeTimes = new NodeTimes();
@@ -59,12 +58,12 @@ public class Acker extends LoggingActor {
   private long defaultMinimalTime;
   private GlobalTime lastMinTime = GlobalTime.MIN;
 
-  private Acker(long defaultMinimalTime, boolean assertAckingBackInTime) {
-    table = new ArrayAckTable(defaultMinimalTime, SIZE, WINDOW, assertAckingBackInTime);
+  private Acker(long defaultMinimalTime, boolean assertAckingBackInTime, int window) {
+    table = new ArrayAckTable(defaultMinimalTime, SIZE, window, assertAckingBackInTime);
   }
 
-  public static Props props(long defaultMinimalTime, boolean assertAckingBackInTime) {
-    return Props.create(Acker.class, defaultMinimalTime, assertAckingBackInTime)
+  public static Props props(long defaultMinimalTime, boolean assertAckingBackInTime, int window) {
+    return Props.create(Acker.class, defaultMinimalTime, assertAckingBackInTime, window)
             .withDispatcher("processing-dispatcher");
   }
 
