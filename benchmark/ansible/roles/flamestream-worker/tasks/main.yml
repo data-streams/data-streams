@@ -22,6 +22,7 @@
     BARRIER_DISABLED: "{{ not distributed_acker }}"
     ACKING: "{{ 'DISABLED' if watermarks else 'DISTRIBUTED' if distributed_acker else 'CENTRALIZED' }}"
     ACKER_WINDOW: 10
+    LOCAL_ACKER_FLUSH_DELAY_IN_MILLIS: "{{ local_acker_flush_delay_in_millis }}"
 
 - wait_for:
     path: /tmp/flame_stream

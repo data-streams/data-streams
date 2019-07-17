@@ -6,8 +6,8 @@ import os
 
 def run_benchmarks(**kwargs):
     extra_vars = {**dict(
-        results_name="sigmod.07.16", warm_up_stream_length=1000, parallelism=3, rate=5., watermarks=False,
-        iterations=10, distributed_acker=False, stream_length=2000
+        results_name="sigmod.07.17", warm_up_stream_length=1000, parallelism=3, rate=5., watermarks=False,
+        iterations=10, distributed_acker=False, stream_length=2000, local_acker_flush_delay_in_millis=5
     ), **kwargs}
     print(extra_vars)
     return os.system(
@@ -15,13 +15,15 @@ def run_benchmarks(**kwargs):
     )
 
 
-for parallelism in [2, 4, 8]:
-    for iterations in [10, 50, 100]:
-        for watermarks in [True, False]:
-            run_benchmarks(
-                warm_up_stream_length=5000, rate=20, watermarks=watermarks, parallelism=parallelism,
-                iterations=iterations, stream_length=10000
-            )
+for local_acker_flush_delay_in_millis in [1, 25]:
+    for parallelism in [2, 4, 8]:
+        for iterations in [10, 50, 100]:
+            for watermarks in [True, False]:
+                run_benchmarks(
+                    warm_up_stream_length=5000, rate=20, watermarks=watermarks, parallelism=parallelism,
+                    iterations=iterations, stream_length=10000,
+                    local_acker_flush_delay_in_millis=local_acker_flush_delay_in_millis
+                )
 
 exit(0)
 
