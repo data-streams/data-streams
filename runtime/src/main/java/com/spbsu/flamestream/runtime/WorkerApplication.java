@@ -22,6 +22,7 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
+import static com.spbsu.flamestream.runtime.ConfigureFromEnv.*;
 
 public class WorkerApplication implements Runnable {
   private final Logger log = LoggerFactory.getLogger(WorkerApplication.class);
@@ -46,29 +47,22 @@ public class WorkerApplication implements Runnable {
   public static void main(String... args) {
     final String[] localAddressHostAndPort = System.getenv("LOCAL_ADDRESS").split(":");
     LocalAcker.Builder localAckerBuilder = new LocalAcker.Builder();
-    if (System.getenv().containsKey("LOCAL_ACKER_FLUSH_DELAY_IN_MILLIS")) {
-      localAckerBuilder.flushDelayInMillis(Integer.parseInt(System.getenv("LOCAL_ACKER_FLUSH_DELAY_IN_MILLIS")));
-    }
-    if (System.getenv().containsKey("LOCAL_ACKER_FLUSH_COUNT")) {
-      localAckerBuilder.flushCount(Integer.parseInt(System.getenv("LOCAL_ACKER_FLUSH_COUNT")));
-    }
-    WorkerConfig.Builder configBuilder = new WorkerConfig.Builder()
-            .snapshotPath(System.getenv("SNAPSHOT_PATH"))
-            .guarantees(Guarantees.valueOf(System.getenv("GUARANTEES")))
-            .defaultMinimalTime(Integer.parseInt(System.getenv("DEFAULT_MINIMAL_TIME")))
-            .millisBetweenCommits(Integer.parseInt(System.getenv("MILLIS_BETWEEN_COMMITS")))
-            .maxElementsInGraph(Integer.parseInt(System.getenv("MAX_ELEMENTS_IN_GRAPH")))
-            .acking(SystemConfig.Acking.valueOf(System.getenv("ACKING")))
-            .barrierDisabled(Boolean.parseBoolean(System.getenv("BARRIER_DISABLED")))
-            .localAckerBuilder(localAckerBuilder);
-    if (System.getenv().containsKey("ACKER_WINDOW"))
-      configBuilder.ackerWindow(Integer.parseInt(System.getenv("ACKER_WINDOW")));
-    final WorkerConfig config = configBuilder
-            .build(
-                    System.getenv("ID"),
-                    new InetSocketAddress(localAddressHostAndPort[0], Integer.parseInt(localAddressHostAndPort[1])),
-                    System.getenv("ZK_STRING")
-            );
+    configureFromEnv(localAckerBuilder::flushDelayInMillis, "LOCAL_ACKER_FLUSH_DELAY_IN_MILLIS");
+    configureFromEnv(localAckerBuilder::flushCount, "LOCAL_ACKER_FLUSH_COUNT");
+    WorkerConfig.Builder configBuilder = new WorkerConfig.Builder().localAckerBuilder(localAckerBuilder);
+    configureFromEnv(configBuilder::snapshotPath, "SNAPSHOT_PATH");
+    configureFromEnv(configBuilder::guarantees, Guarantees::valueOf, "GUARANTEES");
+    configureFromEnv(configBuilder::defaultMinimalTime, "DEFAULT_MINIMAL_TIME");
+    configureFromEnv(configBuilder::millisBetweenCommits, "MILLIS_BETWEEN_COMMITS");
+    configureFromEnv(configBuilder::maxElementsInGraph, "MAX_ELEMENTS_IN_GRAPH");
+    configureFromEnv(configBuilder::barrierDisabled, Boolean::parseBoolean, "BARRIER_DISABLED");
+    configureFromEnv(configBuilder::acking, SystemConfig.Acking::valueOf, "ACKING");
+    configureFromEnv(configBuilder::ackerWindow, "ACKER_WINDOW");
+    final WorkerConfig config = configBuilder.build(
+            System.getenv("ID"),
+            new InetSocketAddress(localAddressHostAndPort[0], Integer.parseInt(localAddressHostAndPort[1])),
+            System.getenv("ZK_STRING")
+    );
     new WorkerApplication(config).run();
   }
 
