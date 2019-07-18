@@ -38,7 +38,7 @@ public class SocketFront extends Front.Stub {
     super(edgeContext.edgeId());
     this.host = host;
     this.port = port;
-    client = new Client(1000, 200_000_000);
+    client = new Client(1000, 20_000_000);
     Arrays.stream(classes).forEach(clazz -> client.getKryo().register(clazz));
     ((Kryo.DefaultInstantiatorStrategy) client.getKryo().getInstantiatorStrategy())
             .setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
