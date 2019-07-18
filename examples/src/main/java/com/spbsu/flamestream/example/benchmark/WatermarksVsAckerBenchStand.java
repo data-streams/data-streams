@@ -63,12 +63,13 @@ public class WatermarksVsAckerBenchStand {
                             deployerConfig,
                             new WorkerApplication.WorkerConfig.Builder()
                                     .millisBetweenCommits(1000000000)
-                                    .barrierDisabled(true)
+                                    .barrierDisabled(false)
                                     .acking(
                                             benchStand.watermarks ?
                                                     SystemConfig.Acking.DISABLED :
                                                     SystemConfig.Acking.CENTRALIZED
                                     )
+                                    .ackerWindow(10)
                                     ::build
                     ),
                     WatermarksVsAckerGraph.apply(

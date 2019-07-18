@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-
+import itertools
 import json
 import os
 
 
 def run_benchmarks(**kwargs):
     extra_vars = {**dict(
-        results_name="sigmod.07.17", warm_up_stream_length=1000, parallelism=3, rate=5., watermarks=False,
+        results_name="sigmod.07.18", warm_up_stream_length=1000, parallelism=3, rate=5., watermarks=False,
         iterations=10, distributed_acker=False, stream_length=2000, local_acker_flush_delay_in_millis=5
     ), **kwargs}
     print(extra_vars)
@@ -14,6 +14,18 @@ def run_benchmarks(**kwargs):
         f"ansible-playbook --extra-vars '{json.dumps(extra_vars)}' -i aws.yml flamestream.yml"
     )
 
+
+for parallelism, iterations in set(itertools.chain(
+    ((parallelism, 100) for parallelism in [2, 4, 8]),
+    ((8, iterations) for iterations in [10, 50, 100]),
+)):
+    run_benchmarks(
+        warm_up_stream_length=5000, rate=20, watermarks=False, parallelism=parallelism,
+        iterations=iterations, stream_length=10000,
+        local_acker_flush_delay_in_millis=5, distributed_acker=True
+    )
+
+exit(0)
 
 for local_acker_flush_delay_in_millis in [1, 25]:
     for parallelism in [2, 4, 8]:
@@ -24,8 +36,6 @@ for local_acker_flush_delay_in_millis in [1, 25]:
                     iterations=iterations, stream_length=10000,
                     local_acker_flush_delay_in_millis=local_acker_flush_delay_in_millis
                 )
-
-exit(0)
 
 for parallelism in [2, 3, 4, 5]:
     for rate in reversed([0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1., 1.05, 1.1, 1.15, 1.2]):
