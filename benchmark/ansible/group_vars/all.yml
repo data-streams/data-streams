@@ -11,7 +11,7 @@ bench_dir: "{{ base_dir }}/flamestream"
 flink_dir: "{{ base_dir }}/flink"
 tarball_dir: "{{ base_dir }}/src"
 
-results_dir: results/local_acker_flush_delay_in_millis={{ local_acker_flush_delay_in_millis }}/warm_up_stream_length={{ warm_up_stream_length }}/{{ results_name }}/stream_length={{ stream_length }}/parallelism={{ parallelism }}/distributed_acker={{ distributed_acker }}/rate={{ rate }}/watermarks={{ watermarks }}/iterations={{ iterations }}
+results_dir: results/{{ results_name }}
 
 zookeeper_version: 3.4.14
 zookeeper_client_port: 12181

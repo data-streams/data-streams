@@ -5,25 +5,27 @@ import os
 
 
 def run_benchmarks(**kwargs):
-    extra_vars = {**dict(
-        results_name="sigmod.07.18", warm_up_stream_length=1000, parallelism=3, rate=5., watermarks=False,
-        iterations=10, distributed_acker=False, stream_length=2000, local_acker_flush_delay_in_millis=5
-    ), **kwargs}
+    extra_vars = {**dict(parallelism=8, iterations=10, stream_length=10000, local_acker_flush_delay_in_millis=5, warm_up_stream_length=5000, rate=20), **kwargs}
     print(extra_vars)
     return os.system(
         f"ansible-playbook --extra-vars '{json.dumps(extra_vars)}' -i aws.yml flamestream.yml"
     )
 
 
-for parallelism, iterations in set(itertools.chain(
-    ((parallelism, 100) for parallelism in [2, 4, 8]),
-    ((8, iterations) for iterations in [10, 50, 100]),
-)):
-    run_benchmarks(
-        warm_up_stream_length=5000, rate=20, watermarks=False, parallelism=parallelism,
-        iterations=iterations, stream_length=10000,
-        local_acker_flush_delay_in_millis=5, distributed_acker=True
-    )
+run_benchmarks(results_name="sigmod.07.20/tracking_frequency=0", tracking_frequency=0, tracking="disabled")
+# for tracking_frequency in [1, 10, 50, 100]:
+    # run_benchmarks(
+    #     results_name=f"sigmod.07.20/tracking_frequency={tracking_frequency}/tracking=watermarking",
+    #     tracking_frequency=tracking_frequency,
+    #     tracking="watermarking"
+    # )
+    # for distributed in [False, True]:
+    #     run_benchmarks(
+    #         results_name=f"sigmod.07.20/tracking_frequency={tracking_frequency}/tracking=acking/distributed={distributed}",
+    #         tracking_frequency=tracking_frequency,
+    #         tracking="acking",
+    #         distributed_acker=distributed
+    #     )
 
 exit(0)
 

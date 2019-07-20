@@ -7,8 +7,16 @@ benchmark {
   sleep-between-docs-ms = {{ rate }}
   stream-length = {{ stream_length }}
   parallelism = {{ parallelism }}
-  watermarks = {{ watermarks | lower }}
-  watermarks-frequency = 10
+  tracking {
+    {% if tracking == "acking" %}
+    class = "com.spbsu.flamestream.example.benchmark.WatermarksVsAckerBenchStand$TrackingFactory$Acking"
+    {% elif tracking == "watermarking" %}
+    class = "com.spbsu.flamestream.example.benchmark.WatermarksVsAckerBenchStand$TrackingFactory$Watermarking"
+    frequency = {{ tracking_frequency }}
+    {% else %}
+    class = "com.spbsu.flamestream.example.benchmark.WatermarksVsAckerBenchStand$TrackingFactory$Disabled"
+    {% endif %}
+  }
   iterations = {{ iterations }}
   children-number = {{ children }}
 }

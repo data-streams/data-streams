@@ -10,6 +10,7 @@ import com.spbsu.flamestream.runtime.edge.socket.SocketRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitCountConsumer;
 import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
 import com.typesafe.config.Config;
+import com.typesafe.config.ConfigBeanFactory;
 import com.typesafe.config.ConfigFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,20 +58,15 @@ public class WatermarksVsAckerBenchStand {
     }
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
     final WatermarksVsAckerBenchStand benchStand = new WatermarksVsAckerBenchStand(benchConfig);
+    WorkerApplication.WorkerConfig.Builder workerBuilder = new WorkerApplication.WorkerConfig.Builder()
+            .millisBetweenCommits(1000000000)
+            .barrierDisabled(true);
+    benchStand.trackingFactory.buildWorker(workerBuilder);
     try (
             GraphDeployer graphDeployer = new FlameGraphDeployer(
                     benchStandComponentFactory.runtime(
                             deployerConfig,
-                            new WorkerApplication.WorkerConfig.Builder()
-                                    .millisBetweenCommits(1000000000)
-                                    .barrierDisabled(false)
-                                    .acking(
-                                            benchStand.watermarks ?
-                                                    SystemConfig.Acking.DISABLED :
-                                                    SystemConfig.Acking.CENTRALIZED
-                                    )
-                                    .ackerWindow(10)
-                                    ::build
+                            workerBuilder::build
                     ),
                     WatermarksVsAckerGraph.apply(
                             benchStand.parallelism,
@@ -109,10 +105,10 @@ public class WatermarksVsAckerBenchStand {
   private final int frontPort;
   private final int rearPort;
   private final int parallelism;
-  private final boolean watermarks;
   private final int iterations;
   private final int childrenNumber;
-  private final int watermarksFrequency;
+  private final TrackingFactory trackingFactory;
+  private final Tracking tracking;
 
   static interface Flow<Input, Output> extends Closeable {
     static class Control {
@@ -325,7 +321,186 @@ public class WatermarksVsAckerBenchStand {
     }
   }
 
-  public WatermarksVsAckerBenchStand(Config benchConfig) {
+  interface TrackingFactory {
+    static TrackingFactory fromConfig(Config config) throws ClassNotFoundException {
+      //noinspection unchecked
+      return ConfigBeanFactory.create(
+              config.withoutPath("class"),
+              (Class<TrackingFactory>) ClassLoader.getSystemClassLoader().loadClass(config.getString("class"))
+      );
+    }
+
+    Tracking create(int streamLength);
+
+    default void buildWorker(WorkerApplication.WorkerConfig.Builder builder) {}
+
+    class Disabled implements TrackingFactory {
+      @Override
+      public Tracking create(int streamLength) {
+        return new Tracking.Disabled();
+      }
+
+      @Override
+      public void buildWorker(WorkerApplication.WorkerConfig.Builder builder) {
+        builder.acking(SystemConfig.Acking.DISABLED);
+      }
+    }
+
+    class Acking implements TrackingFactory {
+      @Override
+      public Tracking create(int streamLength) {
+        return new Tracking.Acking(new NotificationAwaitTimes(streamLength));
+      }
+
+      @Override
+      public void buildWorker(WorkerApplication.WorkerConfig.Builder builder) {
+        builder.acking(SystemConfig.Acking.CENTRALIZED).ackerWindow(10);
+      }
+    }
+
+    class Watermarking implements TrackingFactory {
+      private int frequency = 10;
+
+      @Override
+      public Tracking create(int streamLength) {
+        if (streamLength % frequency != 0) {
+          throw new IllegalArgumentException("watermarks frequency should be a stream length divisor");
+        }
+        return new Tracking.Watermarking(new NotificationAwaitTimes(streamLength), frequency);
+      }
+
+      @Override
+      public void buildWorker(WorkerApplication.WorkerConfig.Builder builder) {
+        builder.acking(SystemConfig.Acking.DISABLED);
+      }
+
+      void setFrequency(int frequency) {
+        this.frequency = frequency;
+      }
+    }
+  }
+
+  static final class NotificationAwaitTimes implements Closeable {
+    private final long[] all;
+    private final AwaitCountConsumer awaitCountConsumer;
+
+    NotificationAwaitTimes(int streamLength) {
+      all = new long[streamLength];
+      awaitCountConsumer = new AwaitCountConsumer(streamLength);
+    }
+
+    void begin(int id) {
+      assert all[id] == 0;
+      all[id] = -System.nanoTime();
+    }
+
+    void end(int id) {
+      assert all[id] < 0;
+      awaitCountConsumer.accept(id);
+      all[id] += System.nanoTime();
+    }
+
+    void await(long timeout, TimeUnit unit) throws InterruptedException {
+      awaitCountConsumer.await(timeout, unit);
+    }
+
+    @Override
+    public void close() throws IOException {
+      try (final PrintWriter printWriter = new PrintWriter(Files.newBufferedWriter(Paths.get(
+              "/tmp/notification_await_times.csv"
+      )))) {
+        for (final long notificationAwaitTime : all) {
+          assert notificationAwaitTime > 0;
+          printWriter.println(notificationAwaitTime);
+        }
+      }
+    }
+  }
+
+  static abstract class Tracking {
+    public final NotificationAwaitTimes notificationAwaitTimes;
+
+    Tracking(NotificationAwaitTimes notificationAwaitTimes) {
+      this.notificationAwaitTimes = notificationAwaitTimes;
+    }
+
+    Stream<WatermarksVsAckerGraph.Element> followingElements(int id) {
+      return Stream.empty();
+    }
+
+    abstract void accept(Object object);
+
+    static class Disabled extends Tracking {
+      Disabled() {
+        super(new NotificationAwaitTimes(0));
+      }
+
+      @Override
+      void accept(Object object) {}
+    }
+
+    static class Acking extends Tracking {
+      final PriorityQueue<DataItem> awaitingMinTimes =
+              new PriorityQueue<>(Comparator.comparing(o -> o.meta().globalTime()));
+
+      Acking(NotificationAwaitTimes notificationAwaitTimes) {
+        super(notificationAwaitTimes);
+      }
+
+      @Override
+      public void accept(Object object) {
+        if (object instanceof WatermarksVsAckerGraph.Element) {
+          throw new RuntimeException("it is not possible to track notification await times unless using socket rear");
+        }
+        if (object instanceof Rear.MinTime) {
+          Rear.MinTime minTime = (Rear.MinTime) object;
+          while (!awaitingMinTimes.isEmpty()
+                  && awaitingMinTimes.peek().meta().globalTime().compareTo(minTime.time) <= 0) {
+            notificationAwaitTimes.end(awaitingMinTimes.peek().payload(WatermarksVsAckerGraph.Element.class).id);
+            awaitingMinTimes.poll();
+          }
+        } else if (object instanceof DataItem) {
+          DataItem dataItem = (DataItem) object;
+          awaitingMinTimes.add(dataItem);
+          notificationAwaitTimes.begin(dataItem.payload(WatermarksVsAckerGraph.Element.class).id);
+        }
+      }
+    }
+
+    static class Watermarking extends Tracking {
+      private final int frequency;
+
+      Watermarking(NotificationAwaitTimes notificationAwaitTimes, int frequency) {
+        super(notificationAwaitTimes);
+        this.frequency = frequency;
+      }
+
+      @Override
+      public Stream<WatermarksVsAckerGraph.Element> followingElements(int id) {
+        return ((id + 1) % frequency == 0) ?
+                Stream.of(new WatermarksVsAckerGraph.Watermark(id)) : Stream.empty();
+      }
+
+      @Override
+      public void accept(Object object) {
+        final WatermarksVsAckerGraph.Element element;
+        if (object instanceof DataItem) {
+          element = ((DataItem) object).payload(WatermarksVsAckerGraph.Element.class);
+        } else {
+          return;
+        }
+        if (element instanceof WatermarksVsAckerGraph.Data) {
+          notificationAwaitTimes.begin(element.id);
+        } else {
+          for (int offset = 0; offset < frequency; offset++) {
+            notificationAwaitTimes.end(element.id - offset);
+          }
+        }
+      }
+    }
+  }
+
+  public WatermarksVsAckerBenchStand(Config benchConfig) throws ClassNotFoundException {
     sleepBetweenDocs = benchConfig.getDouble("sleep-between-docs-ms");
     streamLength = benchConfig.getInt("stream-length");
     benchHost = benchConfig.getString("bench-host");
@@ -333,13 +508,10 @@ public class WatermarksVsAckerBenchStand {
     frontPort = benchConfig.getInt("bench-source-port");
     rearPort = benchConfig.getInt("bench-sink-port");
     parallelism = benchConfig.getInt("parallelism");
-    watermarks = benchConfig.getBoolean("watermarks");
     iterations = benchConfig.getInt("iterations");
     childrenNumber = benchConfig.getInt("children-number");
-    watermarksFrequency = benchConfig.getInt("watermarks-frequency");
-    if (streamLength % watermarksFrequency != 0) {
-      throw new IllegalArgumentException("watermarks frequency should be a stream length divisor");
-    }
+    trackingFactory = TrackingFactory.fromConfig(benchConfig.getConfig("tracking"));
+    tracking = trackingFactory.create(streamLength);
   }
 
   public void run(GraphDeployer graphDeployer) throws Exception {
@@ -351,21 +523,7 @@ public class WatermarksVsAckerBenchStand {
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
     final long start = System.nanoTime();
     final List<Long> durations = Collections.synchronizedList(new ArrayList<>());
-    final long[] notificationAwaitTimes = new long[streamLength];
     final AtomicInteger processingCount = new AtomicInteger();
-    final PriorityQueue<DataItem> awaitingMinTimes =
-            new PriorityQueue<>(Comparator.comparing(o -> o.meta().globalTime()));
-    final IntConsumer finishedIds = id -> {
-      durations.add(System.nanoTime() - start);
-      latencies.get(id).finish();
-      awaitConsumer.accept(id);
-      if (awaitConsumer.got() % 100 == 0) {
-        LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
-      }
-      if (id % 100 == 0) {
-        LOG.info("Got id {}", id);
-      }
-    };
     try (
             FileWriter durationOutput = new FileWriter("/tmp/duration");
             Closeable ignored2 = benchStandComponentFactory.recordNanoDuration(durationOutput);
@@ -384,8 +542,7 @@ public class WatermarksVsAckerBenchStand {
                     }).boxed().flatMap(id ->
                             Stream.concat(
                                     Stream.of(new WatermarksVsAckerGraph.Data(id)),
-                                    watermarks && ((id + 1) % watermarksFrequency == 0) ?
-                                            Stream.of(new WatermarksVsAckerGraph.Watermark(id)) : Stream.empty()
+                                    tracking.followingElements(id)
                             )
                     ),
                     inputHost,
@@ -403,40 +560,26 @@ public class WatermarksVsAckerBenchStand {
                       } else if (object instanceof WatermarksVsAckerGraph.Element) {
                         element = (WatermarksVsAckerGraph.Element) object;
                       } else {
-                        if (object instanceof Rear.MinTime) {
-                          Rear.MinTime minTime = (Rear.MinTime) object;
-                          while (!awaitingMinTimes.isEmpty()
-                                  && awaitingMinTimes.peek().meta().globalTime().compareTo(minTime.time) <= 0) {
-                            final int id = awaitingMinTimes.peek().payload(WatermarksVsAckerGraph.Element.class).id;
-                            notificationAwaitTimes[id] += System.nanoTime();
-                            awaitingMinTimes.poll();
-                            finishedIds.accept(id);
-                          }
+                        element = null;
+                      }
+                      if (element != null) {
+                        processingCount.decrementAndGet();
+                        if (element.id < 0) {
+                          return;
                         }
-                        return;
-                      }
-                      processingCount.decrementAndGet();
-                      if (element.id < 0) {
-                        return;
-                      }
-                      if (watermarks) {
                         if (element instanceof WatermarksVsAckerGraph.Data) {
-                          notificationAwaitTimes[element.id] = -System.nanoTime();
-                        } else {
-                          for (int offset = 0; offset < watermarksFrequency; offset++) {
-                            final int id = element.id - offset;
-                            notificationAwaitTimes[id] += System.nanoTime();
-                            finishedIds.accept(id);
+                          durations.add(System.nanoTime() - start);
+                          latencies.get(element.id).finish();
+                          awaitConsumer.accept(element.id);
+                          if (awaitConsumer.got() % 100 == 0) {
+                            LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
+                          }
+                          if (element.id % 100 == 0) {
+                            LOG.info("Got id {}", element.id);
                           }
                         }
-                      } else {
-                        if (object instanceof DataItem) {
-                          awaitingMinTimes.add((DataItem) object);
-                          notificationAwaitTimes[element.id] = -System.nanoTime();
-                        } else {
-                          finishedIds.accept(element.id);
-                        }
                       }
+                      tracking.accept(object);
                     },
                     rearPort,
                     WatermarksVsAckerGraph.Element.class,
@@ -448,20 +591,14 @@ public class WatermarksVsAckerBenchStand {
     ) {
       graphDeployer.deploy();
       awaitConsumer.await(60, TimeUnit.MINUTES);
+      tracking.notificationAwaitTimes.await(5, TimeUnit.MINUTES);
+      tracking.notificationAwaitTimes.close();
       try (FileWriter durationsOutput = new FileWriter("/tmp/durations")) {
         durationsOutput.write(
                 durations.stream().map(duration -> Long.toString(duration)).collect(Collectors.joining(", "))
         );
       }
       Tracing.TRACING.flush(Paths.get("/tmp/trace.csv"));
-    }
-    try (final PrintWriter printWriter = new PrintWriter(Files.newBufferedWriter(Paths.get(
-            "/tmp/notification_await_times.csv"
-    )))) {
-      for (final long notificationAwaitTime : notificationAwaitTimes) {
-        assert notificationAwaitTime > 0;
-        printWriter.println(notificationAwaitTime);
-      }
     }
     final String latenciesString = latencies.values()
             .stream()
