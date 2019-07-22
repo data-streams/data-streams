@@ -160,7 +160,11 @@ public class WatermarksVsAckerBenchStand {
         builder.acking(SystemConfig.Acking.DISABLED);
       }
 
-      void setFrequency(int frequency) {
+      public int getFrequency() {
+        return this.frequency;
+      }
+
+      public void setFrequency(int frequency) {
         this.frequency = frequency;
       }
     }
