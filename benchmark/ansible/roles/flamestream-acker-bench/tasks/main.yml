@@ -18,6 +18,7 @@
     {{ flamestream_dir }}/bench.conf {{ flamestream_dir }}/deployer.conf > {{ flamestream_dir }}/bench.log 2>&1
   environment:
     WARM_UP_STREAM_LENGTH: "{{ warm_up_stream_length }}"
+    WARM_UP_DELAY_MS: "{{ 10 }}"
 
 - name: Fetch bench logs
   fetch:

@@ -326,7 +326,7 @@ public class WatermarksVsAckerBenchStand {
                       }
                       LockSupport.parkNanos((long) (sleepBetweenDocs * 1.0e6));
                       latencies.put(id, new LatencyMeasurer());
-                      if ((id + 1) % 100 == 0) {
+                      if ((id + 1) % 1000 == 0) {
                         LOG.info("Sending: {}", id + 1);
                       }
                     }).boxed().flatMap(id ->
@@ -361,10 +361,10 @@ public class WatermarksVsAckerBenchStand {
                           durations.add(System.nanoTime() - start);
                           latencies.get(element.id).finish();
                           awaitConsumer.accept(element.id);
-                          if (awaitConsumer.got() % 100 == 0) {
+                          if (awaitConsumer.got() % 1000 == 0) {
                             LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
                           }
-                          if (element.id % 100 == 0) {
+                          if (element.id % 1000 == 0) {
                             LOG.info("Got id {}", element.id);
                           }
                         }
@@ -397,7 +397,6 @@ public class WatermarksVsAckerBenchStand {
     try (final PrintWriter pw = new PrintWriter(Files.newBufferedWriter(Paths.get("/tmp/lat.data")))) {
       pw.println(latenciesString);
     }
-    LOG.info("Result: {}", latenciesString);
     final long[] skipped = latencies.values()
             .stream()
             .mapToLong(l -> l.statistics().getMax())

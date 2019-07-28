@@ -4,28 +4,34 @@ import json
 import os
 
 
-def run_benchmarks(**kwargs):
-    extra_vars = {**dict(parallelism=8, iterations=10, stream_length=10000, local_acker_flush_delay_in_millis=5, warm_up_stream_length=5000, rate=20), **kwargs}
+def run_benchmarks(rate=2., iterations=100, results_name="", **kwargs):
+    extra_vars = {**dict(parallelism=8, iterations=iterations, stream_length=50400, local_acker_flush_delay_in_millis=5,
+                         warm_up_stream_length=10080, rate=rate), **kwargs}
     print(extra_vars)
+    results_name = f"sigmod.07.28/iterations={iterations}/rate={rate}/{results_name}"
     return os.system(
-        f"ansible-playbook --extra-vars '{json.dumps(extra_vars)}' -i aws.yml flamestream.yml"
+        f"ansible-playbook --extra-vars '{json.dumps(dict(**extra_vars, results_name=results_name))}' -i aws.yml flamestream.yml"
     )
 
 
-run_benchmarks(results_name="sigmod.07.20/tracking_frequency=0", tracking_frequency=0, tracking="disabled")
-# for tracking_frequency in [1, 10, 50, 100]:
-    # run_benchmarks(
-    #     results_name=f"sigmod.07.20/tracking_frequency={tracking_frequency}/tracking=watermarking",
-    #     tracking_frequency=tracking_frequency,
-    #     tracking="watermarking"
-    # )
-    # for distributed in [False, True]:
-    #     run_benchmarks(
-    #         results_name=f"sigmod.07.20/tracking_frequency={tracking_frequency}/tracking=acking/distributed={distributed}",
-    #         tracking_frequency=tracking_frequency,
-    #         tracking="acking",
-    #         distributed_acker=distributed
-    #     )
+for rate in [3]:
+    # run_benchmarks(results_name="tracking_frequency=0", tracking_frequency=0, tracking="disabled", rate=rate,
+    #                warm_up_stream_length=20000)
+    for tracking_frequency in [1]:
+        for distributed in [False, True]:
+            run_benchmarks(
+                results_name=f"tracking_frequency={tracking_frequency}/tracking=acking/distributed={distributed}",
+                tracking_frequency=tracking_frequency,
+                tracking="acking",
+                distributed_acker=distributed,
+                rate=rate
+            )
+        # run_benchmarks(
+        #     results_name=f"tracking_frequency={tracking_frequency}/tracking=watermarking",
+        #     tracking_frequency=tracking_frequency,
+        #     tracking="watermarking",
+        #     rate=rate
+        # )
 
 exit(0)
 
