@@ -16,6 +16,10 @@ import com.spbsu.flamestream.runtime.utils.akka.LoggingActor;
 import com.spbsu.flamestream.runtime.utils.akka.PingActor;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -60,6 +64,8 @@ public class LocalAcker extends LoggingActor {
   private final MinTimeUpdater minTimeUpdater;
   private final String nodeId;
   private final ActorRef pingActor;
+  private long acksSent = 0;
+  private long heartbeatsSent = 0;
 
   private int flushCounter = 0;
 
@@ -78,7 +84,8 @@ public class LocalAcker extends LoggingActor {
     private int flushCount = 1000;
 
     public Props props(List<ActorRef> ackers, String nodeId) {
-      return Props.create(LocalAcker.class, ackers, nodeId, flushDelayInMillis, flushCount).withDispatcher("processing-dispatcher");
+      return Props.create(LocalAcker.class, ackers, nodeId, flushDelayInMillis, flushCount)
+              .withDispatcher("processing-dispatcher");
     }
 
     public Builder flushDelayInMillis(int flushDelayInMillis) {
@@ -102,6 +109,15 @@ public class LocalAcker extends LoggingActor {
   @Override
   public void postStop() {
     pingActor.tell(new PingActor.Stop(), self());
+    try (final PrintWriter printWriter = new PrintWriter(Files.newBufferedWriter(Paths.get(
+            "/tmp/local_acker.txt"
+    )))) {
+      printWriter.println("nodeTime = " + (nodeTime - Long.MIN_VALUE));
+      printWriter.println("acksSent = " + acksSent);
+      printWriter.println("heartbeatsSent = " + heartbeatsSent);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
     super.postStop();
   }
 
