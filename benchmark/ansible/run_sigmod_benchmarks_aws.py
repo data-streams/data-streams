@@ -4,11 +4,16 @@ import json
 import os
 
 
-def run_benchmarks(rate=2., iterations=100, results_name="", **kwargs):
-    extra_vars = {**dict(parallelism=8, iterations=iterations, stream_length=50400, local_acker_flush_delay_in_millis=5,
-                         warm_up_stream_length=10080, rate=rate), **kwargs}
+def run_benchmarks(rate=2., iterations=100, results_name="", worker_environment={}, **kwargs):
+    extra_vars = {
+        **dict(
+            parallelism=8, iterations=iterations, stream_length=50400, local_acker_flush_delay_in_millis=5,
+            rate=rate,
+            worker_environment={**dict(WARM_UP_STREAM_LENGTH="10080", WARM_UP_DELAY_MS="10", **worker_environment)}),
+        **kwargs
+    }
     print(extra_vars)
-    results_name = f"sigmod.07.28/iterations={iterations}/rate={rate}/{results_name}"
+    results_name = f"sigmod.07.29/iterations={iterations}/rate={rate}/{results_name}"
     return os.system(
         f"ansible-playbook --extra-vars '{json.dumps(dict(**extra_vars, results_name=results_name))}' -i aws.yml flamestream.yml"
     )
@@ -16,7 +21,7 @@ def run_benchmarks(rate=2., iterations=100, results_name="", **kwargs):
 
 for rate in [3]:
     # run_benchmarks(results_name="tracking_frequency=0", tracking_frequency=0, tracking="disabled", rate=rate,
-    #                warm_up_stream_length=20000)
+    #                worker_environment=dict(warm_up_stream_length=20000))
     for tracking_frequency in [1]:
         for distributed in [False, True]:
             run_benchmarks(
