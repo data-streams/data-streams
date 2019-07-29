@@ -37,7 +37,7 @@ public class BenchStandComponentFactory {
   private static final Logger LOG = LoggerFactory.getLogger(BenchStandComponentFactory.class);
 
   public <Payload> Server producer(
-          Stream<Payload> payloadStream,
+          Iterable<Payload> payloads,
           String remoteHost,
           int port,
           Class<?>... classesToRegister
@@ -62,7 +62,7 @@ public class BenchStandComponentFactory {
             accepted = true;
             LOG.info("Accepting connection: {}", newConnection.getRemoteAddressTCP());
             new Thread(() -> {
-              for (final Payload payload : (Iterable<Payload>) payloadStream::iterator) {
+              for (final Payload payload : payloads) {
                 newConnection.sendTCP(payload);
               }
             }).start();

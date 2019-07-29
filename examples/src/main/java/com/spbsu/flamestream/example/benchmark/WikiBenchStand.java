@@ -95,7 +95,7 @@ public class WikiBenchStand {
                     pages(validator.inputLimit()).peek(page -> {
                       LockSupport.parkNanos((long) (nextExp(1.0 / sleepBetweenDocs) * 1.0e6));
                       latencies.put(page.id(), new LatencyMeasurer());
-                    }),
+                    })::iterator,
                     inputHost,
                     frontPort,
                     WikipediaPage.class

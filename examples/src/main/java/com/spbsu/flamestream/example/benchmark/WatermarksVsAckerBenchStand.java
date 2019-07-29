@@ -1,5 +1,6 @@
 package com.spbsu.flamestream.example.benchmark;
 
+import com.google.common.collect.Iterables;
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.example.bl.WatermarksVsAckerGraph;
 import com.spbsu.flamestream.runtime.WorkerApplication;
@@ -214,8 +215,8 @@ public class WatermarksVsAckerBenchStand {
       this.notificationAwaitTimes = notificationAwaitTimes;
     }
 
-    Stream<WatermarksVsAckerGraph.Element> followingElements(int id) {
-      return Stream.empty();
+    Iterable<WatermarksVsAckerGraph.Element> followingElements(int id) {
+      return Collections.emptyList();
     }
 
     abstract void accept(Object object);
@@ -266,9 +267,9 @@ public class WatermarksVsAckerBenchStand {
       }
 
       @Override
-      public Stream<WatermarksVsAckerGraph.Element> followingElements(int id) {
+      public Iterable<WatermarksVsAckerGraph.Element> followingElements(int id) {
         return ((id + 1) % frequency == 0) ?
-                Stream.of(new WatermarksVsAckerGraph.Watermark(id)) : Stream.empty();
+                Collections.singleton(new WatermarksVsAckerGraph.Watermark(id)) : Collections.emptyList();
       }
 
       @Override
@@ -288,6 +289,14 @@ public class WatermarksVsAckerBenchStand {
         }
       }
     }
+  }
+
+  private static <T> Iterable<T> delayedIterable(Stream<T> stream, long delayNanos) {
+    return () -> {
+      final long start = System.nanoTime();
+      final int[] index = {0};
+      return stream.peek(__ -> LockSupport.parkNanos(delayNanos * ++index[0] - System.nanoTime() + start)).iterator();
+    };
   }
 
   public WatermarksVsAckerBenchStand(Config benchConfig) throws ClassNotFoundException {
@@ -311,30 +320,32 @@ public class WatermarksVsAckerBenchStand {
 
     final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(streamLength);
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
-    final long start = System.nanoTime();
+    final long benchStart = System.nanoTime();
     final List<Long> durations = Collections.synchronizedList(new ArrayList<>());
     final AtomicInteger processingCount = new AtomicInteger();
     try (
             FileWriter durationOutput = new FileWriter("/tmp/duration");
             Closeable ignored2 = benchStandComponentFactory.recordNanoDuration(durationOutput);
             AutoCloseable ignored = benchStandComponentFactory.producer(
-                    IntStream.range(-warmUpStreamLength, streamLength).peek(id -> {
+                    Iterables.concat(Iterables.transform(Iterables.concat(
+                            delayedIterable(IntStream.range(-warmUpStreamLength, 0).boxed(), warmUpDelayNanos),
+                            Iterables.transform(delayedIterable(
+                                    IntStream.range(0, streamLength).boxed(),
+                                    (long) (sleepBetweenDocs * 1.0e6)
+                            ), id -> {
+                              latencies.put(id, new LatencyMeasurer());
+                              if ((id + 1) % 1000 == 0) {
+                                LOG.info("Sending: {}", id + 1);
+                              }
+                              return id;
+                            })
+                    ), id -> {
                       processingCount.incrementAndGet();
-                      if (id < 0) {
-                        LockSupport.parkNanos(warmUpDelayNanos);
-                        return;
-                      }
-                      LockSupport.parkNanos((long) (sleepBetweenDocs * 1.0e6));
-                      latencies.put(id, new LatencyMeasurer());
-                      if ((id + 1) % 1000 == 0) {
-                        LOG.info("Sending: {}", id + 1);
-                      }
-                    }).boxed().flatMap(id ->
-                            Stream.concat(
-                                    Stream.of(new WatermarksVsAckerGraph.Data(id)),
-                                    tracking.followingElements(id)
-                            )
-                    ),
+                      return Iterables.concat(
+                              Collections.singleton(new WatermarksVsAckerGraph.Data(id)),
+                              tracking.followingElements(id)
+                      );
+                    })),
                     inputHost,
                     frontPort,
                     WatermarksVsAckerGraph.Element.class,
@@ -358,7 +369,7 @@ public class WatermarksVsAckerBenchStand {
                           return;
                         }
                         if (element instanceof WatermarksVsAckerGraph.Data) {
-                          durations.add(System.nanoTime() - start);
+                          durations.add(System.nanoTime() - benchStart);
                           latencies.get(element.id).finish();
                           awaitConsumer.accept(element.id);
                           if (awaitConsumer.got() % 1000 == 0) {
