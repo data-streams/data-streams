@@ -27,7 +27,6 @@ result = {'all': {
         'manager': group([manager]),
         'workers': group(workers),
         'bench': group([manager]),
-        'input': group([workers[0]])
     },
     'vars': {
         'ansible_user': 'ubuntu',
