@@ -10,19 +10,19 @@
 
 - name: Run flamestream
   shell: "cd {{ flamestream_dir }} && bash entrypoint.sh start"
-  environment:
-    ID: "{{ inventory_hostname }}"
-    LOCAL_ADDRESS: "{{ inventory_hostname }}:{{ flamestream_worker_port }}"
-    SNAPSHOT_PATH: "{{ flamestream_dir }}/data"
-    GUARANTEES: "{{ guarantees }}"
-    ZK_STRING: "{{ groups['manager'][0] }}:{{ zookeeper_client_port }}"
-    DEFAULT_MINIMAL_TIME: 0
-    MAX_ELEMENTS_IN_GRAPH: 100
-    MILLIS_BETWEEN_COMMITS: "{{ millis_between_commits }}"
-    BARRIER_DISABLED: "True"
-    ACKING: "{{ 'DISABLED' if tracking != 'acking' else 'DISTRIBUTED' if distributed_acker else 'CENTRALIZED' }}"
-    ACKER_WINDOW: "{{ tracking_frequency }}"
-    LOCAL_ACKER_FLUSH_DELAY_IN_MILLIS: "{{ local_acker_flush_delay_in_millis }}"
+  environment: "{{ ({
+    'ID': inventory_hostname,
+    'LOCAL_ADDRESS': inventory_hostname + ':' + (flamestream_worker_port | string),
+    'SNAPSHOT_PATH': flamestream_dir + '/data',
+    'GUARANTEES': guarantees,
+    'ZK_STRING': groups['manager'][0] + ':' + (zookeeper_client_port | string),
+    'DEFAULT_MINIMAL_TIME': 0,
+    'MAX_ELEMENTS_IN_GRAPH': 100,
+    'MILLIS_BETWEEN_COMMITS': millis_between_commits,
+    'ACKING': 'DISABLED' if tracking != 'acking' else 'DISTRIBUTED' if distributed_acker else 'CENTRALIZED',
+    'ACKER_WINDOW': tracking_frequency,
+    'LOCAL_ACKER_FLUSH_DELAY_IN_MILLIS': local_acker_flush_delay_in_millis,
+  }) | combine(worker_environment | default({})) }}"
 
 - wait_for:
     path: /tmp/flame_stream

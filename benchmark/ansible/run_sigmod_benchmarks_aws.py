@@ -4,12 +4,14 @@ import json
 import os
 
 
-def run_benchmarks(rate=2., iterations=100, results_name="", bench_environment={}, **kwargs):
+def run_benchmarks(rate=2., iterations=100, results_name="", bench_environment={}, worker_environment={}, **kwargs):
     extra_vars = {
         **dict(
             parallelism=8, iterations=iterations, stream_length=50400, local_acker_flush_delay_in_millis=5,
             rate=rate,
-            bench_environment={**dict(WARM_UP_STREAM_LENGTH="10080", WARM_UP_DELAY_MS="10", **bench_environment)}),
+            bench_environment={**dict(WARM_UP_STREAM_LENGTH="10080", WARM_UP_DELAY_MS="10", **bench_environment)},
+            worker_environment={**dict(BARRIER_DISABLED="TRUE", **worker_environment)},
+        ),
         **kwargs
     }
     print(extra_vars)
