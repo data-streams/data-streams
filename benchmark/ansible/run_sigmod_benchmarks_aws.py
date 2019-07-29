@@ -4,12 +4,12 @@ import json
 import os
 
 
-def run_benchmarks(rate=2., iterations=100, results_name="", worker_environment={}, **kwargs):
+def run_benchmarks(rate=2., iterations=100, results_name="", bench_environment={}, **kwargs):
     extra_vars = {
         **dict(
             parallelism=8, iterations=iterations, stream_length=50400, local_acker_flush_delay_in_millis=5,
             rate=rate,
-            worker_environment={**dict(WARM_UP_STREAM_LENGTH="10080", WARM_UP_DELAY_MS="10", **worker_environment)}),
+            bench_environment={**dict(WARM_UP_STREAM_LENGTH="10080", WARM_UP_DELAY_MS="10", **bench_environment)}),
         **kwargs
     }
     print(extra_vars)
@@ -21,7 +21,7 @@ def run_benchmarks(rate=2., iterations=100, results_name="", worker_environment=
 
 for rate in [3]:
     # run_benchmarks(results_name="tracking_frequency=0", tracking_frequency=0, tracking="disabled", rate=rate,
-    #                worker_environment=dict(warm_up_stream_length=20000))
+    #                bench_environment=dict(warm_up_stream_length=20000))
     for tracking_frequency in [1]:
         for distributed in [False, True]:
             run_benchmarks(

@@ -16,7 +16,7 @@
     -cp '{{ flamestream_dir }}/lib/*'
     {{ bench_class }}
     {{ flamestream_dir }}/bench.conf {{ flamestream_dir }}/deployer.conf > {{ flamestream_dir }}/bench.log 2>&1
-  environment: "{{ worker_environment | default({}) }}"
+  environment: "{{ bench_environment | default({}) }}"
 
 - name: Fetch bench logs
   fetch:
