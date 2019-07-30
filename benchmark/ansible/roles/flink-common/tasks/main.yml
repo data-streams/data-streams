@@ -15,6 +15,8 @@
     checksum: "md5:https://archive.apache.org/dist/flink/flink-1.4.0/flink-1.4.0-bin-scala_2.11.tgz.md5"
     dest: "{{ flink_tarball_dir }}/flink.tgz"
   retries: 5
+  register: result
+  until: result is not failed
 
 - name: Unpack flink tarball
   command: tar -xf {{ flink_tarball_dir }}/flink.tgz --strip-components=1

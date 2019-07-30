@@ -28,6 +28,11 @@
 - name: Restart zk
   shell: "{{ zookeeper_dir }}/bin/zkServer.sh restart"
 
+- command: "{{ zookeeper_dir }}/bin/zkServer.sh status"
+  retries: 5
+  register: result
+  until: result is not failed
+
 - name: Clean graphs
   shell: "{{ zookeeper_cli }} rmr /graph"
 
