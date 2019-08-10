@@ -1,3 +1,7 @@
 access_key = ""
 secret_key = ""
 key_pair = "ssh-rsa AAABBBCCC username@hostname"
+ssh_username = ""
+yandex_cloud_id = ""
+yandex_folder_id = ""
+yandex_token = ""
