@@ -70,8 +70,4 @@ public class ZookeeperWorkersNode {
       throw new RuntimeException(e);
     }
   }
-
-  public boolean isLeader(String id) {
-    return workers().get(0).id.equals(id);
-  }
 }

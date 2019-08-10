@@ -62,11 +62,13 @@ class Cluster extends LoggingActor {
     this.blinking = blinking;
     this.blinkPeriodSec = blinkPeriodSec;
 
+    final List<String> ids = new ArrayList<>();
     final Map<String, HashGroup> ranges = new HashMap<>();
     final Map<String, ActorPath> paths = new HashMap<>();
     final List<HashUnit> ra = HashUnit.covering(parallelism).collect(Collectors.toList());
     for (int i = 0; i < parallelism; ++i) {
       final String id = "node-" + i;
+      ids.add(id);
       final HashUnit range = ra.get(i);
       paths.put(
               id,
@@ -78,17 +80,28 @@ class Cluster extends LoggingActor {
       );
       ranges.put(id, new HashGroup(Collections.singleton(range)));
     }
-    final ClusterConfig clusterConfig = new ClusterConfig(paths, "node-0");
+    final ClusterConfig clusterConfig = new ClusterConfig(ids, paths, "node-0");
     final int defaultMinimalTime = 0;
     final SystemConfig systemConfig =
             new SystemConfig(
                     maxElementsInGraph,
                     millisBetweenCommits,
                     defaultMinimalTime,
-                    acking,
                     barrierDisabled,
                     new LocalAcker.Builder(),
-                    1
+                    1,
+                    __ -> {
+                      switch (acking) {
+                        case DISABLED:
+                          return Collections.emptyList();
+                        case CENTRALIZED:
+                          return ids.subList(0, 1);
+                        case DISTRIBUTED:
+                          return ids;
+                        default:
+                          throw new IllegalStateException("Unexpected value: " + acking);
+                      }
+                    }
             );
 
     final Registry registry = new InMemoryRegistry();

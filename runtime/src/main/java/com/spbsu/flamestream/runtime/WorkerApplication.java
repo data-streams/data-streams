@@ -19,9 +19,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
+import java.util.function.IntConsumer;
+
 import static com.spbsu.flamestream.runtime.ConfigureFromEnv.*;
 
 public class WorkerApplication implements Runnable {
@@ -56,7 +59,11 @@ public class WorkerApplication implements Runnable {
     configureFromEnv(configBuilder::millisBetweenCommits, "MILLIS_BETWEEN_COMMITS");
     configureFromEnv(configBuilder::maxElementsInGraph, "MAX_ELEMENTS_IN_GRAPH");
     configureFromEnv(configBuilder::barrierDisabled, Boolean::parseBoolean, "BARRIER_DISABLED");
-    configureFromEnv(configBuilder::acking, SystemConfig.Acking::valueOf, "ACKING");
+    configureFromEnv(
+            (IntConsumer) ackersNumber ->
+                    configBuilder.workersResourcesDistributor(ids -> ids.subList(0, ackersNumber)),
+            "ACKERS_NUMBER"
+    );
     configureFromEnv(configBuilder::ackerWindow, "ACKER_WINDOW");
     final WorkerConfig config = configBuilder.build(
             System.getenv("ID"),
@@ -92,10 +99,10 @@ public class WorkerApplication implements Runnable {
             workerConfig.maxElementsInGraph,
             workerConfig.millisBetweenCommits,
             workerConfig.defaultMinimalTime,
-            workerConfig.acking,
             workerConfig.barrierDisabled,
             workerConfig.localAckerBuilder,
-            workerConfig.ackerWindow
+            workerConfig.ackerWindow,
+            workerConfig.workersResourcesDistributor
     );
     //noinspection ConstantConditions
     system.actorOf(
@@ -133,10 +140,10 @@ public class WorkerApplication implements Runnable {
     private final int maxElementsInGraph;
     private final int millisBetweenCommits;
     private final int defaultMinimalTime;
-    private final SystemConfig.Acking acking;
     private final boolean barrierDisabled;
     private final LocalAcker.Builder localAckerBuilder;
     private final int ackerWindow;
+    private final SystemConfig.WorkersResourcesDistributor workersResourcesDistributor;
 
     private WorkerConfig(
             String id,
@@ -147,10 +154,10 @@ public class WorkerApplication implements Runnable {
             int maxElementsInGraph,
             int millisBetweenCommits,
             int defaultMinimalTime,
-            SystemConfig.Acking acking,
             boolean barrierDisabled,
             LocalAcker.Builder localAckerBuilder,
-            int ackerWindow
+            int ackerWindow,
+            SystemConfig.WorkersResourcesDistributor workersResourcesDistributor
     ) {
       this.guarantees = guarantees;
       this.id = id;
@@ -160,10 +167,10 @@ public class WorkerApplication implements Runnable {
       this.maxElementsInGraph = maxElementsInGraph;
       this.millisBetweenCommits = millisBetweenCommits;
       this.defaultMinimalTime = defaultMinimalTime;
-      this.acking = acking;
       this.barrierDisabled = barrierDisabled;
       this.localAckerBuilder = localAckerBuilder;
       this.ackerWindow = ackerWindow;
+      this.workersResourcesDistributor = workersResourcesDistributor;
     }
 
     @Override
@@ -178,7 +185,7 @@ public class WorkerApplication implements Runnable {
               ", millisBetweenCommits=" + millisBetweenCommits +
               ", defaultMinimalTime=" + defaultMinimalTime +
               ", barrierDisabled=" + barrierDisabled +
-              ", acking=" + acking +
+              ", workersResourcesDistributor=" + workersResourcesDistributor +
               '}';
     }
 
@@ -193,10 +200,11 @@ public class WorkerApplication implements Runnable {
       private int maxElementsInGraph = 500;
       private int millisBetweenCommits = 100;
       private int defaultMinimalTime = 0;
-      private SystemConfig.Acking acking = SystemConfig.Acking.CENTRALIZED;
       private boolean barrierDisabled = false;
       private LocalAcker.Builder localAckerBuilder = new LocalAcker.Builder();
       private int ackerWindow = 1;
+      private SystemConfig.WorkersResourcesDistributor workersResourcesDistributor =
+              SystemConfig.WorkersResourcesDistributor.DEFAULT_CENTRALIZED;
 
       public Builder snapshotPath(String snapshotPath) {
         this.snapshotPath = snapshotPath;
@@ -223,11 +231,6 @@ public class WorkerApplication implements Runnable {
         return this;
       }
 
-      public Builder acking(SystemConfig.Acking acking) {
-        this.acking = acking;
-        return this;
-      }
-
       public WorkerConfig build(String id, InetSocketAddress localAddress, String zkString) {
         return new WorkerConfig(
                 id,
@@ -238,10 +241,10 @@ public class WorkerApplication implements Runnable {
                 maxElementsInGraph,
                 millisBetweenCommits,
                 defaultMinimalTime,
-                acking,
                 barrierDisabled,
                 localAckerBuilder,
-                ackerWindow
+                ackerWindow,
+                workersResourcesDistributor
         );
       }
 
@@ -257,6 +260,11 @@ public class WorkerApplication implements Runnable {
 
       public Builder ackerWindow(int window) {
         this.ackerWindow = window;
+        return this;
+      }
+
+      public Builder workersResourcesDistributor(SystemConfig.WorkersResourcesDistributor workersResourcesDistributor) {
+        this.workersResourcesDistributor = workersResourcesDistributor;
         return this;
       }
     }

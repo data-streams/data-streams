@@ -4,7 +4,6 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
-import com.spbsu.flamestream.core.Batch;
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.Job;
@@ -43,14 +42,16 @@ public class ZkFlameClientTest {
   @DataProvider
   public static Object[][] dataProvider() {
     return new Object[][]{
-            {SystemConfig.Acking.DISABLED},
-            {SystemConfig.Acking.CENTRALIZED},
-            {SystemConfig.Acking.DISTRIBUTED}
+            {SystemConfig.WorkersResourcesDistributor.DEFAULT_DISABLED, true},
+            {SystemConfig.WorkersResourcesDistributor.DEFAULT_CENTRALIZED, false},
+            {SystemConfig.WorkersResourcesDistributor.DEFAULT_DISTRIBUTED, false},
     };
   }
 
   @Test(dataProvider = "dataProvider")
-  public void testPushJobWorks(SystemConfig.Acking acking) throws InterruptedException, IOException {
+  public void testPushJobWorks(
+          SystemConfig.WorkersResourcesDistributor workersResourcesDistributor, boolean barrierDisabled
+  ) throws InterruptedException, IOException {
     final int inputSize = 100;
     final int frontPort = 4567;
     final int rearPort = 5678;
@@ -66,8 +67,8 @@ public class ZkFlameClientTest {
 
     try (final LocalClusterRuntime localClusterRuntime = new LocalClusterRuntime(
             4,
-            new WorkerApplication.WorkerConfig.Builder().acking(acking)
-                    .barrierDisabled(acking == SystemConfig.Acking.DISABLED)::build
+            new WorkerApplication.WorkerConfig.Builder().workersResourcesDistributor(workersResourcesDistributor)
+                    .barrierDisabled(barrierDisabled)::build
     )) {
       final FlameClient flameClient = new ZkFlameClient(localClusterRuntime.zkString());
       flameClient.push(new Job.Builder(testGraph())

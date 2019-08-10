@@ -8,10 +8,12 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 public class ClusterConfig {
+  public final List<String> ids;
   private final Map<String, ActorPath> paths;
   private final String masterLocation;
 
-  public ClusterConfig(Map<String, ActorPath> paths, String masterLocation) {
+  public ClusterConfig(List<String> ids, Map<String, ActorPath> paths, String masterLocation) {
+    this.ids = ids;
     this.paths = paths;
     this.masterLocation = masterLocation;
   }
@@ -31,7 +33,7 @@ public class ClusterConfig {
   public ClusterConfig withChildPath(String childPath) {
     final Map<String, ActorPath> newPaths = new HashMap<>();
     paths.forEach((s, path) -> newPaths.put(s, path.child(childPath)));
-    return new ClusterConfig(newPaths, masterLocation);
+    return new ClusterConfig(ids, newPaths, masterLocation);
   }
 
   @Override
@@ -47,6 +49,10 @@ public class ClusterConfig {
             .collect(Collectors.toMap(ZookeeperWorkersNode.Worker::id, ZookeeperWorkersNode.Worker::actorPath));
     final String masterLocation = workers.get(0).id;
 
-    return new ClusterConfig(paths, masterLocation);
+    return new ClusterConfig(
+            workers.stream().map(ZookeeperWorkersNode.Worker::id).collect(Collectors.toList()),
+            paths,
+            masterLocation
+    );
   }
 }

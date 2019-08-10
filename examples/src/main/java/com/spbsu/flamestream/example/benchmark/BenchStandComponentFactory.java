@@ -31,7 +31,6 @@ import java.io.Writer;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 public class BenchStandComponentFactory {
   private static final Logger LOG = LoggerFactory.getLogger(BenchStandComponentFactory.class);

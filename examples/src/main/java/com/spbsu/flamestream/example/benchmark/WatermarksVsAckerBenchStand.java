@@ -129,7 +129,7 @@ public class WatermarksVsAckerBenchStand {
 
       @Override
       public void buildWorker(WorkerApplication.WorkerConfig.Builder builder) {
-        builder.acking(SystemConfig.Acking.DISABLED);
+        builder.workersResourcesDistributor(SystemConfig.WorkersResourcesDistributor.DEFAULT_DISABLED);
       }
     }
 
@@ -141,7 +141,10 @@ public class WatermarksVsAckerBenchStand {
 
       @Override
       public void buildWorker(WorkerApplication.WorkerConfig.Builder builder) {
-        builder.acking(SystemConfig.Acking.CENTRALIZED).ackerWindow(10);
+        builder
+                .workersResourcesDistributor(SystemConfig.WorkersResourcesDistributor.DEFAULT_CENTRALIZED)
+                .ackerWindow(10)
+        ;
       }
     }
 
@@ -158,7 +161,7 @@ public class WatermarksVsAckerBenchStand {
 
       @Override
       public void buildWorker(WorkerApplication.WorkerConfig.Builder builder) {
-        builder.acking(SystemConfig.Acking.DISABLED);
+        builder.workersResourcesDistributor(SystemConfig.WorkersResourcesDistributor.DEFAULT_DISABLED);
       }
 
       public int getFrequency() {

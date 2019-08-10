@@ -15,7 +15,6 @@ import com.spbsu.flamestream.runtime.config.ZookeeperWorkersNode;
 import com.spbsu.flamestream.runtime.edge.api.AttachFront;
 import com.spbsu.flamestream.runtime.edge.api.AttachRear;
 import com.spbsu.flamestream.runtime.master.acker.Committer;
-import com.spbsu.flamestream.runtime.master.acker.LocalAcker;
 import com.spbsu.flamestream.runtime.master.acker.MinTimeUpdater;
 import com.spbsu.flamestream.runtime.master.acker.RegistryHolder;
 import com.spbsu.flamestream.runtime.master.acker.ZkRegistry;
@@ -43,7 +42,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class ProcessingWatcher extends LoggingActor {
   private final String id;
@@ -168,7 +166,7 @@ public class ProcessingWatcher extends LoggingActor {
             systemConfig.getLocalAckerBuilder().props(ackers, id)
     );
     final ActorRef committer, registryHolder;
-    if (zookeeperWorkersNode.isLeader(id)) {
+    if (systemConfig.workersResourcesDistributor.master(config.ids).equals(id)) {
       registryHolder = context().actorOf(
               RegistryHolder.props(new ZkRegistry(curator), ackers, systemConfig.defaultMinimalTime()),
               "registry-holder"
@@ -185,6 +183,9 @@ public class ProcessingWatcher extends LoggingActor {
       committer = AwaitResolver.syncResolve(masterPath.child("committer"), context());
     }
 
+    if (ackers.isEmpty() && !systemConfig.barrierIsDisabled()) {
+      throw new IllegalArgumentException("barrier should be disabled when acking is");
+    }
     this.flameNode = context().actorOf(
             FlameNode.props(
                     id,
@@ -264,20 +265,8 @@ public class ProcessingWatcher extends LoggingActor {
 
   private List<ActorRef> ackers(ClusterConfig config) {
     {
-      final Stream<ActorPath> paths;
-      switch (systemConfig.acking()) {
-        case DISABLED:
-          return Collections.emptyList();
-        case CENTRALIZED:
-          paths = Stream.of(config.masterPath());
-          break;
-        case DISTRIBUTED:
-          paths = config.paths().values().stream();
-          break;
-        default:
-          throw new IllegalStateException("Unexpected value: " + systemConfig.acking());
-      }
-      final List<CompletableFuture<ActorRef>> ackerFutures = paths
+      final List<CompletableFuture<ActorRef>> ackerFutures = systemConfig
+              .workersResourcesDistributor.ackers(config.ids).stream().map(config.paths()::get)
               .map(actorPath -> AwaitResolver.resolve(actorPath.child("acker"), context()).toCompletableFuture())
               .collect(Collectors.toList());
       ackerFutures.forEach(CompletableFuture::join);
