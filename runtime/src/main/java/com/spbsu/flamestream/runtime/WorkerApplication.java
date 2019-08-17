@@ -61,7 +61,8 @@ public class WorkerApplication implements Runnable {
     configureFromEnv(configBuilder::barrierDisabled, Boolean::parseBoolean, "BARRIER_DISABLED");
     configureFromEnv(
             (IntConsumer) ackersNumber ->
-                    configBuilder.workersResourcesDistributor(ids -> ids.subList(0, ackersNumber)),
+                    configBuilder
+                            .workersResourcesDistributor(ids -> ids.subList(0, Integer.min(ackersNumber, ids.size()))),
             "ACKERS_NUMBER"
     );
     configureFromEnv(configBuilder::ackerWindow, "ACKER_WINDOW");
