@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.7
 import itertools
 import json
 import os
@@ -17,7 +17,7 @@ def run_benchmarks(rate=2., iterations=100, results_name="", bench_environment={
     print(extra_vars)
     results_name = f"sigmod.07.29/iterations={iterations}/rate={rate}/{results_name}"
     return os.system(
-        f"ansible-playbook --extra-vars '{json.dumps(dict(**extra_vars, results_name=results_name))}' -i aws.yml flamestream.yml"
+        f"ansible-playbook --extra-vars '{json.dumps(dict(**extra_vars, results_name=results_name))}' -i remote.yml flamestream.yml"
     )
 
 

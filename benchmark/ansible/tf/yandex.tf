@@ -21,7 +21,7 @@ resource "yandex_vpc_subnet" "workers" {
 resource "yandex_compute_instance" "bench_stand" {
   boot_disk {
     initialize_params {
-      image_id = "fd87va5cc00gaq2f5qfb"
+      snapshot_id = "fd8m0jqn2vohdol85qp4"
     }
   }
 
@@ -36,13 +36,16 @@ resource "yandex_compute_instance" "bench_stand" {
     subnet_id = "${yandex_vpc_subnet.workers.id}"
     nat = true
   }
+  scheduling_policy {
+    preemptible = true
+  }
 }
 
 resource "yandex_compute_instance" "worker" {
   count = 7
   boot_disk {
     initialize_params {
-      image_id = "fd87va5cc00gaq2f5qfb"
+      snapshot_id = "fd8m0jqn2vohdol85qp4"
     }
   }
 
@@ -56,11 +59,14 @@ resource "yandex_compute_instance" "worker" {
   network_interface {
     subnet_id = "${yandex_vpc_subnet.workers.id}"
   }
+  scheduling_policy {
+    preemptible = true
+  }
 }
 
 output "public_ips" {
-  value = "${join(", ", yandex_compute_instance.bench_stand.*.network_interface.0.nat_ip_address)}"
+  value = "${yandex_compute_instance.bench_stand.*.network_interface.0.nat_ip_address}"
 }
 output "private_ips" {
-  value = "${join(", ", concat([yandex_compute_instance.bench_stand], yandex_compute_instance.worker).*.network_interface.0.ip_address)}"
+  value = "${concat([yandex_compute_instance.bench_stand], yandex_compute_instance.worker).*.network_interface.0.ip_address}"
 }
