@@ -1,13 +1,4 @@
 ---
-- name: Install Python
-  hosts: all
-  gather_facts: false
-  tasks:
-    - name: Install Python 2.x
-      raw: test -e /usr/bin/python || (apt update && apt install -y python-simplejson)
-      register: test
-      changed_when: test.stdout
-
 - name: Prepare cluster
   hosts: all
   roles:
