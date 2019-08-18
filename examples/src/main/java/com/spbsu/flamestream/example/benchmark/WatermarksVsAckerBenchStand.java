@@ -326,6 +326,7 @@ public class WatermarksVsAckerBenchStand {
     final long benchStart = System.nanoTime();
     final List<Long> durations = Collections.synchronizedList(new ArrayList<>());
     final AtomicInteger processingCount = new AtomicInteger();
+    final long[] consumerNotifyAt = new long[]{System.nanoTime()};
     try (
             FileWriter durationOutput = new FileWriter("/tmp/duration");
             Closeable ignored2 = benchStandComponentFactory.recordNanoDuration(durationOutput);
@@ -367,6 +368,11 @@ public class WatermarksVsAckerBenchStand {
                         element = null;
                       }
                       if (element != null) {
+                        if (consumerNotifyAt[0] < System.nanoTime()) {
+                          consumerNotifyAt[0] = (long) (System.nanoTime() + 1E9);
+                          LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
+                          LOG.info("Got id {}", element.id);
+                        }
                         processingCount.decrementAndGet();
                         if (element.id < 0) {
                           return;
