@@ -15,7 +15,7 @@
     'LOCAL_ADDRESS': inventory_hostname + ':' + (flamestream_worker_port | string),
     'SNAPSHOT_PATH': flamestream_dir + '/data',
     'GUARANTEES': guarantees,
-    'ZK_STRING': hostvars[groups['manager'][0]].ansible_host + ':' + (zookeeper_client_port | string),
+    'ZK_STRING': groups['manager'][0] + ':' + (zookeeper_client_port | string),
     'DEFAULT_MINIMAL_TIME': 0,
     'MAX_ELEMENTS_IN_GRAPH': 100,
     'MILLIS_BETWEEN_COMMITS': millis_between_commits,
