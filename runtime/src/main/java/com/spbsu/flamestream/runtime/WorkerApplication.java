@@ -88,7 +88,7 @@ public class WorkerApplication implements Runnable {
       if (shm.exists() && shm.isDirectory()) {
         final String aeronDir = "/dev/shm/aeron-" + workerConfig.id;
         FileUtils.deleteDirectory(new File(aeronDir));
-        props.put("akka.remote.artery.advanced.aeron-dir", aeronDir);
+        props.put("akka.remote.artery.advanced.aeron.aeron-dir", aeronDir);
       }
     } catch (IOException e) {
       throw new UncheckedIOException(e);
