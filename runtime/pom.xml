@@ -29,6 +29,16 @@
             <groupId>com.typesafe.akka</groupId>
             <artifactId>akka-remote_2.12</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.aeron</groupId>
+            <artifactId>aeron-driver</artifactId>
+            <version>1.19.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.aeron</groupId>
+            <artifactId>aeron-client</artifactId>
+            <version>1.19.1</version>
+        </dependency>
 
         <!--Fast serialization-->
         <dependency>
