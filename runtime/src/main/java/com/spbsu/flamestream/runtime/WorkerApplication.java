@@ -83,7 +83,6 @@ public class WorkerApplication implements Runnable {
     props.put("akka.remote.artery.canonical.port", String.valueOf(workerConfig.localAddress.getPort()));
     props.put("akka.remote.artery.bind.hostname", "0.0.0.0");
     props.put("akka.remote.artery.bind.port", String.valueOf(workerConfig.localAddress.getPort()));
-    props.put("akka.remote.artery.log-aeron-counters", "true");
     try {
       final File shm = new File(("/dev/shm"));
       if (shm.exists() && shm.isDirectory()) {
