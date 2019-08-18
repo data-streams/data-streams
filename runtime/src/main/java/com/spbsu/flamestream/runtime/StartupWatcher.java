@@ -105,7 +105,7 @@ public class StartupWatcher extends LoggingActor {
   }
 
   @Override
-  public void postStop() {
+  public void postStop() throws Exception {
     //noinspection EmptyTryBlock,unused
     try (
             StateStorage s = stateStorage;

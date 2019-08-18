@@ -24,7 +24,7 @@ public abstract class LoggingActor extends AbstractActorWithStash {
   }
 
   @Override
-  public void postStop() {
+  public void postStop() throws Exception {
     log().info("Stopped");
     super.postStop();
   }

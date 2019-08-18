@@ -26,7 +26,7 @@
         <!-- lib versions -->
         <slf4j.version>1.7.24</slf4j.version>
         <logback.version>1.2.3</logback.version>
-        <akka.version>2.5.16</akka.version>
+        <akka.version>2.6.0-M6</akka.version>
         <lang3.version>3.4</lang3.version>
         <guava.version>21.0</guava.version>
         <jool.version>0.9.12</jool.version>
@@ -59,48 +59,48 @@
             <!--Akka-->
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-actor_2.11</artifactId>
+                <artifactId>akka-actor_2.13</artifactId>
                 <version>${akka.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-remote_2.11</artifactId>
+                <artifactId>akka-remote_2.13</artifactId>
                 <version>${akka.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-cluster_2.11</artifactId>
+                <artifactId>akka-cluster_2.13</artifactId>
                 <version>${akka.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-cluster-tools_2.11</artifactId>
+                <artifactId>akka-cluster-tools_2.13</artifactId>
                 <version>${akka.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-cluster-sharding_2.11</artifactId>
+                <artifactId>akka-cluster-sharding_2.13</artifactId>
                 <version>${akka.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-cluster-metrics_2.11</artifactId>
+                <artifactId>akka-cluster-metrics_2.13</artifactId>
                 <version>${akka.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-persistence_2.11</artifactId>
+                <artifactId>akka-persistence_2.13</artifactId>
                 <version>${akka.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-testkit_2.11</artifactId>
+                <artifactId>akka-testkit_2.13</artifactId>
                 <version>${akka.version}</version>
                 <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-stream_2.11</artifactId>
+                <artifactId>akka-stream_2.13</artifactId>
                 <version>${akka.version}</version>
             </dependency>
             <dependency>
@@ -168,7 +168,7 @@
             </dependency>
             <dependency>
                 <groupId>com.typesafe.akka</groupId>
-                <artifactId>akka-slf4j_2.11</artifactId>
+                <artifactId>akka-slf4j_2.13</artifactId>
                 <version>${akka.version}</version>
             </dependency>
             <dependency>

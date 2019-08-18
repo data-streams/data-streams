@@ -33,7 +33,7 @@ public class PingActor extends LoggingActor {
   }
 
   @Override
-  public void postStop() {
+  public void postStop() throws Exception {
     stop();
     super.postStop();
   }

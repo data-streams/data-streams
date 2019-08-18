@@ -85,7 +85,7 @@ public class Committer extends LoggingActor {
   }
 
   @Override
-  public void postStop() {
+  public void postStop() throws Exception {
     pingActor.tell(new PingActor.Stop(), self());
     super.postStop();
   }

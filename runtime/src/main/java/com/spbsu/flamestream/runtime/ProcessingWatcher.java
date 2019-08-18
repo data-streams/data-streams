@@ -114,7 +114,7 @@ public class ProcessingWatcher extends LoggingActor {
   }
 
   @Override
-  public void postStop() {
+  public void postStop() throws Exception {
     //noinspection EmptyTryBlock,unused
     try (
             NodeCache gc = graphCache;

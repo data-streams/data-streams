@@ -107,7 +107,7 @@ public class LocalAcker extends LoggingActor {
   }
 
   @Override
-  public void postStop() {
+  public void postStop() throws Exception {
     pingActor.tell(new PingActor.Stop(), self());
     try (final PrintWriter printWriter = new PrintWriter(Files.newBufferedWriter(Paths.get(
             "/tmp/local_acker.txt"
