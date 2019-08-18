@@ -15,11 +15,11 @@
     <dependencies>
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-streaming-java_2.11</artifactId>
+            <artifactId>flink-streaming-java_2.12</artifactId>
         </dependency>
         <dependency>
             <groupId>org.apache.flink</groupId>
-            <artifactId>flink-statebackend-rocksdb_2.11</artifactId>
+            <artifactId>flink-statebackend-rocksdb_2.12</artifactId>
         </dependency>
 
         <dependency>
@@ -29,47 +29,47 @@
             <exclusions>
                 <exclusion>
                     <groupId>com.typesafe.akka</groupId>
-                    <artifactId>akka-actor_2.11</artifactId>
+                    <artifactId>akka-actor_2.12</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>com.typesafe.akka</groupId>
-                    <artifactId>akka-remote_2.11</artifactId>
+                    <artifactId>akka-remote_2.12</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>com.typesafe.akka</groupId>
-                    <artifactId>akka-cluster_2.11</artifactId>
+                    <artifactId>akka-cluster_2.12</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>com.typesafe.akka</groupId>
-                    <artifactId>akka-cluster-tools_2.11</artifactId>
+                    <artifactId>akka-cluster-tools_2.12</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>com.typesafe.akka</groupId>
-                    <artifactId>akka-cluster-sharding_2.11</artifactId>
+                    <artifactId>akka-cluster-sharding_2.12</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>com.typesafe.akka</groupId>
-                    <artifactId>akka-cluster-metrics_2.11</artifactId>
+                    <artifactId>akka-cluster-metrics_2.12</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>com.typesafe.akka</groupId>
-                    <artifactId>akka-persistence_2.11</artifactId>
+                    <artifactId>akka-persistence_2.12</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>com.typesafe.akka</groupId>
-                    <artifactId>akka-testkit_2.11</artifactId>
+                    <artifactId>akka-testkit_2.12</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>com.typesafe.akka</groupId>
-                    <artifactId>akka-stream_2.11</artifactId>
+                    <artifactId>akka-stream_2.12</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>com.github.romix.akka</groupId>
-                    <artifactId>akka-kryo-serialization_2.11</artifactId>
+                    <artifactId>akka-kryo-serialization_2.12</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>com.typesafe.akka</groupId>
-                    <artifactId>akka-slf4j_2.11</artifactId>
+                    <artifactId>akka-slf4j_2.12</artifactId>
                 </exclusion>
                 <exclusion>
                     <groupId>com.esotericsoftware.kryo</groupId>
@@ -98,22 +98,22 @@
 
         <dependency>
             <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-actor_2.11</artifactId>
+            <artifactId>akka-actor_2.12</artifactId>
             <version>2.4.20</version>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-slf4j_2.11</artifactId>
+            <artifactId>akka-slf4j_2.12</artifactId>
             <version>2.4.20</version>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-stream_2.11</artifactId>
+            <artifactId>akka-stream_2.12</artifactId>
             <version>2.4.20</version>
         </dependency>
         <dependency>
             <groupId>com.typesafe.akka</groupId>
-            <artifactId>akka-protobuf_2.11</artifactId>
+            <artifactId>akka-protobuf_2.12</artifactId>
             <version>2.4.20</version>
         </dependency>
     </dependencies>
