@@ -21,7 +21,8 @@
         <!--Fast serialization-->
         <dependency>
             <groupId>com.github.romix.akka</groupId>
-            <artifactId>akka-kryo-serialization_2.11</artifactId>
+            <artifactId>akka-kryo-serialization_2.12</artifactId>
+            <version>0.5.2</version>
         </dependency>
 
         <!--Curator-->
