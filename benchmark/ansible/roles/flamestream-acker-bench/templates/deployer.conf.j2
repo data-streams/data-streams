@@ -1,5 +1,5 @@
 deployer {
   remote {
-    zk = "{{ hostvars[groups['manager'][0]].ansible_host }}:{{ zookeeper_client_port }}"
+    zk = "{{ groups['manager'][0] }}:{{ zookeeper_client_port }}"
   }
 }
