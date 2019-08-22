@@ -3,7 +3,4 @@ flink.retry
 roles/flamestream-common/files/
 roles/flamestream-bench/files/wiki.xml
 roles/flink-bench/files/wiki.xml
-terraform.tfstate
-terraform.tfstate.backup
-terraform.tfvars
 /terraform.tfvars.bak

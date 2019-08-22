@@ -1,4 +1,3 @@
-variable "ssh_username" {}
 variable "yandex_cloud_id" {}
 variable "yandex_folder_id" {}
 variable "yandex_token" {}
@@ -18,10 +17,10 @@ resource "yandex_vpc_subnet" "workers" {
   v4_cidr_blocks = ["10.0.0.0/24"]
 }
 
-resource "yandex_compute_instance" "bench_stand" {
+resource "yandex_compute_instance" "manager" {
   boot_disk {
     initialize_params {
-      snapshot_id = "fd8m0jqn2vohdol85qp4"
+      snapshot_id = "fd87kqfnum6i4d4skv42"
     }
   }
 
@@ -30,7 +29,7 @@ resource "yandex_compute_instance" "bench_stand" {
     memory = 2
   }
   metadata = {
-    ssh-keys = "${var.ssh_username}:${file("~/.ssh/id_rsa.pub")}"
+    ssh-keys = "ubuntu:${file("~/.ssh/id_rsa.pub")}"
   }
   network_interface {
     subnet_id = "${yandex_vpc_subnet.workers.id}"
@@ -45,7 +44,7 @@ resource "yandex_compute_instance" "worker" {
   count = 7
   boot_disk {
     initialize_params {
-      snapshot_id = "fd8m0jqn2vohdol85qp4"
+      snapshot_id = "fd87kqfnum6i4d4skv42"
     }
   }
 
@@ -54,7 +53,7 @@ resource "yandex_compute_instance" "worker" {
     memory = 2
   }
   metadata = {
-    ssh-keys = "${var.ssh_username}:${file("~/.ssh/id_rsa.pub")}"
+    ssh-keys = "ubuntu:${file("~/.ssh/id_rsa.pub")}"
   }
   network_interface {
     subnet_id = "${yandex_vpc_subnet.workers.id}"
@@ -64,9 +63,12 @@ resource "yandex_compute_instance" "worker" {
   }
 }
 
-output "public_ips" {
-  value = "${yandex_compute_instance.bench_stand.*.network_interface.0.nat_ip_address}"
+output "manager_public_ip" {
+  value = "${yandex_compute_instance.manager.network_interface.0.nat_ip_address}"
 }
-output "private_ips" {
-  value = "${concat([yandex_compute_instance.bench_stand], yandex_compute_instance.worker).*.network_interface.0.ip_address}"
+output "manager_private_ip" {
+  value = "${yandex_compute_instance.manager.network_interface.0.ip_address}"
+}
+output "worker_private_ips" {
+  value = "${yandex_compute_instance.worker.*.network_interface.0.ip_address}"
 }
