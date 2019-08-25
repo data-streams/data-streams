@@ -28,9 +28,4 @@ plan my::localhost(
     }
     exec { "/usr/bin/ssh -oStrictHostKeyChecking=no flamestream-benchmarks-manager exit": }
   }
-
-  'flamestream-benchmarks-manager'.apply_prep
-  apply('flamestream-benchmarks-manager') {
-    exec { "/usr/bin/test -e ${facts['home']}/.ssh/id_rsa.pub || ssh-keygen -N '' -f ${facts['home']}/.ssh/id_rsa": }
-  }
 }
