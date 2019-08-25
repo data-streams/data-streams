@@ -1,3 +1,4 @@
 modules/*
 !modules/my
 .rerun.json
+terraform.tfvars

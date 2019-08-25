@@ -4,3 +4,4 @@ roles/flamestream-common/files/
 roles/flamestream-bench/files/wiki.xml
 roles/flink-bench/files/wiki.xml
 /terraform.tfvars.bak
+remote.yml
