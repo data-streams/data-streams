@@ -1,1 +1,1 @@
-tf/yandex.tf
+tf/azure.tf
