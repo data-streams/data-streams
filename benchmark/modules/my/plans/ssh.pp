@@ -27,6 +27,7 @@ plan my::ssh(
     }
   }
   apply('flamestream-benchmarks-manager') {
+    exec { "/usr/bin/test -e /home/ubuntu/.ssh/id_rsa.pub || ssh-keygen -N '' -f /home/ubuntu/.ssh/id_rsa": }
     $host_pub.each |String $host, Array[String] $pub| {
       sshkey { $host:
         type => $pub[0],
@@ -37,6 +38,7 @@ plan my::ssh(
     }
   }
 
+  'flamestream-benchmarks-manager'.apply_prep
   $id_rsa_pub_values = split(facts(get_targets('flamestream-benchmarks-manager')[0])['~/.ssh/id_rsa.pub'], ' ')
   apply($host_private_ip.keys()) {
     ssh_authorized_key { $id_rsa_pub_values[2]:

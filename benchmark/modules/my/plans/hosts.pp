@@ -10,7 +10,6 @@ plan my::hosts(
 
   'flamestream-benchmarks-manager'.apply_prep
   apply('flamestream-benchmarks-manager') {
-    exec { "/usr/bin/test -e /home/ubuntu/.ssh/id_rsa.pub || ssh-keygen -N '' -f /home/ubuntu/.ssh/id_rsa": }
     $all_hosts.each |String $host, String $ip| { host { $host: ip => $ip } }
   }
 

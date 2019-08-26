@@ -13,6 +13,8 @@ provider "azurerm" {
   version = "=1.33.0"
 }
 
+data "azurerm_subscription" "current" {}
+
 resource "azurerm_resource_group" "main" {
   name     = "${var.prefix}-resources"
   location = "West Europe"
@@ -38,10 +40,6 @@ resource "azurerm_public_ip" "manager" {
   resource_group_name     = "${azurerm_resource_group.main.name}"
   allocation_method       = "Dynamic"
   idle_timeout_in_minutes = 30
-
-  tags = {
-    environment = "test"
-  }
 }
 
 resource "azurerm_network_interface" "manager" {
@@ -57,6 +55,16 @@ resource "azurerm_network_interface" "manager" {
   }
 }
 
+resource "azurerm_managed_disk" "manager" {
+  name                 = "${var.prefix}-manager"
+  location             = "${azurerm_resource_group.main.location}"
+  resource_group_name  = "${azurerm_resource_group.main.name}"
+  storage_account_type = "Standard_LRS"
+  create_option        = "Copy"
+  source_resource_id   = "${data.azurerm_subscription.current.id}/resourceGroups/FlamestreamBenchmarks/providers/Microsoft.Compute/snapshots/FlamestreamBenchmarks"
+  disk_size_gb         = "30"
+}
+
 resource "azurerm_virtual_machine" "manager" {
   name                  = "${var.prefix}-manager"
   location              = "${azurerm_resource_group.main.location}"
@@ -67,20 +75,12 @@ resource "azurerm_virtual_machine" "manager" {
   delete_os_disk_on_termination = true
   delete_data_disks_on_termination = true
 
-  storage_image_reference {
-    publisher = "Canonical"
-    offer     = "UbuntuServer"
-    sku       = "18.04-LTS"
-    version   = "latest"
-  }
   storage_os_disk {
-    name              = "manager"
+    name              = "${azurerm_managed_disk.manager.name}"
     caching           = "ReadWrite"
-    create_option     = "FromImage"
-  }
-  os_profile {
-    computer_name = "${var.prefix}-manager"
-    admin_username = "ubuntu"
+    create_option     = "Attach"
+    managed_disk_id   = "${azurerm_managed_disk.manager.id}"
+    os_type           = "Linux"
   }
   os_profile_linux_config {
     disable_password_authentication = true
@@ -109,6 +109,17 @@ resource "azurerm_network_interface" "workers" {
   }
 }
 
+resource "azurerm_managed_disk" "workers" {
+  count                 = var.cluster_size
+  name                  = "${var.prefix}-worker-${count.index}"
+  location             = "${azurerm_resource_group.main.location}"
+  resource_group_name  = "${azurerm_resource_group.main.name}"
+  storage_account_type = "Standard_LRS"
+  create_option        = "Copy"
+  source_resource_id   = "${data.azurerm_subscription.current.id}/resourceGroups/FlamestreamBenchmarks/providers/Microsoft.Compute/snapshots/FlamestreamBenchmarks"
+  disk_size_gb         = "30"
+}
+
 resource "azurerm_virtual_machine" "workers" {
   count                 = var.cluster_size
   name                  = "${var.prefix}-worker-${count.index}"
@@ -120,20 +131,12 @@ resource "azurerm_virtual_machine" "workers" {
   delete_os_disk_on_termination = true
   delete_data_disks_on_termination = true
 
-  storage_image_reference {
-    publisher = "Canonical"
-    offer     = "UbuntuServer"
-    sku       = "18.04-LTS"
-    version   = "latest"
-  }
   storage_os_disk {
-    name              = "worker-${count.index}"
+    name              = azurerm_managed_disk.workers[count.index].name
     caching           = "ReadWrite"
-    create_option     = "FromImage"
-  }
-  os_profile {
-    computer_name = "${var.prefix}-worker-${count.index}"
-    admin_username = "ubuntu"
+    create_option     = "Attach"
+    managed_disk_id   = azurerm_managed_disk.workers[count.index].id
+    os_type           = "Linux"
   }
   os_profile_linux_config {
     disable_password_authentication = true
