@@ -1,1 +1,1 @@
-yandex/remote.tf
+google/remote.tf

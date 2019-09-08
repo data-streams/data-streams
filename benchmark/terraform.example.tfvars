@@ -1,5 +1,6 @@
 access_key = ""
 secret_key = ""
+google_project = ""
 key_pair = "ssh-rsa AAABBBCCC username@hostname"
 yandex_cloud_id = ""
 yandex_folder_id = ""
