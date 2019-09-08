@@ -1,1 +1,1 @@
-tf/azure.tf
+yandex/remote.tf
