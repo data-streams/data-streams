@@ -3,19 +3,18 @@ variable "cluster_size" {}
 
 provider "google" {
   credentials = file("google_credentials.json")
+  project = var.google_project
   region  = "europe-north1"
   zone  = "europe-north1-c"
 }
 
 resource "google_compute_subnetwork" "main" {
-  project = var.google_project
   name          = "flamestream"
   ip_cidr_range = "10.0.0.0/24"
   network       = "default"
 }
 
 resource "google_compute_disk" "manager" {
-  project = var.google_project
   name  = "flamestream-manager"
   type  = "pd-ssd"
   zone  = "europe-north1-c"
@@ -23,7 +22,6 @@ resource "google_compute_disk" "manager" {
 }
 
 resource "google_compute_instance" "manager" {
-  project = var.google_project
   name = "flamestream-manager"
   machine_type = "n1-standard-1"
 
@@ -43,7 +41,6 @@ resource "google_compute_instance" "manager" {
 }
 
 resource "google_compute_disk" "workers" {
-  project = var.google_project
   count = var.cluster_size
   name = "flamestream-worker-${count.index}"
   type  = "pd-ssd"
@@ -52,7 +49,6 @@ resource "google_compute_disk" "workers" {
 }
 
 resource "google_compute_instance" "workers" {
-  project = var.google_project
   count = var.cluster_size
   name = "flamestream-worker-${count.index}"
   machine_type = "n1-standard-1"
