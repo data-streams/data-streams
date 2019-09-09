@@ -1,4 +1,5 @@
 variable "google_project" {}
+variable "cluster_size" {}
 
 provider "google" {
   credentials = file("google_credentials.json")
@@ -13,15 +14,21 @@ resource "google_compute_subnetwork" "main" {
   network       = "default"
 }
 
+resource "google_compute_disk" "manager" {
+  project = var.google_project
+  name  = "flamestream-manager"
+  type  = "pd-ssd"
+  zone  = "europe-north1-c"
+  snapshot = "ekf3eap91l7v"
+}
+
 resource "google_compute_instance" "manager" {
   project = var.google_project
   name = "flamestream-manager"
   machine_type = "n1-standard-1"
 
   boot_disk {
-    initialize_params {
-      image = "gce-uefi-images/ubuntu-1804-lts"
-    }
+    source = google_compute_disk.manager.self_link
   }
 
   metadata = {
@@ -35,16 +42,23 @@ resource "google_compute_instance" "manager" {
   }
 }
 
+resource "google_compute_disk" "workers" {
+  project = var.google_project
+  count = var.cluster_size
+  name = "flamestream-worker-${count.index}"
+  type  = "pd-ssd"
+  zone  = "europe-north1-c"
+  snapshot = "ekf3eap91l7v"
+}
+
 resource "google_compute_instance" "workers" {
   project = var.google_project
-  count = 0
+  count = var.cluster_size
   name = "flamestream-worker-${count.index}"
   machine_type = "n1-standard-1"
 
   boot_disk {
-    initialize_params {
-      image = "gce-uefi-images/ubuntu-1804-lts"
-    }
+    source = google_compute_disk.workers[count.index].self_link
   }
 
   metadata = {
