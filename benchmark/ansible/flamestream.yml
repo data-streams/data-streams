@@ -1,9 +1,4 @@
 ---
-- name: Prepare cluster
-  hosts: all
-  roles:
-    - { role: common-packages }
-
 - name: Deliver flamestream artifacts
   hosts: all
   roles:
