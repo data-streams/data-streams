@@ -8,6 +8,20 @@ provider "google" {
   zone  = "europe-north1-c"
 }
 
+resource "google_compute_firewall" "main" {
+  name    = "flamestream"
+  network = "default"
+  source_ranges = [google_compute_subnetwork.main.ip_cidr_range]
+
+  allow {
+    protocol = "tcp"
+  }
+
+  allow {
+    protocol = "udp"
+  }
+}
+
 resource "google_compute_subnetwork" "main" {
   name          = "flamestream"
   ip_cidr_range = "10.0.0.0/24"
