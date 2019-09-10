@@ -19,6 +19,7 @@ if __name__ == "__main__":
         f"manager_public_ip={manager_public_ip}",
         f"manager_private_ip={manager_private_ip}",
         f"worker_private_ips={json.dumps(worker_private_ips)}",
+        "--concurrency=10",
     )
 
     if sys.argv[1] == "apply":
