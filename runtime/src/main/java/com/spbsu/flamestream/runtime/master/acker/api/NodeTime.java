@@ -1,6 +1,6 @@
 package com.spbsu.flamestream.runtime.master.acker.api;
 
-public class NodeTime {
+public class NodeTime implements AckerInputMessage {
   public final String jobaId;
   public final long time;
 
