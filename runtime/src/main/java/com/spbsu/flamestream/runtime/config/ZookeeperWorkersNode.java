@@ -9,6 +9,7 @@ import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.PathChildrenCache;
 import org.apache.zookeeper.CreateMode;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -66,6 +67,8 @@ public class ZookeeperWorkersNode {
               .stream()
               .map(worker -> jacksonSerializer.deserialize(worker.getData(), Worker.class))
               .collect(Collectors.toList());
+    } catch (org.apache.zookeeper.KeeperException.NoNodeException e) {
+      return Collections.emptyList();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
