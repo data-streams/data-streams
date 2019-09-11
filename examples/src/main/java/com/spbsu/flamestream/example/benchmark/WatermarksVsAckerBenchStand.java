@@ -4,6 +4,7 @@ import com.google.common.collect.Iterables;
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.example.bl.WatermarksVsAckerGraph;
 import com.spbsu.flamestream.runtime.WorkerApplication;
+import com.spbsu.flamestream.runtime.config.HashUnit;
 import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.edge.Rear;
 import com.spbsu.flamestream.runtime.edge.socket.SocketFrontType;
@@ -67,7 +68,7 @@ public class WatermarksVsAckerBenchStand {
                             workerBuilder::build
                     ),
                     WatermarksVsAckerGraph.apply(
-                            benchStand.parallelism,
+                            HashUnit.covering(benchStand.parallelism).collect(Collectors.toCollection(ArrayList::new)),
                             benchStand.iterations,
                             benchStand.childrenNumber
                     ),

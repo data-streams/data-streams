@@ -1,5 +1,6 @@
 package com.spbsu.flamestream.example.bl;
 
+import com.google.common.hash.Hashing;
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.HashFunction;
@@ -8,11 +9,9 @@ import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import com.spbsu.flamestream.runtime.config.HashUnit;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -20,20 +19,32 @@ public class WatermarksVsAckerGraph {
   static public abstract class Element {
     public final int id;
 
-    protected Element(int id) {this.id = id;}
+    protected Element(int id) {
+      this.id = id;
+    }
   }
 
   static public final class Data extends Element {
+    private final int hash;
+
     public Data(int id) {
+      this(id, Hashing.murmur3_32().hashInt(id).asInt());
+    }
+
+    public Data(int id, int hash) {
       super(id);
+      this.hash = hash;
     }
   }
+
   static public final class Child extends Element {
+    private final int hash;
     final int childId;
 
     Child(int parentId, int childId) {
       super(parentId);
       this.childId = childId;
+      this.hash = Hashing.murmur3_32().newHasher(8).putInt(parentId).putInt(childId).hash().asInt();
     }
   }
 
@@ -62,9 +73,7 @@ public class WatermarksVsAckerGraph {
     ));
   }
 
-  public static Graph apply(int parallelism, int iterations, int childrenNumber) {
-    final List<HashUnit> covering = HashUnit.covering(parallelism).collect(Collectors.toCollection(ArrayList::new));
-
+  public static Graph apply(final List<HashUnit> covering, int iterations, int childrenNumber) {
     final Graph.Builder graphBuilder = new Graph.Builder();
     final Source source = new Source();
     final Sink sink = new Sink();
@@ -78,7 +87,7 @@ public class WatermarksVsAckerGraph {
                   Stream.of(element)
           );
         }
-        return watermarkStream(parallelism, element.id);
+        return watermarkStream(covering.size(), element.id);
       }
     }, Element.class);
 
@@ -97,7 +106,7 @@ public class WatermarksVsAckerGraph {
                     count = 0;
                   }
                   count++;
-                  if (count < parallelism) {
+                  if (count < covering.size()) {
                     return count;
                   }
                   return null;
@@ -127,13 +136,13 @@ public class WatermarksVsAckerGraph {
                             count = 0;
                           }
                           count++;
-                          if (count < (iteration == 0 ? 1 : parallelism)) {
+                          if (count < (iteration == 0 ? 1 : covering.size())) {
                             return count;
                           }
                           return null;
                         });
                         return updated == null ? watermarkStream(
-                                iteration + 1 == iterations ? 1 : parallelism,
+                                iteration + 1 == iterations ? 1 : covering.size(),
                                 watermark.id
                         ) : Stream.empty();
                       }
@@ -143,16 +152,16 @@ public class WatermarksVsAckerGraph {
                       @Override
                       public int hash(DataItem dataItem) {
                         Element payload = dataItem.payload(Element.class);
-                        final int partition;
-                        if (payload instanceof Data) {
-                          partition = Math.floorMod(payload.id + iteration, parallelism);
-                        } else if (payload instanceof Child) {
-                          Child child = (Child) payload;
-                          partition = Math.floorMod(child.id + child.childId + iteration, parallelism);
-                        } else {
-                          partition = ((Watermark) payload).partition;
+                        if (payload instanceof Watermark) {
+                          return covering.get(((Watermark) payload).partition).from();
                         }
-                        return covering.get(partition).from();
+                        final int hash;
+                        if (payload instanceof Data) {
+                          hash = ((Data) payload).hash;
+                        } else {
+                          hash = ((Child) payload).hash;
+                        }
+                        return Hashing.murmur3_32().newHasher(8).putInt(hash).putInt(iteration).hash().asInt();
                       }
                     }
             )).reduce(start, (from, to) -> {

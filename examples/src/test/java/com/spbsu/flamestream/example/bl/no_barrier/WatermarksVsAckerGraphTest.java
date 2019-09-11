@@ -6,6 +6,7 @@ import com.spbsu.flamestream.runtime.FlameRuntime;
 import com.spbsu.flamestream.runtime.LocalClusterRuntime;
 import com.spbsu.flamestream.runtime.WorkerApplication;
 import com.spbsu.flamestream.runtime.acceptance.FlameAkkaSuite;
+import com.spbsu.flamestream.runtime.config.HashUnit;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFront;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
@@ -16,6 +17,7 @@ import org.testng.annotations.Test;
 import scala.concurrent.Await;
 import scala.concurrent.duration.Duration;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -50,7 +52,7 @@ public class WatermarksVsAckerGraphTest extends FlameAkkaSuite {
                     new WorkerApplication.WorkerConfig.Builder().millisBetweenCommits(10000)::build
             );
             final FlameRuntime.Flame flame = runtime.run(WatermarksVsAckerGraph.apply(
-                    parallelism,
+                    HashUnit.covering(parallelism).collect(Collectors.toCollection(ArrayList::new)),
                     iterations,
                     childrenNumber
             ))
