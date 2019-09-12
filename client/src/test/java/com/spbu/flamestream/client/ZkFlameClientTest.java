@@ -67,8 +67,10 @@ public class ZkFlameClientTest {
 
     try (final LocalClusterRuntime localClusterRuntime = new LocalClusterRuntime(
             4,
-            new WorkerApplication.WorkerConfig.Builder().workersResourcesDistributor(workersResourcesDistributor)
-                    .barrierDisabled(barrierDisabled)::build
+            new SystemConfig.Builder()
+                    .workersResourcesDistributor(workersResourcesDistributor)
+                    .barrierDisabled(barrierDisabled)
+                    .build()
     )) {
       final FlameClient flameClient = new ZkFlameClient(localClusterRuntime.zkString());
       flameClient.push(new Job.Builder(testGraph())

@@ -2,6 +2,7 @@ package com.spbsu.flamestream.runtime;
 
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.runtime.config.ClusterConfig;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.config.ZookeeperWorkersNode;
 import com.spbsu.flamestream.runtime.serialization.KryoSerializer;
 import org.apache.curator.framework.CuratorFramework;
@@ -30,7 +31,7 @@ public class LocalClusterRuntime implements FlameRuntime {
   private final String zkString;
   private final CuratorFramework curator;
 
-  public LocalClusterRuntime(int parallelism, WorkerApplication.WorkerConfig.Factory workerConfigFactory) {
+  public LocalClusterRuntime(int parallelism, SystemConfig systemConfig) {
     final List<Integer> ports;
     try {
       ports = new ArrayList<>(freePorts(parallelism + 1));
@@ -44,11 +45,12 @@ public class LocalClusterRuntime implements FlameRuntime {
     zkString = "localhost:" + ports.get(0);
     LOG.info("ZK string: {}", zkString);
 
+    final WorkerApplication.WorkerConfig.Builder builder = new WorkerApplication.WorkerConfig.Builder();
     for (int i = 0; i < parallelism; i++) {
       final String name = "worker" + i;
       final InetSocketAddress address = new InetSocketAddress("localhost", ports.get(i + 1));
 
-      final WorkerApplication worker = new WorkerApplication(workerConfigFactory.create(name, address, zkString));
+      final WorkerApplication worker = new WorkerApplication(builder.build(name, address, zkString), systemConfig);
       workers.add(worker);
       worker.run();
     }

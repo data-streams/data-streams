@@ -13,6 +13,7 @@ import com.spbsu.flamestream.runtime.FlameRuntime;
 import com.spbsu.flamestream.runtime.RemoteRuntime;
 import com.spbsu.flamestream.runtime.WorkerApplication;
 import com.spbsu.flamestream.runtime.config.ClusterConfig;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFront;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
@@ -231,7 +232,7 @@ public class BlinkBenchStand implements AutoCloseable {
     } else if (deployerConfig.hasPath("local-cluster")) {
       runtime = new LocalClusterRuntime(
               deployerConfig.getConfig("local-cluster").getInt("parallelism"),
-              new WorkerApplication.WorkerConfig.Builder().millisBetweenCommits(10000)::build
+              new SystemConfig.Builder().millisBetweenCommits(10000).build()
       );
     } else {
       final String zkString = deployerConfig.getConfig("remote").getString("zk");

@@ -57,16 +57,16 @@ public class WatermarksVsAckerBenchStand {
     }
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
     final WatermarksVsAckerBenchStand benchStand = new WatermarksVsAckerBenchStand(benchConfig);
-    WorkerApplication.WorkerConfig.Builder workerBuilder = new WorkerApplication.WorkerConfig.Builder()
+    final SystemConfig.Builder builder = new SystemConfig.Builder()
             .millisBetweenCommits(1000000000)
-            .barrierDisabled(true);
-    benchStand.trackingFactory.buildWorker(workerBuilder);
+            .barrierDisabled(true)
+            .workersResourcesDistributor(
+                    benchStand.trackingFactory.workerResourcesDistributor(benchStand.parallelism)
+            );
+    benchStand.trackingFactory.configureSystem(builder);
     try (
             GraphDeployer graphDeployer = new FlameGraphDeployer(
-                    benchStandComponentFactory.runtime(
-                            deployerConfig,
-                            workerBuilder::build
-                    ),
+                    benchStandComponentFactory.runtime(deployerConfig, builder.build()),
                     WatermarksVsAckerGraph.apply(
                             HashUnit.covering(benchStand.parallelism).collect(Collectors.toCollection(ArrayList::new)),
                             benchStand.iterations,
@@ -120,7 +120,9 @@ public class WatermarksVsAckerBenchStand {
 
     Tracking create(int streamLength);
 
-    default void buildWorker(WorkerApplication.WorkerConfig.Builder builder) {}
+    default void configureSystem(SystemConfig.Builder builder) {}
+
+    SystemConfig.WorkersResourcesDistributor workerResourcesDistributor(int parallelism);
 
     class Disabled implements TrackingFactory {
       @Override
@@ -129,8 +131,8 @@ public class WatermarksVsAckerBenchStand {
       }
 
       @Override
-      public void buildWorker(WorkerApplication.WorkerConfig.Builder builder) {
-        builder.workersResourcesDistributor(SystemConfig.WorkersResourcesDistributor.DEFAULT_DISABLED);
+      public SystemConfig.WorkersResourcesDistributor workerResourcesDistributor(int parallelism) {
+        return SystemConfig.WorkersResourcesDistributor.DEFAULT_DISABLED;
       }
     }
 
@@ -141,11 +143,13 @@ public class WatermarksVsAckerBenchStand {
       }
 
       @Override
-      public void buildWorker(WorkerApplication.WorkerConfig.Builder builder) {
-        builder
-                .workersResourcesDistributor(SystemConfig.WorkersResourcesDistributor.DEFAULT_CENTRALIZED)
-                .ackerWindow(10)
-        ;
+      public void configureSystem(SystemConfig.Builder builder) {
+        builder.ackerWindow(10);
+      }
+
+      @Override
+      public SystemConfig.WorkersResourcesDistributor workerResourcesDistributor(int parallelism) {
+        return SystemConfig.WorkersResourcesDistributor.DEFAULT_CENTRALIZED;
       }
     }
 
@@ -161,8 +165,8 @@ public class WatermarksVsAckerBenchStand {
       }
 
       @Override
-      public void buildWorker(WorkerApplication.WorkerConfig.Builder builder) {
-        builder.workersResourcesDistributor(SystemConfig.WorkersResourcesDistributor.DEFAULT_DISABLED);
+      public SystemConfig.WorkersResourcesDistributor workerResourcesDistributor(int parallelism) {
+        return SystemConfig.WorkersResourcesDistributor.DEFAULT_DISABLED;
       }
 
       public int getFrequency() {

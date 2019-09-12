@@ -78,4 +78,62 @@ public class SystemConfig {
   public LocalAcker.Builder getLocalAckerBuilder() {
     return localAckerBuilder;
   }
+
+  public static class Builder {
+    private int maxElementsInGraph = 500;
+    private int millisBetweenCommits = 100;
+    private int defaultMinimalTime = 0;
+    private boolean barrierDisabled = false;
+    private LocalAcker.Builder localAckerBuilder = new LocalAcker.Builder();
+    private int ackerWindow = 1;
+    private SystemConfig.WorkersResourcesDistributor workersResourcesDistributor =
+            SystemConfig.WorkersResourcesDistributor.DEFAULT_CENTRALIZED;
+
+    public Builder maxElementsInGraph(int maxElementsInGraph) {
+      this.maxElementsInGraph = maxElementsInGraph;
+      return this;
+    }
+
+    public Builder millisBetweenCommits(int millisBetweenCommits) {
+      this.millisBetweenCommits = millisBetweenCommits;
+      return this;
+    }
+
+    public Builder defaultMinimalTime(int defaultMinimalTime) {
+      this.defaultMinimalTime = defaultMinimalTime;
+      return this;
+    }
+
+    public Builder barrierDisabled(boolean barrierDisabled) {
+      this.barrierDisabled = barrierDisabled;
+      return this;
+    }
+
+    public Builder localAckerBuilder(LocalAcker.Builder localAckerBuilder) {
+      this.localAckerBuilder = localAckerBuilder;
+      return this;
+    }
+
+    public Builder ackerWindow(int window) {
+      this.ackerWindow = window;
+      return this;
+    }
+
+    public Builder workersResourcesDistributor(SystemConfig.WorkersResourcesDistributor workersResourcesDistributor) {
+      this.workersResourcesDistributor = workersResourcesDistributor;
+      return this;
+    }
+
+    public SystemConfig build() {
+      return new SystemConfig(
+              maxElementsInGraph,
+              millisBetweenCommits,
+              defaultMinimalTime,
+              barrierDisabled,
+              localAckerBuilder,
+              ackerWindow,
+              workersResourcesDistributor
+      );
+    }
+  }
 }

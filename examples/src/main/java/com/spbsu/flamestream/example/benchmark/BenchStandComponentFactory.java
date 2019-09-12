@@ -14,6 +14,7 @@ import com.spbsu.flamestream.runtime.LocalRuntime;
 import com.spbsu.flamestream.runtime.RemoteRuntime;
 import com.spbsu.flamestream.runtime.WorkerApplication;
 import com.spbsu.flamestream.runtime.config.ClusterConfig;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.config.ZookeeperWorkersNode;
 import com.spbsu.flamestream.runtime.edge.Rear;
 import com.spbsu.flamestream.runtime.serialization.KryoSerializer;
@@ -121,17 +122,17 @@ public class BenchStandComponentFactory {
   }
 
   public FlameRuntime runtime(Config config) {
-    return runtime(config, new WorkerApplication.WorkerConfig.Builder()::build);
+    return runtime(config, new SystemConfig.Builder().build());
   }
 
-  public FlameRuntime runtime(Config config, WorkerApplication.WorkerConfig.Factory workerConfigFactory) {
+  public FlameRuntime runtime(Config config, SystemConfig systemConfig) {
     final FlameRuntime runtime;
     if (config.hasPath("local")) {
       runtime = new LocalRuntime.Builder().parallelism(config.getConfig("local").getInt("parallelism")).build();
     } else if (config.hasPath("local-cluster")) {
       runtime = new LocalClusterRuntime(
               config.getConfig("local-cluster").getInt("parallelism"),
-              workerConfigFactory
+              systemConfig
       );
     } else {
       // temporary solution to keep bench stand in working state

@@ -14,6 +14,7 @@ import com.spbsu.flamestream.runtime.acceptance.FlameAkkaSuite;
 import com.spbsu.flamestream.runtime.FlameRuntime;
 import com.spbsu.flamestream.runtime.LocalClusterRuntime;
 import com.spbsu.flamestream.runtime.LocalRuntime;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFront;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
@@ -145,7 +146,7 @@ public final class SumTest extends FlameAkkaSuite {
     final ActorSystem system = ActorSystem.create("testStand", ConfigFactory.load("remote"));
     try (final LocalClusterRuntime runtime = new LocalClusterRuntime(
             2,
-            new WorkerApplication.WorkerConfig.Builder()::build
+            new SystemConfig.Builder().build()
     )) {
       try (final FlameRuntime.Flame flame = runtime.run(sumGraph())) {
         final List<LongNumb> source = new Random()

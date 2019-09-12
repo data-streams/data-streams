@@ -7,6 +7,7 @@ import com.spbsu.flamestream.runtime.LocalClusterRuntime;
 import com.spbsu.flamestream.runtime.WorkerApplication;
 import com.spbsu.flamestream.runtime.acceptance.FlameAkkaSuite;
 import com.spbsu.flamestream.runtime.config.HashUnit;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFront;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
@@ -49,7 +50,7 @@ public class WatermarksVsAckerGraphTest extends FlameAkkaSuite {
     try (
             final LocalClusterRuntime runtime = new LocalClusterRuntime(
                     parallelism,
-                    new WorkerApplication.WorkerConfig.Builder().millisBetweenCommits(10000)::build
+                    new SystemConfig.Builder().millisBetweenCommits(10000).build()
             );
             final FlameRuntime.Flame flame = runtime.run(WatermarksVsAckerGraph.apply(
                     HashUnit.covering(parallelism).collect(Collectors.toCollection(ArrayList::new)),
