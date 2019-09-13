@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -168,42 +169,44 @@ public class LocalAcker extends LoggingActor {
   }
 
   private void flush() {
-    final Map<ActorRef, List<Object>> ackerBufferedMessages = new HashMap<>();
-    if (ackers.size() > 1) {
+    final Map<ActorRef, List<Object>> ackerBufferedMessages = ackers.stream().collect(Collectors.toMap(
+            Function.identity(),
+            __ -> new ArrayList<>()
+    ));
+    final boolean acksEmpty = ackCache.isEmpty();
+    if (!acksEmpty && ackers.size() > 1) {
       final NodeTime nodeTime = new NodeTime(nodeId, this.nodeTime);
-      ackers.forEach(acker -> ackerBufferedMessages.computeIfAbsent(acker, __ -> new ArrayList<>()).add(nodeTime));
+      ackers.forEach(acker -> ackerBufferedMessages.get(acker).add(nodeTime));
     }
     nodeTime++;
 
-    final boolean acksEmpty = ackCache.isEmpty();
     ackCache.entrySet()
             .stream()
             .map(entry -> new Ack(entry.getKey(), entry.getValue()))
             .collect(Collectors.groupingBy(o -> ackers.get(partitions.timePartition(o.time().time()))))
-            .forEach((acker, acks) ->
-                    ackerBufferedMessages.computeIfAbsent(acker, __ -> new ArrayList<>()).addAll(acks)
-            );
+            .forEach((acker, acks) -> ackerBufferedMessages.get(acker).addAll(acks));
     ackCache.clear();
 
     edgeIdHeartbeatIncrease.forEach((edgeId, heartbeatIncrease) -> {
       IntStream.range(0, ackers.size()).forEach(partition -> {
         long current = partitions.partitionTime(partition, heartbeatIncrease.current);
         if (partitions.partitionTime(partition, heartbeatIncrease.previous) < current) {
-          ackerBufferedMessages.computeIfAbsent(ackers.get(partition), __ -> new ArrayList<>())
-                  .add(new Heartbeat(new GlobalTime(current, edgeId)));
+          ackerBufferedMessages.get(ackers.get(partition)).add(new Heartbeat(new GlobalTime(current, edgeId)));
         }
       });
       heartbeatIncrease.previous = heartbeatIncrease.current;
     });
 
-    if (acksEmpty && !unregisterCache.isEmpty()) {
-      ackers.forEach(acker ->
-              ackerBufferedMessages.computeIfAbsent(acker, __ -> new ArrayList<>()).addAll(unregisterCache)
-      );
+    if (acksEmpty) {
+      ackers.forEach(acker -> ackerBufferedMessages.get(acker).addAll(unregisterCache));
       unregisterCache.clear();
     }
 
-    ackerBufferedMessages.forEach((acker, messages) -> acker.tell(new BufferedMessages(messages), self()));
+    ackerBufferedMessages.forEach((acker, messages) -> {
+      if (!ackerBufferedMessages.isEmpty()) {
+        acker.tell(new BufferedMessages(messages), self());
+      }
+    });
     flushCounter = 0;
   }
 
