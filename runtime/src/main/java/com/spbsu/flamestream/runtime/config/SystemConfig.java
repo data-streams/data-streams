@@ -4,6 +4,7 @@ import com.spbsu.flamestream.runtime.master.acker.LocalAcker;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.stream.Stream;
 
 public class SystemConfig {
   public enum Acking {
@@ -22,6 +23,10 @@ public class SystemConfig {
     }
 
     List<String> ackers(List<String> ids);
+
+    default Stream<HashGroup> hashGroups(Stream<String> ids) {
+      return HashUnit.covering((int) ids.count()).map(Collections::singleton).map(HashGroup::new);
+    }
   }
 
   private final int maxElementsInGraph;

@@ -3,7 +3,6 @@ package com.spbsu.flamestream.example.benchmark;
 import com.google.common.collect.Iterables;
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.example.bl.WatermarksVsAckerGraph;
-import com.spbsu.flamestream.runtime.WorkerApplication;
 import com.spbsu.flamestream.runtime.config.HashUnit;
 import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.edge.Rear;
@@ -68,7 +67,8 @@ public class WatermarksVsAckerBenchStand {
             GraphDeployer graphDeployer = new FlameGraphDeployer(
                     benchStandComponentFactory.runtime(deployerConfig, builder.build()),
                     WatermarksVsAckerGraph.apply(
-                            HashUnit.covering(benchStand.parallelism).collect(Collectors.toCollection(ArrayList::new)),
+                            HashUnit.covering(benchStand.parallelism - 1 - benchStand.trackingFactory.getAckersNumber())
+                                    .collect(Collectors.toCollection(ArrayList::new)),
                             benchStand.iterations,
                             benchStand.childrenNumber
                     ),
@@ -124,6 +124,10 @@ public class WatermarksVsAckerBenchStand {
 
     SystemConfig.WorkersResourcesDistributor workerResourcesDistributor(int parallelism);
 
+    default int getAckersNumber() {
+      return 0;
+    }
+
     class Disabled implements TrackingFactory {
       @Override
       public Tracking create(int streamLength) {
@@ -137,6 +141,8 @@ public class WatermarksVsAckerBenchStand {
     }
 
     class Acking implements TrackingFactory {
+      private int ackersNumber = 1;
+
       @Override
       public Tracking create(int streamLength) {
         return new Tracking.Acking(new NotificationAwaitTimes(streamLength));
@@ -145,6 +151,15 @@ public class WatermarksVsAckerBenchStand {
       @Override
       public void configureSystem(SystemConfig.Builder builder) {
         builder.ackerWindow(10);
+      }
+
+      @Override
+      public int getAckersNumber() {
+        return ackersNumber;
+      }
+
+      public void setAckersNumber(int ackersNumber) {
+        this.ackersNumber = ackersNumber;
       }
 
       @Override

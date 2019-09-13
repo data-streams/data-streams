@@ -9,7 +9,6 @@ import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.runtime.config.ClusterConfig;
 import com.spbsu.flamestream.runtime.config.HashGroup;
-import com.spbsu.flamestream.runtime.config.HashUnit;
 import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.config.ZookeeperWorkersNode;
 import com.spbsu.flamestream.runtime.edge.api.AttachFront;
@@ -34,8 +33,6 @@ import org.apache.zookeeper.data.Stat;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -155,11 +152,13 @@ public class ProcessingWatcher extends LoggingActor {
       throw new RuntimeException(e);
     }
     this.graph = graph;
-    final ClusterConfig config = ClusterConfig.fromWorkers(zookeeperWorkersNode.workers());
-    final List<HashUnit> covering = HashUnit.covering(config.paths().size() - 1)
-            .collect(Collectors.toCollection(ArrayList::new));
+    final List<ZookeeperWorkersNode.Worker> workers = zookeeperWorkersNode.workers();
+    final ClusterConfig config = ClusterConfig.fromWorkers(workers);
+    final List<HashGroup> covering =
+            systemConfig.workersResourcesDistributor.hashGroups(workers.stream().map(ZookeeperWorkersNode.Worker::id))
+            .collect(Collectors.toList());
     final Map<String, HashGroup> ranges = new HashMap<>();
-    config.paths().keySet().forEach(s -> ranges.put(s, new HashGroup(Collections.singleton(covering.remove(0)))));
+    config.paths().keySet().forEach(s -> ranges.put(s, covering.remove(0)));
     assert covering.isEmpty();
     final List<ActorRef> ackers = ackers(config);
     final @Nullable ActorRef localAcker = ackers.isEmpty() ? null : context().actorOf(
