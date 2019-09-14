@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -128,7 +129,13 @@ public class LocalAcker extends LoggingActor {
             .match(Ack.class, this::handleAck)
             .match(Flush.class, flush -> flush())
             .match(Heartbeat.class, this::receiveHeartbeat)
-            .match(UnregisterFront.class, unregisterCache::add)
+            .match(UnregisterFront.class, unregisterFront -> {
+              if (flushCount == 0) {
+                ackers.forEach(acker -> acker.tell(unregisterFront, self()));
+              } else {
+                unregisterCache.add(unregisterFront);
+              }
+            })
             .match(MinTimeUpdateListener.class, minTimeUpdateListener -> listeners.add(minTimeUpdateListener.actorRef))
             .match(MinTimeUpdate.class, minTimeUpdate -> {
               @Nullable MinTimeUpdate minTime = minTimeUpdater.onShardMinTimeUpdate(sender(), minTimeUpdate);
@@ -141,6 +148,18 @@ public class LocalAcker extends LoggingActor {
   }
 
   private void receiveHeartbeat(Heartbeat heartbeat) {
+    if (flushCount == 0) {
+      final HeartbeatIncrease heartbeatIncrease = edgeIdHeartbeatIncrease.get(heartbeat.time().frontId());
+      heartbeatIncrease.current = heartbeat.time().time();
+      IntStream.range(0, ackers.size()).forEach(partition -> {
+        long current = partitions.partitionTime(partition, heartbeatIncrease.current);
+        if (partitions.partitionTime(partition, heartbeatIncrease.previous) < current) {
+          ackers.get(partition).tell(new Heartbeat(new GlobalTime(current, heartbeat.time().frontId())), self());
+        }
+      });
+      return;
+    }
+
     final HeartbeatIncrease heartbeatIncrease = edgeIdHeartbeatIncrease.computeIfAbsent(
             heartbeat.time().frontId(),
             __ -> new HeartbeatIncrease()
@@ -157,6 +176,11 @@ public class LocalAcker extends LoggingActor {
   }
 
   private void handleAck(Ack ack) {
+    if (flushCount == 0) {
+      ackers.get((int) (ack.time().time() % ackers.size())).tell(ack, self());
+      return;
+    }
+
     ackCache.compute(ack.time(), (globalTime, xor) -> {
       if (xor == null) {
         return ack.xor();
