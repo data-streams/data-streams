@@ -31,7 +31,8 @@ for rate in [3]:
                 tracking_frequency=tracking_frequency,
                 tracking="acking",
                 distributed_acker=distributed,
-                rate=rate
+                rate=rate,
+                worker_environment=dict(LOCAL_ACKER_FLUSH_COUNT=1000000000),
             )
         # run_benchmarks(
         #     results_name=f"tracking_frequency={tracking_frequency}/tracking=watermarking",
