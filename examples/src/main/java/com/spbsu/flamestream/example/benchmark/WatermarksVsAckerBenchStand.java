@@ -268,9 +268,10 @@ public class WatermarksVsAckerBenchStand {
         }
         if (logger != null) {
           logger.info(
-                  "awaitingMinTimes.size() = {}, awaitingMinTimes.peek() = {}",
+                  "awaitingMinTimes.size() = {}, awaitingMinTimes.peek() = {}, notificationAwaitTimes.awaitCountConsumer = {}",
                   awaitingMinTimes.size(),
-                  awaitingMinTimes.peek()
+                  awaitingMinTimes.isEmpty() ? null : awaitingMinTimes.peek().payload(Object.class),
+                  notificationAwaitTimes.awaitCountConsumer
           );
         }
         if (object instanceof Rear.MinTime) {
@@ -395,9 +396,15 @@ public class WatermarksVsAckerBenchStand {
                       }
                       Logger log = null;
                       if (element != null) {
-                        if (consumerNotifyAt[0] < System.nanoTime()) {
+                        if (element instanceof WatermarksVsAckerGraph.Data && consumerNotifyAt[0] < System.nanoTime()) {
                           consumerNotifyAt[0] = (long) (System.nanoTime() + 1E9);
                           log = LOG;
+                          log.info(
+                                  "Got id {}, Progress: {}/{}",
+                                  element.id,
+                                  awaitConsumer.got(),
+                                  awaitConsumer.expected()
+                          );
                         }
                         processingCount.decrementAndGet();
                         if (element.id < 0) {
@@ -407,18 +414,7 @@ public class WatermarksVsAckerBenchStand {
                           durations.add(System.nanoTime() - benchStart);
                           latencies.get(element.id).finish();
                           awaitConsumer.accept(element.id);
-                          if (element.id % 1000 == 0) {
-                            log = LOG;
-                          }
                         }
-                      }
-                      if (log != null) {
-                        log.info(
-                                "Got id {}, Progress: {}/{}",
-                                element.id,
-                                awaitConsumer.got(),
-                                awaitConsumer.expected()
-                        );
                       }
                       tracking.accept(object, log);
                     },

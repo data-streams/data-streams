@@ -41,4 +41,9 @@ public class AwaitCountConsumer implements Consumer<Object> {
       }
     }
   }
+
+  @Override
+  public String toString() {
+    return "AwaitCountConsumer{" + counter.get() + "/" + expectedSize + "}";
+  }
 }
