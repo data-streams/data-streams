@@ -242,7 +242,7 @@ public class WatermarksVsAckerBenchStand {
       return Collections.emptyList();
     }
 
-    abstract void accept(Object object);
+    abstract void accept(Object object, Logger logger);
 
     static class Disabled extends Tracking {
       Disabled() {
@@ -250,7 +250,7 @@ public class WatermarksVsAckerBenchStand {
       }
 
       @Override
-      void accept(Object object) {}
+      void accept(Object object, Logger logger) {}
     }
 
     static class Acking extends Tracking {
@@ -262,16 +262,22 @@ public class WatermarksVsAckerBenchStand {
       }
 
       @Override
-      public void accept(Object object) {
+      public void accept(Object object, Logger logger) {
         if (object instanceof WatermarksVsAckerGraph.Element) {
           throw new RuntimeException("it is not possible to track notification await times unless using socket rear");
+        }
+        if (logger != null) {
+          logger.info(
+                  "awaitingMinTimes.size() = {}, awaitingMinTimes.peek() = {}",
+                  awaitingMinTimes.size(),
+                  awaitingMinTimes.peek()
+          );
         }
         if (object instanceof Rear.MinTime) {
           Rear.MinTime minTime = (Rear.MinTime) object;
           while (!awaitingMinTimes.isEmpty()
                   && awaitingMinTimes.peek().meta().globalTime().compareTo(minTime.time) <= 0) {
-            notificationAwaitTimes.end(awaitingMinTimes.peek().payload(WatermarksVsAckerGraph.Element.class).id);
-            awaitingMinTimes.poll();
+            notificationAwaitTimes.end(awaitingMinTimes.poll().payload(WatermarksVsAckerGraph.Element.class).id);
           }
         } else if (object instanceof DataItem) {
           DataItem dataItem = (DataItem) object;
@@ -296,7 +302,7 @@ public class WatermarksVsAckerBenchStand {
       }
 
       @Override
-      public void accept(Object object) {
+      public void accept(Object object, Logger logger) {
         final WatermarksVsAckerGraph.Element element;
         if (object instanceof DataItem) {
           element = ((DataItem) object).payload(WatermarksVsAckerGraph.Element.class);
@@ -387,11 +393,11 @@ public class WatermarksVsAckerBenchStand {
                       } else {
                         element = null;
                       }
+                      Logger log = null;
                       if (element != null) {
                         if (consumerNotifyAt[0] < System.nanoTime()) {
                           consumerNotifyAt[0] = (long) (System.nanoTime() + 1E9);
-                          LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
-                          LOG.info("Got id {}", element.id);
+                          log = LOG;
                         }
                         processingCount.decrementAndGet();
                         if (element.id < 0) {
@@ -401,15 +407,20 @@ public class WatermarksVsAckerBenchStand {
                           durations.add(System.nanoTime() - benchStart);
                           latencies.get(element.id).finish();
                           awaitConsumer.accept(element.id);
-                          if (awaitConsumer.got() % 1000 == 0) {
-                            LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
-                          }
                           if (element.id % 1000 == 0) {
-                            LOG.info("Got id {}", element.id);
+                            log = LOG;
                           }
                         }
                       }
-                      tracking.accept(object);
+                      if (log != null) {
+                        log.info(
+                                "Got id {}, Progress: {}/{}",
+                                element.id,
+                                awaitConsumer.got(),
+                                awaitConsumer.expected()
+                        );
+                      }
+                      tracking.accept(object, log);
                     },
                     rearPort,
                     WatermarksVsAckerGraph.Element.class,
