@@ -8,8 +8,8 @@ import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.runtime.master.acker.api.Ack;
 import com.spbsu.flamestream.runtime.master.acker.api.BufferedMessages;
 import com.spbsu.flamestream.runtime.master.acker.api.Heartbeat;
-import com.spbsu.flamestream.runtime.master.acker.api.NodeTime;
 import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
+import com.spbsu.flamestream.runtime.master.acker.api.NodeTime;
 import com.spbsu.flamestream.runtime.master.acker.api.commit.MinTimeUpdateListener;
 import com.spbsu.flamestream.runtime.master.acker.api.registry.FrontTicket;
 import com.spbsu.flamestream.runtime.master.acker.api.registry.RegisterFront;
@@ -20,6 +20,9 @@ import com.spbsu.flamestream.runtime.master.acker.table.ArrayAckTable;
 import com.spbsu.flamestream.runtime.utils.akka.LoggingActor;
 import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
 
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -47,6 +50,7 @@ import java.util.Set;
  * </ol>
  */
 public class Acker extends LoggingActor {
+  private int acksHandled, heartbeatsHandled;
   private static final int SIZE = 100000;
 
   private NodeTimes nodeTimes = new NodeTimes();
@@ -65,6 +69,17 @@ public class Acker extends LoggingActor {
   public static Props props(long defaultMinimalTime, boolean assertAckingBackInTime, int window) {
     return Props.create(Acker.class, defaultMinimalTime, assertAckingBackInTime, window)
             .withDispatcher("processing-dispatcher");
+  }
+
+  @Override
+  public void postStop() throws Exception {
+    try (final PrintWriter printWriter = new PrintWriter(Files.newBufferedWriter(Paths.get(
+            "/tmp/acker.txt"
+    )))) {
+      printWriter.println("heartbeatsHandled = " + heartbeatsHandled);
+      printWriter.println("acksHandled = " + acksHandled);
+    }
+    super.postStop();
   }
 
   @Override
@@ -108,6 +123,7 @@ public class Acker extends LoggingActor {
   }
 
   private void handleHeartBeat(Heartbeat heartbeat) {
+    heartbeatsHandled++;
     final GlobalTime time = heartbeat.time();
     final GlobalTime previousHeartbeat = maxHeartbeats.get(heartbeat.time().frontId());
     if (heartbeat.time().compareTo(previousHeartbeat) < 0) {
@@ -120,6 +136,7 @@ public class Acker extends LoggingActor {
   private final Tracing.Tracer tracer = Tracing.TRACING.forEvent("ack-receive");
 
   private void handleAck(Ack ack) {
+    acksHandled++;
     tracer.log(ack.xor());
     if (table.ack(ack.time().time(), ack.xor())) {
       checkMinTime();

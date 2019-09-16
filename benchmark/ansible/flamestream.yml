@@ -14,6 +14,12 @@
   roles:
     - { role: zookeeper  }
 
+- hosts: all
+  tasks:
+  - file:
+      state: absent
+      path: /tmp/acker.txt
+
 - name: Init workers
   hosts: "workers[0:{{ parallelism|int - 1 }}]"
   roles:
@@ -50,5 +56,11 @@
         src: /tmp/trace.csv
         dest: "{{ results_dir }}/flamestream/traces/{{ inventory_hostname }}.csv"
         flat: true
+    - name: Fetch acker
+      fetch:
+        src: /tmp/acker.txt
+        dest: "{{ results_dir }}/flamestream/acker/{{ inventory_hostname }}.txt"
+        flat: true
+        fail_on_missing: false
   tags:
     - lat
