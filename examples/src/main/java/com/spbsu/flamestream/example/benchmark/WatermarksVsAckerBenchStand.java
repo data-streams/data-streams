@@ -270,7 +270,7 @@ public class WatermarksVsAckerBenchStand {
           logger.info(
                   "awaitingMinTimes.size() = {}, awaitingMinTimes.peek() = {}, notificationAwaitTimes.awaitCountConsumer = {}",
                   awaitingMinTimes.size(),
-                  awaitingMinTimes.isEmpty() ? null : awaitingMinTimes.peek().payload(Object.class),
+                  awaitingMinTimes.isEmpty() ? null : awaitingMinTimes.peek().payload(WatermarksVsAckerGraph.Element.class).id,
                   notificationAwaitTimes.awaitCountConsumer
           );
         }
