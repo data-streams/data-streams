@@ -150,23 +150,21 @@ public class LocalAcker extends LoggingActor {
   }
 
   private void receiveHeartbeat(Heartbeat heartbeat) {
+    final GlobalTime time = heartbeat.time();
+    final HeartbeatIncrease heartbeatIncrease = edgeIdHeartbeatIncrease.computeIfAbsent(
+            time.frontId(),
+            __ -> new HeartbeatIncrease()
+    );
+    heartbeatIncrease.current = Math.max(heartbeatIncrease.current, time.time());
     if (flushCount == 0) {
-      final HeartbeatIncrease heartbeatIncrease = edgeIdHeartbeatIncrease.get(heartbeat.time().frontId());
-      heartbeatIncrease.current = heartbeat.time().time();
       IntStream.range(0, ackers.size()).forEach(partition -> {
         long current = partitions.partitionTime(partition, heartbeatIncrease.current);
         if (partitions.partitionTime(partition, heartbeatIncrease.previous) < current) {
-          ackers.get(partition).tell(new Heartbeat(new GlobalTime(current, heartbeat.time().frontId())), self());
+          ackers.get(partition).tell(new Heartbeat(new GlobalTime(current, time.frontId())), self());
         }
       });
-      return;
+      heartbeatIncrease.previous = heartbeatIncrease.current;
     }
-
-    final HeartbeatIncrease heartbeatIncrease = edgeIdHeartbeatIncrease.computeIfAbsent(
-            heartbeat.time().frontId(),
-            __ -> new HeartbeatIncrease()
-    );
-    heartbeatIncrease.current = Math.max(heartbeatIncrease.current, heartbeat.time().time());
   }
 
   private void tick() {
