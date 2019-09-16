@@ -204,11 +204,15 @@ public class WatermarksVsAckerBenchStand {
     }
 
     void begin(int id) {
+      if (id < 0)
+        return;
       assert all[id] == 0;
       all[id] = -System.nanoTime();
     }
 
     void end(int id) {
+      if (id < 0)
+        return;
       assert all[id] < 0;
       awaitCountConsumer.accept(id);
       all[id] += System.nanoTime();
@@ -407,10 +411,7 @@ public class WatermarksVsAckerBenchStand {
                           );
                         }
                         processingCount.decrementAndGet();
-                        if (element.id < 0) {
-                          return;
-                        }
-                        if (element instanceof WatermarksVsAckerGraph.Data) {
+                        if (element.id >= 0 && element instanceof WatermarksVsAckerGraph.Data) {
                           durations.add(System.nanoTime() - benchStart);
                           latencies.get(element.id).finish();
                           awaitConsumer.accept(element.id);
