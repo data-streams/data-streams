@@ -25,6 +25,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +36,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static com.google.common.math.Quantiles.percentiles;
 
@@ -204,15 +204,17 @@ public class WatermarksVsAckerBenchStand {
     }
 
     void begin(int id) {
-      if (id < 0)
+      if (id < 0 || id >= all.length) {
         return;
+      }
       assert all[id] == 0;
       all[id] = -System.nanoTime();
     }
 
     void end(int id) {
-      if (id < 0)
+      if (id < 0 || id >= all.length) {
         return;
+      }
       assert all[id] < 0;
       awaitCountConsumer.accept(id);
       all[id] += System.nanoTime();
@@ -325,11 +327,14 @@ public class WatermarksVsAckerBenchStand {
     }
   }
 
-  private static <T> Iterable<T> delayedIterable(Stream<T> stream, long delayNanos) {
+  private static <T> Iterable<T> delayedIterable(long delayNanos, Iterable<T> iterator) {
     return () -> {
       final long start = System.nanoTime();
       final int[] index = {0};
-      return stream.peek(__ -> LockSupport.parkNanos(delayNanos * ++index[0] - System.nanoTime() + start)).iterator();
+      return Iterables.transform(iterator, object -> {
+        LockSupport.parkNanos(delayNanos * ++index[0] - System.nanoTime() + start);
+        return object;
+      }).iterator();
     };
   }
 
@@ -358,15 +363,31 @@ public class WatermarksVsAckerBenchStand {
     final List<Long> durations = Collections.synchronizedList(new ArrayList<>());
     final AtomicInteger processingCount = new AtomicInteger();
     final long[] consumerNotifyAt = new long[]{System.nanoTime()};
+    final boolean[] isDone = new boolean[]{false};
     try (
             FileWriter durationOutput = new FileWriter("/tmp/duration");
             Closeable ignored2 = benchStandComponentFactory.recordNanoDuration(durationOutput);
             AutoCloseable ignored = benchStandComponentFactory.producer(
                     Iterables.concat(Iterables.transform(Iterables.concat(
-                            delayedIterable(IntStream.range(-warmUpStreamLength, 0).boxed(), warmUpDelayNanos),
+                            delayedIterable(
+                                    warmUpDelayNanos,
+                                    IntStream.range(-warmUpStreamLength, 0).boxed()::iterator
+                            ),
                             Iterables.transform(delayedIterable(
-                                    IntStream.range(0, streamLength).boxed(),
-                                    (long) (sleepBetweenDocs * 1.0e6)
+                                    (long) (sleepBetweenDocs * 1.0e6),
+                                    () -> new Iterator<Integer>() {
+                                      private int count;
+
+                                      @Override
+                                      public boolean hasNext() {
+                                        return !isDone[0];
+                                      }
+
+                                      @Override
+                                      public Integer next() {
+                                        return count++;
+                                      }
+                                    }
                             ), id -> {
                               latencies.put(id, new LatencyMeasurer());
                               if ((id + 1) % 1000 == 0) {
@@ -411,7 +432,7 @@ public class WatermarksVsAckerBenchStand {
                           );
                         }
                         processingCount.decrementAndGet();
-                        if (element.id >= 0 && element instanceof WatermarksVsAckerGraph.Data) {
+                        if (element.id >= 0 && element.id < streamLength && element instanceof WatermarksVsAckerGraph.Data) {
                           durations.add(System.nanoTime() - benchStart);
                           latencies.get(element.id).finish();
                           awaitConsumer.accept(element.id);
@@ -431,6 +452,7 @@ public class WatermarksVsAckerBenchStand {
       awaitConsumer.await(60, TimeUnit.MINUTES);
       tracking.notificationAwaitTimes.await(5, TimeUnit.MINUTES);
       tracking.notificationAwaitTimes.close();
+      isDone[0] = true;
       try (FileWriter durationsOutput = new FileWriter("/tmp/durations")) {
         durationsOutput.write(
                 durations.stream().map(duration -> Long.toString(duration)).collect(Collectors.joining(", "))
