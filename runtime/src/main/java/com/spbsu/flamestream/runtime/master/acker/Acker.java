@@ -50,7 +50,7 @@ import java.util.Set;
  * </ol>
  */
 public class Acker extends LoggingActor {
-  private int acksHandled, heartbeatsHandled;
+  private int acksReceived, heartbeatsReceived, nodeTimesReceived, minTimeUpdatesSent, bufferedMessagesHandled;
   private static final int SIZE = 100000;
 
   private NodeTimes nodeTimes = new NodeTimes();
@@ -76,8 +76,11 @@ public class Acker extends LoggingActor {
     try (final PrintWriter printWriter = new PrintWriter(Files.newBufferedWriter(Paths.get(
             "/tmp/acker.txt"
     )))) {
-      printWriter.println("heartbeatsHandled = " + heartbeatsHandled);
-      printWriter.println("acksHandled = " + acksHandled);
+      printWriter.println("acksReceived = " + acksReceived);
+      printWriter.println("heartbeatsReceived = " + heartbeatsReceived);
+      printWriter.println("nodeTimesReceived = " + nodeTimesReceived);
+      printWriter.println("minTimeUpdatesSent = " + minTimeUpdatesSent);
+      printWriter.println("bufferedMessagesHandled = " + bufferedMessagesHandled);
     }
     super.postStop();
   }
@@ -89,9 +92,15 @@ public class Acker extends LoggingActor {
                     MinTimeUpdateListener.class,
                     minTimeUpdateListener -> listeners.add(minTimeUpdateListener.actorRef)
             )
-            .match(NodeTime.class, nodeTime -> nodeTimes = nodeTimes.updated(nodeTime.jobaId, nodeTime.time))
+            .match(NodeTime.class, nodeTime -> {
+              nodeTimesReceived++;
+              nodeTimes = nodeTimes.updated(nodeTime.jobaId, nodeTime.time);
+            })
             .match(Ack.class, this::handleAck)
-            .match(BufferedMessages.class, bufferedMessages -> bufferedMessages.all().forEach(receive()::apply))
+            .match(BufferedMessages.class, bufferedMessages -> {
+              bufferedMessagesHandled++;
+              bufferedMessages.all().forEach(receive()::apply);
+            })
             .match(Heartbeat.class, this::handleHeartBeat)
             .match(RegisterFront.class, registerFront -> registerFront(registerFront.frontId()))
             .match(RegisterFrontFromTime.class, registerFront -> registerFrontFromTime(registerFront.startTime))
@@ -123,7 +132,7 @@ public class Acker extends LoggingActor {
   }
 
   private void handleHeartBeat(Heartbeat heartbeat) {
-    heartbeatsHandled++;
+    heartbeatsReceived++;
     final GlobalTime time = heartbeat.time();
     final GlobalTime previousHeartbeat = maxHeartbeats.get(heartbeat.time().frontId());
     if (heartbeat.time().compareTo(previousHeartbeat) < 0) {
@@ -136,7 +145,7 @@ public class Acker extends LoggingActor {
   private final Tracing.Tracer tracer = Tracing.TRACING.forEvent("ack-receive");
 
   private void handleAck(Ack ack) {
-    acksHandled++;
+    acksReceived++;
     tracer.log(ack.xor());
     if (table.ack(ack.time().time(), ack.xor())) {
       checkMinTime();
@@ -146,6 +155,7 @@ public class Acker extends LoggingActor {
   private void checkMinTime() {
     final GlobalTime minAmongTables = minAmongTables();
     if (minAmongTables.compareTo(lastMinTime) > 0) {
+      minTimeUpdatesSent++;
       this.lastMinTime = minAmongTables;
       log().debug("New min time: {}", lastMinTime);
       listeners.forEach(s -> s.tell(new MinTimeUpdate(lastMinTime, nodeTimes), self()));
