@@ -208,10 +208,7 @@ public class LocalAcker extends LoggingActor {
             .stream()
             .map(entry -> new Ack(entry.getKey(), entry.getValue()))
             .collect(Collectors.groupingBy(o -> ackers.get(partitions.timePartition(o.time().time()))))
-            .forEach((acker, acks) -> ackerBufferedMessages.get(acker).addAll(acks.stream().flatMap(ack -> {
-              final Ack randomAck = new Ack(ack.time(), new Random().nextLong());
-              return Stream.of(randomAck, randomAck, randomAck, randomAck, randomAck, randomAck, randomAck, randomAck, ack);
-            }).collect(Collectors.toList())));
+            .forEach((acker, acks) -> ackerBufferedMessages.get(acker).addAll(acks));
     ackCache.clear();
 
     edgeIdHeartbeatIncrease.forEach((edgeId, heartbeatIncrease) -> {
