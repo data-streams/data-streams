@@ -80,7 +80,7 @@ class Cluster extends LoggingActor {
       );
       ranges.put(id, new HashGroup(Collections.singleton(range)));
     }
-    final ClusterConfig clusterConfig = new ClusterConfig(ids, paths, "node-0");
+    final ClusterConfig clusterConfig = new ClusterConfig(ids, paths);
     final int defaultMinimalTime = 0;
     final SystemConfig systemConfig =
             new SystemConfig(

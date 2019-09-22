@@ -171,7 +171,8 @@ public class ProcessingWatcher extends LoggingActor {
               new MinTimeUpdater(ackers)
       ), "committer");
     } else {
-      final ActorPath masterPath = config.paths().get(config.masterLocation()).child("processing-watcher");
+      final ActorPath masterPath = config.paths().get(systemConfig.workersResourcesDistributor.master(config.ids))
+              .child("processing-watcher");
       registryHolder = AwaitResolver.syncResolve(masterPath.child("registry-holder"), context());
       committer = AwaitResolver.syncResolve(masterPath.child("committer"), context());
     }
