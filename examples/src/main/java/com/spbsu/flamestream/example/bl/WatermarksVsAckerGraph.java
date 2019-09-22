@@ -73,11 +73,12 @@ public class WatermarksVsAckerGraph {
     ));
   }
 
+  @SuppressWarnings("Convert2Lambda")
   public static Graph apply(final List<HashUnit> covering, int iterations, int childrenNumber) {
     final Graph.Builder graphBuilder = new Graph.Builder();
     final Source source = new Source();
     final Sink sink = new Sink();
-    @SuppressWarnings("Convert2Lambda") Graph.Vertex start = new FlameMap<>(new Function<Element, Stream<Element>>() {
+    Graph.Vertex start = new FlameMap<>(new Function<Element, Stream<Element>>() {
       @Override
       public Stream<Element> apply(Element element) {
         if (element instanceof Data) {
@@ -115,10 +116,14 @@ public class WatermarksVsAckerGraph {
               }
             },
             Element.class,
-            HashFunction.constantHash(0)
+            HashFunction.uniformHash(new HashFunction() {
+              @Override
+              public int hash(DataItem dataItem) {
+                return dataItem.payload(Element.class).id;
+              }
+            })
     );
 
-    //noinspection Convert2Lambda
     graphBuilder
             .link(source, start)
             .link(IntStream.range(0, iterations).boxed().<Graph.Vertex>map(iteration -> new FlameMap<>(
