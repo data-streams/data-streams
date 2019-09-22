@@ -2,9 +2,14 @@ package com.spbsu.flamestream.runtime.config;
 
 import com.spbsu.flamestream.runtime.master.acker.LocalAcker;
 
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Stream;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class SystemConfig {
   public enum Acking {
@@ -24,8 +29,52 @@ public class SystemConfig {
 
     List<String> ackers(List<String> ids);
 
-    default Stream<HashGroup> hashGroups(Stream<String> ids) {
-      return HashUnit.covering((int) ids.count()).map(Collections::singleton).map(HashGroup::new);
+    default Map<String, HashGroup> hashGroups(Collection<String> ids) {
+      final List<HashGroup> covering = HashUnit.covering((int) ids.stream().count())
+              .map(Collections::singleton)
+              .map(HashGroup::new)
+              .collect(Collectors.toList());
+      final Map<String, HashGroup> ranges = new HashMap<>();
+      ids.forEach(s -> ranges.put(s, covering.remove(0)));
+      assert covering.isEmpty();
+      return ranges;
+    }
+
+    class Enumerated implements WorkersResourcesDistributor {
+      private final String master;
+      private final List<String> ackers;
+      private final String prefix;
+
+      public Enumerated(String prefix, int ackersNumber) {
+        this.prefix = prefix;
+        master = prefix + 0;
+        ackers = IntStream.range(1, ackersNumber + 1).mapToObj(index -> prefix + index).collect(Collectors.toList());
+      }
+
+      @Override
+      public String master(List<String> ids) {
+        return master;
+      }
+
+      @Override
+      public List<String> ackers(List<String> ids) {
+        return ackers;
+      }
+
+      @Override
+      public Map<String, HashGroup> hashGroups(Collection<String> ids) {
+        final HashGroup empty = new HashGroup(Collections.emptySet());
+        final HashMap<String, HashGroup> all = new HashMap<>();
+        final int skip = 1 + ackers.size();
+        final int total = ids.size();
+        final List<Set<HashUnit>> collect = HashUnit.covering(total - skip)
+                .map(Collections::singleton)
+                .collect(Collectors.toList());
+        for (int index = 0; index < total; index++) {
+          all.put(prefix + index, index < skip ? empty : new HashGroup(collect.remove(0)));
+        }
+        return all;
+      }
     }
   }
 

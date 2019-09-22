@@ -2,8 +2,6 @@ package com.spbsu.flamestream.runtime;
 
 import akka.actor.ActorSystem;
 import akka.actor.CoordinatedShutdown;
-import com.google.common.collect.Streams;
-import com.spbsu.flamestream.runtime.config.HashGroup;
 import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.master.acker.LocalAcker;
 import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
@@ -21,13 +19,10 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Paths;
-import java.util.Collections;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeoutException;
 import java.util.function.IntConsumer;
-import java.util.stream.Stream;
 
 import static com.spbsu.flamestream.runtime.ConfigureFromEnv.*;
 
@@ -68,21 +63,10 @@ public class WorkerApplication implements Runnable {
     configureFromEnv(
             (IntConsumer) ackersNumber ->
                     systemConfigBuilder
-                            .workersResourcesDistributor(new SystemConfig.WorkersResourcesDistributor() {
-                              @Override
-                              public List<String> ackers(List<String> ids) {
-                                return ids.subList(1, Integer.min(ackersNumber + 1, ids.size()));
-                              }
-
-                              @Override
-                              public Stream<HashGroup> hashGroups(Stream<String> ids) {
-                                final int skip = 1 + ackersNumber;
-                                return Streams.concat(
-                                        Stream.generate(() -> new HashGroup(Collections.emptySet())).limit(skip),
-                                        SystemConfig.WorkersResourcesDistributor.super.hashGroups(ids.skip(skip))
-                                );
-                              }
-                            }),
+                            .workersResourcesDistributor(new SystemConfig.WorkersResourcesDistributor.Enumerated(
+                                    "flamestream-benchmarks-worker-",
+                                    ackersNumber
+                            )),
             "ACKERS_NUMBER"
     );
     configureFromEnv(systemConfigBuilder::ackerWindow, "ACKER_WINDOW");

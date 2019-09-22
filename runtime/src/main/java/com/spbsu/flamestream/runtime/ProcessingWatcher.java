@@ -154,12 +154,6 @@ public class ProcessingWatcher extends LoggingActor {
     this.graph = graph;
     final List<ZookeeperWorkersNode.Worker> workers = zookeeperWorkersNode.workers();
     final ClusterConfig config = ClusterConfig.fromWorkers(workers);
-    final List<HashGroup> covering =
-            systemConfig.workersResourcesDistributor.hashGroups(workers.stream().map(ZookeeperWorkersNode.Worker::id))
-            .collect(Collectors.toList());
-    final Map<String, HashGroup> ranges = new HashMap<>();
-    config.paths().keySet().forEach(s -> ranges.put(s, covering.remove(0)));
-    assert covering.isEmpty();
     final List<ActorRef> ackers = ackers(config);
     final @Nullable ActorRef localAcker = ackers.isEmpty() ? null : context().actorOf(
             systemConfig.getLocalAckerBuilder().props(ackers, id)
@@ -190,7 +184,7 @@ public class ProcessingWatcher extends LoggingActor {
                     id,
                     graph,
                     config.withChildPath("processing-watcher").withChildPath("graph"),
-                    new HashMap<>(ranges),
+                    systemConfig.workersResourcesDistributor.hashGroups(config.paths().keySet()),
                     localAcker,
                     registryHolder,
                     committer,
