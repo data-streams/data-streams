@@ -72,6 +72,7 @@ public class SocketFront extends Front.Stub {
       client.start();
       try {
         client.connect(20000, host, port);
+        client.sendTCP(edgeId.nodeId());
       } catch (IOException e) {
         throw new RuntimeException(e);
       }

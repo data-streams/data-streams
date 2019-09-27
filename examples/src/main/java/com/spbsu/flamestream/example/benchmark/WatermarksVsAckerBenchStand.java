@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static com.google.common.math.Quantiles.percentiles;
 
@@ -62,13 +63,16 @@ public class WatermarksVsAckerBenchStand {
             .workersResourcesDistributor(
                     benchStand.trackingFactory.workerResourcesDistributor(benchStand.parallelism)
             );
+    List<String> frontHostIds =
+            IntStream.range(1 + benchStand.trackingFactory.getAckersNumber(), benchStand.parallelism)
+                    .mapToObj(index -> benchStand.workerIdPrefix + index)
+                    .collect(Collectors.toList());
     benchStand.trackingFactory.configureSystem(builder);
     try (
             GraphDeployer graphDeployer = new FlameGraphDeployer(
                     benchStandComponentFactory.runtime(deployerConfig, builder.build()),
                     WatermarksVsAckerGraph.apply(
-                            HashUnit.covering(benchStand.parallelism - 1 - benchStand.trackingFactory.getAckersNumber())
-                                    .collect(Collectors.toCollection(ArrayList::new)),
+                            HashUnit.covering(frontHostIds.size()).collect(Collectors.toCollection(ArrayList::new)),
                             benchStand.iterations,
                             benchStand.childrenNumber
                     ),
@@ -90,7 +94,7 @@ public class WatermarksVsAckerBenchStand {
                     )
             )
     ) {
-      benchStand.run(graphDeployer);
+      benchStand.run(graphDeployer, frontHostIds.stream());
     }
     System.exit(0);
   }
@@ -100,10 +104,10 @@ public class WatermarksVsAckerBenchStand {
   private final double sleepBetweenDocs;
   private final int streamLength;
   private final String benchHost;
-  private final String inputHost;
   private final int frontPort;
   private final int rearPort;
   private final int parallelism;
+  private final String workerIdPrefix;
   private final int iterations;
   private final int childrenNumber;
   private final TrackingFactory trackingFactory;
@@ -276,7 +280,8 @@ public class WatermarksVsAckerBenchStand {
           logger.info(
                   "awaitingMinTimes.size() = {}, awaitingMinTimes.peek() = {}, notificationAwaitTimes.awaitCountConsumer = {}",
                   awaitingMinTimes.size(),
-                  awaitingMinTimes.isEmpty() ? null : awaitingMinTimes.peek().payload(WatermarksVsAckerGraph.Element.class).id,
+                  awaitingMinTimes.isEmpty() ? null : awaitingMinTimes.peek()
+                          .payload(WatermarksVsAckerGraph.Element.class).id,
                   notificationAwaitTimes.awaitCountConsumer
           );
         }
@@ -342,17 +347,17 @@ public class WatermarksVsAckerBenchStand {
     sleepBetweenDocs = benchConfig.getDouble("sleep-between-docs-ms");
     streamLength = benchConfig.getInt("stream-length");
     benchHost = benchConfig.getString("bench-host");
-    inputHost = benchConfig.getString("input-host");
     frontPort = benchConfig.getInt("bench-source-port");
     rearPort = benchConfig.getInt("bench-sink-port");
     parallelism = benchConfig.getInt("parallelism");
+    workerIdPrefix = benchConfig.getString("worker-id-prefix");
     iterations = benchConfig.getInt("iterations");
     childrenNumber = benchConfig.getInt("children-number");
     trackingFactory = TrackingFactory.fromConfig(benchConfig.getConfig("tracking"));
     tracking = trackingFactory.create(streamLength);
   }
 
-  public void run(GraphDeployer graphDeployer) throws Exception {
+  public void run(GraphDeployer graphDeployer, Stream<String> inputHostIds) throws Exception {
     final int warmUpStreamLength = Integer.parseInt(System.getenv().getOrDefault("WARM_UP_STREAM_LENGTH", "200"));
     final long warmUpDelayNanos = Integer.parseInt(System.getenv().getOrDefault("WARM_UP_DELAY_MS", "50")) * 1000000;
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
@@ -402,8 +407,8 @@ public class WatermarksVsAckerBenchStand {
                               tracking.followingElements(id)
                       );
                     })),
-                    inputHost,
                     frontPort,
+                    inputHostIds,
                     WatermarksVsAckerGraph.Element.class,
                     WatermarksVsAckerGraph.Data.class,
                     WatermarksVsAckerGraph.Child.class,
@@ -432,7 +437,8 @@ public class WatermarksVsAckerBenchStand {
                           );
                         }
                         processingCount.decrementAndGet();
-                        if (element.id >= 0 && element.id < streamLength && element instanceof WatermarksVsAckerGraph.Data) {
+                        if (element.id >= 0 && element.id < streamLength
+                                && element instanceof WatermarksVsAckerGraph.Data) {
                           durations.add(System.nanoTime() - benchStart);
                           latencies.get(element.id).finish();
                           awaitConsumer.accept(element.id);

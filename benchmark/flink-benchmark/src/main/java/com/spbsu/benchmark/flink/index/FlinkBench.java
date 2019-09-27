@@ -103,7 +103,7 @@ public class FlinkBench {
       public void close() {
         // It will close itself on completion
       }
-    });
+    }, "");
     System.exit(0);
   }
 }

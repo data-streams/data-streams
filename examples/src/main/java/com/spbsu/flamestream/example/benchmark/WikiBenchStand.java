@@ -27,6 +27,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static com.google.common.math.Quantiles.percentiles;
 
@@ -57,7 +58,7 @@ public class WikiBenchStand {
                     new SocketRearType(wikiBenchStand.benchHost, wikiBenchStand.rearPort, CLASSES_TO_REGISTER)
             )
     ) {
-      wikiBenchStand.run(graphDeployer);
+      wikiBenchStand.run(graphDeployer, benchConfig.getString("worker-id-prefix") + "0");
     }
     System.exit(0);
   }
@@ -82,7 +83,7 @@ public class WikiBenchStand {
     rearPort = benchConfig.getInt("bench-sink-port");
   }
 
-  public void run(GraphDeployer graphDeployer) throws Exception {
+  public void run(GraphDeployer graphDeployer, String inputHostId) throws Exception {
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
 
     //noinspection unchecked
@@ -96,8 +97,8 @@ public class WikiBenchStand {
                       LockSupport.parkNanos((long) (nextExp(1.0 / sleepBetweenDocs) * 1.0e6));
                       latencies.put(page.id(), new LatencyMeasurer());
                     })::iterator,
-                    inputHost,
                     frontPort,
+                    Stream.of(inputHostId),
                     WikipediaPage.class
             )::stop;
             AutoCloseable ignored1 = benchStandComponentFactory.consumer(

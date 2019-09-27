@@ -13,8 +13,6 @@ import com.spbsu.flamestream.runtime.LocalClusterRuntime;
 import com.spbsu.flamestream.runtime.LocalRuntime;
 import com.spbsu.flamestream.runtime.RemoteRuntime;
 import com.spbsu.flamestream.runtime.config.ClusterConfig;
-import com.spbsu.flamestream.runtime.config.HashGroup;
-import com.spbsu.flamestream.runtime.config.HashUnit;
 import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.config.ZookeeperWorkersNode;
 import com.spbsu.flamestream.runtime.edge.Rear;
@@ -23,6 +21,7 @@ import com.typesafe.config.Config;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.jetbrains.annotations.NotNull;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,22 +29,42 @@ import org.slf4j.LoggerFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.Writer;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.net.InetSocketAddress;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class BenchStandComponentFactory {
   private static final Logger LOG = LoggerFactory.getLogger(BenchStandComponentFactory.class);
 
+  @NotNull
   public <Payload> Server producer(
           Iterable<Payload> payloads,
-          String remoteHost,
           int port,
-          Class<?>... classesToRegister
+          Stream<String> remotes,
+          Class<?> ...classesToRegister
   ) throws IOException {
-    final Server producer = new Server(200_000_000, 1000);
+    List<String> remotesList = remotes.collect(Collectors.toList());
+    Map<String, Connection> connections = new HashMap<>();
+    CountDownLatch allConnected = new CountDownLatch(remotesList.size());
+    new Thread(() -> {
+      try {
+        allConnected.await();
+      } catch (InterruptedException e) {
+        throw new RuntimeException();
+      }
+      int index = 0;
+      for (final Payload payload : payloads) {
+        index++;
+        connections.get(remotesList.get(index % remotesList.size())).sendTCP(payload);
+      }
+    }).start();
+    final Server producer = new Server(200_000_000 / remotesList.size(), 1000 / remotesList.size());
     for (final Class<?> clazz : classesToRegister) {
       producer.getKryo().register(clazz);
     }
@@ -54,27 +73,20 @@ public class BenchStandComponentFactory {
             .setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
 
     producer.addListener(new Listener() {
-      boolean accepted = false;
-
       @Override
-      public synchronized void connected(Connection newConnection) {
-        LOG.info("There is new connection: {}", newConnection.getRemoteAddressTCP());
-        try {
-          //first condition for local testing
-          if (!accepted && newConnection.getRemoteAddressTCP().getAddress().equals(InetAddress.getByName(remoteHost))) {
-            accepted = true;
-            LOG.info("Accepting connection: {}", newConnection.getRemoteAddressTCP());
-            new Thread(() -> {
-              for (final Payload payload : payloads) {
-                newConnection.sendTCP(payload);
-              }
-            }).start();
-          } else {
-            LOG.info("Closing connection {}", newConnection.getRemoteAddressTCP());
-            newConnection.close();
-          }
-        } catch (UnknownHostException e) {
-          throw new RuntimeException(e);
+      public synchronized void received(Connection connection, Object received) {
+        if (!(received instanceof String))
+          return;
+        String id = (String) received;
+        final InetSocketAddress connectionAddress = connection.getRemoteAddressTCP();
+        LOG.info("There is new connection: {}", connectionAddress);
+        if (remotesList.contains(id) && !connections.containsKey(id)) {
+          LOG.info("Accepting connection: {}", connectionAddress);
+          connections.put(id, connection);
+          allConnected.countDown();
+        } else {
+          LOG.info("Closing connection {}", connectionAddress);
+          connection.close();
         }
       }
     });

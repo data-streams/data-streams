@@ -7,6 +7,7 @@ benchmark {
   sleep-between-docs-ms = {{ rate }}
   stream-length = {{ stream_length }}
   parallelism = {{ parallelism }}
+  worker-id-prefix = "flamestream-benchmarks-worker-"
   tracking {
     {% if tracking == "acking" %}
     class = "com.spbsu.flamestream.example.benchmark.WatermarksVsAckerBenchStand$TrackingFactory$Acking"
