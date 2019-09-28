@@ -123,7 +123,7 @@ public class WikiBenchStand {
             )::stop
     ) {
       graphDeployer.deploy();
-      awaitConsumer.await(60, TimeUnit.MINUTES);
+      awaitConsumer.await(5, TimeUnit.MINUTES);
       Tracing.TRACING.flush(Paths.get("/tmp/trace.csv"));
       validator.stop();
     }

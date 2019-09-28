@@ -34,9 +34,8 @@ public class AwaitCountConsumer implements Consumer<Object> {
   }
 
   public void await(long timeout, TimeUnit unit) throws InterruptedException {
-    final long stop = System.currentTimeMillis() + unit.toMillis(timeout);
     synchronized (counter) {
-      while (counter.longValue() < expectedSize && System.currentTimeMillis() < stop) {
+      while (counter.longValue() < expectedSize) {
         counter.wait(unit.toMillis(timeout));
       }
     }

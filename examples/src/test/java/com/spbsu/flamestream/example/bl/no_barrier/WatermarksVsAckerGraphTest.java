@@ -20,6 +20,7 @@ import scala.concurrent.duration.Duration;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
@@ -59,26 +60,40 @@ public class WatermarksVsAckerGraphTest extends FlameAkkaSuite {
             ))
     ) {
       int streamLength = 100;
-      final AwaitResultConsumer<WatermarksVsAckerGraph.Element> awaitResultConsumer =
-              new AwaitResultConsumer<>(streamLength * (2 + childrenNumber));
+      final AwaitResultConsumer<WatermarksVsAckerGraph.Data> awaitResultConsumer =
+              new AwaitResultConsumer<>(streamLength);
+      CountDownLatch watermarkReceived = new CountDownLatch(parallelism);
       flame.attachRear("Rear", new AkkaRearType<>(system, WatermarksVsAckerGraph.Element.class))
-              .forEach(r -> r.addListener(awaitResultConsumer));
+              .forEach(r -> r.addListener(element -> {
+                if (element instanceof WatermarksVsAckerGraph.Data) {
+                  awaitResultConsumer.accept((WatermarksVsAckerGraph.Data) element);
+                }
+                if (element instanceof WatermarksVsAckerGraph.Watermark && element.id == -1) {
+                  watermarkReceived.countDown();
+                }
+              }));
 
       final List<AkkaFront.FrontHandle<Object>> consumers =
               flame.attachFront("Front", new AkkaFrontType<>(system, false))
                       .collect(Collectors.toList());
       for (int i = 1; i < consumers.size(); i++) {
-        consumers.get(i).unregister();
+        final AkkaFront.FrontHandle<Object> objectFrontHandle = consumers.get(i);
+        objectFrontHandle.accept(new WatermarksVsAckerGraph.Watermark(Integer.MAX_VALUE, i));
+        objectFrontHandle.unregister();
       }
 
       final AkkaFront.FrontHandle<Object> sink = consumers.get(0);
       IntStream.range(-streamLength, 0)
               .boxed()
-              .flatMap(id -> Stream.of(new WatermarksVsAckerGraph.Data(id), new WatermarksVsAckerGraph.Watermark(id)))
+              .flatMap(id -> Stream.of(
+                      new WatermarksVsAckerGraph.Data(id),
+                      new WatermarksVsAckerGraph.Watermark(id, 0)
+              ))
               .forEach(sink);
       sink.unregister();
 
       awaitResultConsumer.await(5, TimeUnit.MINUTES);
+      watermarkReceived.await();
       assertEquals(awaitResultConsumer.result().count(), awaitResultConsumer.expectedSize);
     }
     Await.ready(system.terminate(), Duration.Inf());

@@ -47,24 +47,41 @@ public class BenchStandComponentFactory {
           Iterable<Payload> payloads,
           int port,
           Stream<String> remotes,
-          Class<?> ...classesToRegister
+          Class<?>... classesToRegister
   ) throws IOException {
     List<String> remotesList = remotes.collect(Collectors.toList());
+    return producerConnections(
+            connections -> {
+              int index = 0;
+              for (final Payload payload : payloads) {
+                index++;
+                connections.get(remotesList.get(index % remotesList.size())).sendTCP(payload);
+              }
+            },
+            port,
+            remotesList,
+            classesToRegister
+    );
+  }
+
+  @NotNull
+  public Server producerConnections(
+          Consumer<Map<String, Connection>> consumer,
+          int port,
+          List<String> remotes,
+          Class<?>... classesToRegister
+  ) throws IOException {
     Map<String, Connection> connections = new HashMap<>();
-    CountDownLatch allConnected = new CountDownLatch(remotesList.size());
+    CountDownLatch allConnected = new CountDownLatch(remotes.size());
     new Thread(() -> {
       try {
         allConnected.await();
       } catch (InterruptedException e) {
         throw new RuntimeException();
       }
-      int index = 0;
-      for (final Payload payload : payloads) {
-        index++;
-        connections.get(remotesList.get(index % remotesList.size())).sendTCP(payload);
-      }
+      consumer.accept(connections);
     }).start();
-    final Server producer = new Server(200_000_000 / remotesList.size(), 1000 / remotesList.size());
+    final Server producer = new Server(200_000_000 / remotes.size(), 1000 / remotes.size());
     for (final Class<?> clazz : classesToRegister) {
       producer.getKryo().register(clazz);
     }
@@ -75,12 +92,13 @@ public class BenchStandComponentFactory {
     producer.addListener(new Listener() {
       @Override
       public synchronized void received(Connection connection, Object received) {
-        if (!(received instanceof String))
+        if (!(received instanceof String)) {
           return;
+        }
         String id = (String) received;
         final InetSocketAddress connectionAddress = connection.getRemoteAddressTCP();
         LOG.info("There is new connection: {}", connectionAddress);
-        if (remotesList.contains(id) && !connections.containsKey(id)) {
+        if (remotes.contains(id) && !connections.containsKey(id)) {
           LOG.info("Accepting connection: {}", connectionAddress);
           connections.put(id, connection);
           allConnected.countDown();
