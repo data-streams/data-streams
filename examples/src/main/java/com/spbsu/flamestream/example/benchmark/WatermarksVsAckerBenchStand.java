@@ -76,15 +76,13 @@ public class WatermarksVsAckerBenchStand {
                     benchStandComponentFactory.runtime(deployerConfig, builder.build()),
                     WatermarksVsAckerGraph.apply(
                             HashUnit.covering(frontHostIds.size()).collect(Collectors.toCollection(ArrayList::new)),
-                            benchStand.iterations,
-                            benchStand.childrenNumber
+                            benchStand.iterations
                     ),
                     new SocketFrontType(
                             benchStand.benchHost,
                             benchStand.frontPort,
                             WatermarksVsAckerGraph.Element.class,
                             WatermarksVsAckerGraph.Data.class,
-                            WatermarksVsAckerGraph.Child.class,
                             WatermarksVsAckerGraph.Watermark.class
                     ),
                     new SocketRearType(
@@ -92,7 +90,6 @@ public class WatermarksVsAckerBenchStand {
                             benchStand.rearPort,
                             WatermarksVsAckerGraph.Element.class,
                             WatermarksVsAckerGraph.Data.class,
-                            WatermarksVsAckerGraph.Child.class,
                             WatermarksVsAckerGraph.Watermark.class
                     )
             )
@@ -112,7 +109,6 @@ public class WatermarksVsAckerBenchStand {
   private final int parallelism;
   private final String workerIdPrefix;
   private final int iterations;
-  private final int childrenNumber;
   private final TrackingFactory trackingFactory;
   private final List<String> frontHostIds;
   private final Tracking<?> tracking;
@@ -391,7 +387,6 @@ public class WatermarksVsAckerBenchStand {
     parallelism = benchConfig.getInt("parallelism");
     workerIdPrefix = benchConfig.getString("worker-id-prefix");
     iterations = benchConfig.getInt("iterations");
-    childrenNumber = benchConfig.getInt("children-number");
     trackingFactory = TrackingFactory.fromConfig(benchConfig.getConfig("tracking"));
     frontHostIds = IntStream.range(1 + trackingFactory.getAckersNumber(), parallelism)
             .mapToObj(index -> workerIdPrefix + index)
@@ -455,7 +450,6 @@ public class WatermarksVsAckerBenchStand {
                     inputHostIds,
                     WatermarksVsAckerGraph.Element.class,
                     WatermarksVsAckerGraph.Data.class,
-                    WatermarksVsAckerGraph.Child.class,
                     WatermarksVsAckerGraph.Watermark.class
             )::stop;
             AutoCloseable ignored1 = benchStandComponentFactory.consumer(
@@ -495,7 +489,6 @@ public class WatermarksVsAckerBenchStand {
                     rearPort,
                     WatermarksVsAckerGraph.Element.class,
                     WatermarksVsAckerGraph.Data.class,
-                    WatermarksVsAckerGraph.Child.class,
                     WatermarksVsAckerGraph.Watermark.class
 
             )::stop

@@ -24,26 +24,8 @@ public class WatermarksVsAckerGraph {
   }
 
   static public final class Data extends Element {
-    private final int hash;
-
     public Data(int id) {
-      this(id, Hashing.murmur3_32().hashInt(id).asInt());
-    }
-
-    public Data(int id, int hash) {
       super(id);
-      this.hash = hash;
-    }
-  }
-
-  static public final class Child extends Element {
-    private final int hash;
-    final int childId;
-
-    Child(int parentId, int childId) {
-      super(parentId);
-      this.childId = childId;
-      this.hash = Hashing.murmur3_32().newHasher(8).putInt(parentId).putInt(childId).hash().asInt();
     }
   }
 
@@ -125,18 +107,12 @@ public class WatermarksVsAckerGraph {
       if (payload instanceof Watermark) {
         return covering.get(((Watermark) payload).toPartition).from();
       }
-      final int hash;
-      if (payload instanceof Data) {
-        hash = ((Data) payload).hash;
-      } else {
-        hash = ((Child) payload).hash;
-      }
-      return Hashing.murmur3_32().newHasher(8).putInt(hash).putInt(iteration).hash().asInt();
+      return Hashing.murmur3_32().newHasher(8).putInt(payload.id).putInt(iteration).hash().asInt();
     }
   }
 
   @SuppressWarnings("Convert2Lambda")
-  public static Graph apply(List<HashUnit> covering, int iterations, int childrenNumber) {
+  public static Graph apply(List<HashUnit> covering, int iterations) {
     final Graph.Builder graphBuilder = new Graph.Builder();
     final Source source = new Source();
     final Sink sink = new Sink();

@@ -4,7 +4,6 @@ import akka.actor.ActorSystem;
 import com.spbsu.flamestream.example.bl.WatermarksVsAckerGraph;
 import com.spbsu.flamestream.runtime.FlameRuntime;
 import com.spbsu.flamestream.runtime.LocalClusterRuntime;
-import com.spbsu.flamestream.runtime.WorkerApplication;
 import com.spbsu.flamestream.runtime.acceptance.FlameAkkaSuite;
 import com.spbsu.flamestream.runtime.config.HashUnit;
 import com.spbsu.flamestream.runtime.config.SystemConfig;
@@ -33,19 +32,14 @@ public class WatermarksVsAckerGraphTest extends FlameAkkaSuite {
   @DataProvider
   public Object[][] dataProvider() {
     return new Object[][]{
-            {0, 0},
-            {1, 0},
-            {10, 0},
-            {0, 10},
-            {1, 10},
-            {10, 10},
+            {0},
+            {1},
+            {10},
             };
   }
 
   @Test(dataProvider = "dataProvider")
-  public void test(Integer iterations, Integer childrenNumber) throws
-                                                               InterruptedException,
-                                                               TimeoutException {
+  public void test(Integer iterations) throws InterruptedException, TimeoutException {
     final int parallelism = 4;
     final ActorSystem system = ActorSystem.create("testStand", ConfigFactory.load("remote"));
     try (
@@ -55,8 +49,7 @@ public class WatermarksVsAckerGraphTest extends FlameAkkaSuite {
             );
             final FlameRuntime.Flame flame = runtime.run(WatermarksVsAckerGraph.apply(
                     HashUnit.covering(parallelism).collect(Collectors.toCollection(ArrayList::new)),
-                    iterations,
-                    childrenNumber
+                    iterations
             ))
     ) {
       int streamLength = 100;
