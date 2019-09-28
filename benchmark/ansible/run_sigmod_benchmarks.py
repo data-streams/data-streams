@@ -7,7 +7,8 @@ import os
 from functools import reduce
 
 default_args = dict(
-    tracking_frequency=10, parallelism=15, stream_length=50000, local_acker_flush_delay_in_millis=5, rate=10
+    tracking_frequency=10, parallelism=15, stream_length=50000, local_acker_flush_delay_in_millis=5, rate=10,
+    iterations=30,
 )
 
 
@@ -23,11 +24,9 @@ def run_benchmarks(bench_environment={}, worker_environment={}, **args):
     print(args)
     results_name = str(datetime.datetime.now())
     extra_vars = json.dumps(dict(**args, results_name=results_name))
-    os.system(
-        f"ansible-playbook --extra-vars '{extra_vars}' -i remote.yml flamestream.yml"
-    )
-    with open(f"results/{results_name}/vars.json") as vars_json:
-        print(extra_vars, file=vars_json)
+    if os.system(f"ansible-playbook --extra-vars '{extra_vars}' -i remote.yml flamestream.yml") == 0:
+        with open(f"results/{results_name}/vars.json", 'w') as vars_json:
+            print(extra_vars, file=vars_json)
 
 
 for args, tracking_args in itertools.product(
