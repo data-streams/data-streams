@@ -227,7 +227,7 @@ public class LocalAcker extends LoggingActor {
     }
 
     ackerBufferedMessages.forEach((acker, messages) -> {
-      if (!ackerBufferedMessages.isEmpty()) {
+      if (!messages.isEmpty()) {
         acker.tell(new BufferedMessages(messages), self());
       }
     });
