@@ -59,6 +59,7 @@ public class LocalAcker extends LoggingActor {
 
   private long nodeTime = Long.MIN_VALUE;
   private final SortedMap<GlobalTime, Long> ackCache = new TreeMap<>(Comparator.reverseOrder());
+  private boolean bumpNodeTimes;
   private final Map<EdgeId, HeartbeatIncrease> edgeIdHeartbeatIncrease = new HashMap<>();
   private final List<UnregisterFront> unregisterCache = new ArrayList<>();
 
@@ -176,6 +177,7 @@ public class LocalAcker extends LoggingActor {
   }
 
   private void handleAck(Ack ack) {
+    bumpNodeTimes = true;
     if (flushCount == 0) {
       ackers.get((int) (ack.time().time() % ackers.size())).tell(ack, self());
       return;
@@ -198,11 +200,11 @@ public class LocalAcker extends LoggingActor {
             __ -> new ArrayList<>()
     ));
     final boolean acksEmpty = ackCache.isEmpty();
-    if (!acksEmpty && ackers.size() > 1) {
-      final NodeTime nodeTime = new NodeTime(nodeId, this.nodeTime);
+    if (bumpNodeTimes && ackers.size() > 1) {
+      final NodeTime nodeTime = new NodeTime(nodeId, ++this.nodeTime);
       ackers.forEach(acker -> ackerBufferedMessages.get(acker).add(nodeTime));
     }
-    nodeTime++;
+    bumpNodeTimes = false;
 
     ackCache.entrySet()
             .stream()
