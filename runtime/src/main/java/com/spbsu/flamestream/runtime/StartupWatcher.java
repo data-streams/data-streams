@@ -79,10 +79,11 @@ public class StartupWatcher extends LoggingActor {
             .stream()
             .map(ZookeeperWorkersNode.Worker::id)
             .collect(Collectors.toList());
-    if (systemConfig.workersResourcesDistributor.ackers(ids).contains(id)) {
+    final List<String> ackers = systemConfig.workersResourcesDistributor.ackers(ids);
+    if (ackers.contains(id)) {
       context().actorOf(Acker.props(
               systemConfig.defaultMinimalTime(),
-              ids.size() == 1,
+              ackers.size() == 1,
               systemConfig.ackerWindow()
       ), "acker");
     }
