@@ -81,7 +81,7 @@ public class BenchStandComponentFactory {
       }
       consumer.accept(connections);
     }).start();
-    final Server producer = new Server(200_000_000 / remotes.size(), 1000 / remotes.size());
+    final Server producer = new Server(200_000_000 / remotes.size(), 1000);
     for (final Class<?> clazz : classesToRegister) {
       producer.getKryo().register(clazz);
     }
