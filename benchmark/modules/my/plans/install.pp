@@ -13,6 +13,7 @@ plan my::install(
     include apt
     apt::ppa { 'ppa:deadsnakes/ppa': }
     package { 'git': }
+    package { 'python': }
     package { 'python3.7': }
     package { 'maven': }
     package { 'python3': }
