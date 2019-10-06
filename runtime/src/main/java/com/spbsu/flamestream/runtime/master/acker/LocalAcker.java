@@ -25,15 +25,12 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 public class LocalAcker extends LoggingActor {
   public static class Partitions {
@@ -41,12 +38,12 @@ public class LocalAcker extends LoggingActor {
 
     public Partitions(int size) {this.size = size;}
 
-    public long partitionTime(int partition, long time) {
-      return Math.floorDiv(time + size - 1 - partition, size) * size + partition;
+    public long partitionTime(int partition, int hash, long time) {
+      return Math.floorDiv(hash + time + size - 1 - partition, size) * size - hash + partition;
     }
 
-    public int timePartition(long time) {
-      return (int) Math.floorMod(time, size);
+    public int timePartition(int hash, long time) {
+      return (int) Math.floorMod(hash + time, size);
     }
   }
 
@@ -159,8 +156,8 @@ public class LocalAcker extends LoggingActor {
     heartbeatIncrease.current = Math.max(heartbeatIncrease.current, time.time());
     if (flushCount == 0) {
       IntStream.range(0, ackers.size()).forEach(partition -> {
-        long current = partitions.partitionTime(partition, heartbeatIncrease.current);
-        if (partitions.partitionTime(partition, heartbeatIncrease.previous) < current) {
+        long current = partitions.partitionTime(partition, time.frontId().hashCode(), heartbeatIncrease.current);
+        if (partitions.partitionTime(partition, time.frontId().hashCode(), heartbeatIncrease.previous) < current) {
           ackers.get(partition).tell(new Heartbeat(new GlobalTime(current, time.frontId())), self());
         }
       });
@@ -209,14 +206,17 @@ public class LocalAcker extends LoggingActor {
     ackCache.entrySet()
             .stream()
             .map(entry -> new Ack(entry.getKey(), entry.getValue()))
-            .collect(Collectors.groupingBy(o -> ackers.get(partitions.timePartition(o.time().time()))))
+            .collect(Collectors.groupingBy(o -> ackers.get(partitions.timePartition(
+                    o.time().frontId().hashCode(),
+                    o.time().time()
+            ))))
             .forEach((acker, acks) -> ackerBufferedMessages.get(acker).addAll(acks));
     ackCache.clear();
 
     edgeIdHeartbeatIncrease.forEach((edgeId, heartbeatIncrease) -> {
       IntStream.range(0, ackers.size()).forEach(partition -> {
-        long current = partitions.partitionTime(partition, heartbeatIncrease.current);
-        if (partitions.partitionTime(partition, heartbeatIncrease.previous) < current) {
+        long current = partitions.partitionTime(partition, edgeId.hashCode(), heartbeatIncrease.current);
+        if (partitions.partitionTime(partition, edgeId.hashCode(), heartbeatIncrease.previous) < current) {
           ackerBufferedMessages.get(ackers.get(partition)).add(new Heartbeat(new GlobalTime(current, edgeId)));
         }
       });
