@@ -35,6 +35,9 @@ import gnu.trove.map.TObjectIntMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.PrintWriter;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -52,6 +55,7 @@ public class GraphManager extends LoggingActor {
   private final @Nullable
   ActorRef localAcker;
 
+  private HashMap<Class, long[]> classAddressedItemsNumber = new HashMap<>();
   private ActorRef sourceComponent;
   private ActorRef sinkComponent;
 
@@ -184,8 +188,14 @@ public class GraphManager extends LoggingActor {
             .match(DataItem.class, dataItem -> sourceComponent.forward(dataItem, context()))
             .match(
                     AddressedItem.class,
-                    addressedItem -> verticesComponents.get(addressedItem.destination())
-                            .forward(addressedItem, context())
+                    addressedItem -> {
+                      classAddressedItemsNumber.computeIfAbsent(
+                              addressedItem.item().payload(Object.class).getClass(),
+                              __ -> new long[1]
+                      )[0]++;
+                      verticesComponents.get(addressedItem.destination())
+                              .forward(addressedItem, context());
+                    }
             )
             .match(
                     MinTimeUpdate.class,
@@ -197,6 +207,18 @@ public class GraphManager extends LoggingActor {
             .match(Heartbeat.class, gt -> sourceComponent.forward(gt, context()))
             .match(UnregisterFront.class, u -> sourceComponent.forward(u, context()))
             .build();
+  }
+
+  @Override
+  public void postStop() throws Exception {
+    super.postStop();
+    try (final PrintWriter printWriter = new PrintWriter(Files.newBufferedWriter(Paths.get(
+            "/tmp/class_addressed_items_number.csv"
+    )))) {
+      for (final Map.Entry<Class, long[]> classEntry : classAddressedItemsNumber.entrySet()) {
+        printWriter.println(classEntry.getKey().getCanonicalName() + "," + classEntry.getValue()[0]);
+      }
+    }
   }
 
   private void onPrepare(Prepare prepare) {
