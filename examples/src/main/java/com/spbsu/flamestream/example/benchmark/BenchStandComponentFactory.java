@@ -96,14 +96,12 @@ public class BenchStandComponentFactory {
           return;
         }
         String id = (String) received;
-        final InetSocketAddress connectionAddress = connection.getRemoteAddressTCP();
-        LOG.info("There is new connection: {}", connectionAddress);
         if (remotes.contains(id) && !connections.containsKey(id)) {
-          LOG.info("Accepting connection: {}", connectionAddress);
+          LOG.info("Accepting connection: {}", id);
           connections.put(id, connection);
           allConnected.countDown();
         } else {
-          LOG.info("Closing connection {}", connectionAddress);
+          LOG.info("Closing connection {}", id);
           connection.close();
         }
       }
