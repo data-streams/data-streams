@@ -17,3 +17,4 @@
     src: "/tmp/local_acker.txt"
     dest: "{{ results_dir }}/flamestream/logs/{{ inventory_hostname }}/local_acker.txt"
     flat: true
+    fail_on_missing: false
