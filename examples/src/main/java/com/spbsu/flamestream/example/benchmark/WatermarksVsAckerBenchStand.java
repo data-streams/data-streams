@@ -66,16 +66,20 @@ public class WatermarksVsAckerBenchStand {
             .workersResourcesDistributor(
                     benchStand.trackingFactory.workerResourcesDistributor(benchStand.parallelism)
             );
-    List<String> frontHostIds =
+    final List<String> workerIds =
             IntStream.range(1 + benchStand.trackingFactory.getAckersNumber(), benchStand.parallelism)
                     .mapToObj(index -> benchStand.workerIdPrefix + index)
                     .collect(Collectors.toList());
+    final List<String> frontHostIds = System.getenv().containsKey("FRONTS_NUMBER")
+            ? workerIds.subList(Integer.parseInt(System.getenv("FRONTS_NUMBER")), workerIds.size())
+            : workerIds;
     benchStand.trackingFactory.configureSystem(builder);
     try (
             GraphDeployer graphDeployer = new FlameGraphDeployer(
                     benchStandComponentFactory.runtime(deployerConfig, builder.build()),
                     WatermarksVsAckerGraph.apply(
-                            HashUnit.covering(frontHostIds.size()).collect(Collectors.toCollection(ArrayList::new)),
+                            frontHostIds.size(),
+                            HashUnit.covering(workerIds.size()).collect(Collectors.toCollection(ArrayList::new)),
                             benchStand.iterations
                     ),
                     new SocketFrontType(

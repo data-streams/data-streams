@@ -112,7 +112,8 @@ public class WatermarksVsAckerGraph {
   }
 
   @SuppressWarnings("Convert2Lambda")
-  public static Graph apply(List<HashUnit> covering, int iterations) {
+  public static Graph apply(int frontsNumber, List<HashUnit> covering, int iterations) {
+    iterations++;
     final Graph.Builder graphBuilder = new Graph.Builder();
     final Source source = new Source();
     final Sink sink = new Sink();
@@ -127,7 +128,7 @@ public class WatermarksVsAckerGraph {
             .link(source, start)
             .link(
                     IntStream.range(0, iterations).boxed().<Graph.Vertex>map(iteration -> new FlameMap<>(
-                            new Iteration(covering.size(), covering.size()),
+                            new Iteration(iteration == 0 ? frontsNumber : covering.size(), covering.size()),
                             Element.class,
                             new HashFunction(covering, iteration)
                     )).reduce(start, (from, to) -> {

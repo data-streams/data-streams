@@ -48,6 +48,7 @@ public class WatermarksVsAckerGraphTest extends FlameAkkaSuite {
                     new SystemConfig.Builder().millisBetweenCommits(10000).build()
             );
             final FlameRuntime.Flame flame = runtime.run(WatermarksVsAckerGraph.apply(
+                    1,
                     HashUnit.covering(parallelism).collect(Collectors.toCollection(ArrayList::new)),
                     iterations
             ))
@@ -70,9 +71,7 @@ public class WatermarksVsAckerGraphTest extends FlameAkkaSuite {
               flame.attachFront("Front", new AkkaFrontType<>(system, false))
                       .collect(Collectors.toList());
       for (int i = 1; i < consumers.size(); i++) {
-        final AkkaFront.FrontHandle<Object> objectFrontHandle = consumers.get(i);
-        objectFrontHandle.accept(new WatermarksVsAckerGraph.Watermark(Integer.MAX_VALUE, i));
-        objectFrontHandle.unregister();
+        consumers.get(i).unregister();
       }
 
       final AkkaFront.FrontHandle<Object> sink = consumers.get(0);
