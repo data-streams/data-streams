@@ -25,14 +25,12 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 public class LocalAcker extends LoggingActor {
   public static class Partitions {
@@ -212,13 +210,7 @@ public class LocalAcker extends LoggingActor {
                     o.time().frontId().hashCode(),
                     o.time().time()
             ))))
-            .forEach((acker, acks) -> {
-              final List<Object> objects = ackerBufferedMessages.get(acker);
-              objects.addAll(acks.stream().flatMap(ack -> {
-                final Ack random = new Ack(ack.time(), new Random().nextLong());
-                return Stream.of(random, random, ack);
-              }).collect(Collectors.toList()));
-            });
+            .forEach((acker, acks) -> ackerBufferedMessages.get(acker).addAll(acks));
     ackCache.clear();
 
     edgeIdHeartbeatIncrease.forEach((edgeId, heartbeatIncrease) -> {
