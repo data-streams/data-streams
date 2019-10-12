@@ -8,6 +8,7 @@ import akka.pattern.PatternsCS;
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.runtime.config.ClusterConfig;
+import com.spbsu.flamestream.runtime.config.ComputationProps;
 import com.spbsu.flamestream.runtime.config.HashGroup;
 import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.config.ZookeeperWorkersNode;
@@ -185,12 +186,14 @@ public class ProcessingWatcher extends LoggingActor {
                     id,
                     graph,
                     config.withChildPath("processing-watcher").withChildPath("graph"),
-                    systemConfig.workersResourcesDistributor.hashGroups(config.paths().keySet()),
                     localAcker,
                     registryHolder,
                     committer,
-                    systemConfig.maxElementsInGraph(),
-                    systemConfig.barrierIsDisabled(),
+                    new ComputationProps(
+                            systemConfig.workersResourcesDistributor.hashGroups(config.paths().keySet()),
+                            systemConfig.maxElementsInGraph(),
+                            systemConfig.barrierIsDisabled()
+                    ),
                     stateStorage
             ),
             "graph"

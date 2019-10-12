@@ -14,6 +14,7 @@ import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.runtime.config.ClusterConfig;
+import com.spbsu.flamestream.runtime.config.ComputationProps;
 import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.config.HashGroup;
 import com.spbsu.flamestream.runtime.config.HashUnit;
@@ -147,12 +148,10 @@ class Cluster extends LoggingActor {
                       id,
                       g,
                       clusterConfig,
-                      ranges,
                       localAcker,
                       registryHolder,
                       committer,
-                      maxElementsInGraph,
-                      barrierDisabled,
+                      new ComputationProps(ranges, maxElementsInGraph, barrierDisabled),
                       stateStorage
               ), id)).collect(Collectors.toList());
             },
