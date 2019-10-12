@@ -84,7 +84,8 @@ public class StartupWatcher extends LoggingActor {
       context().actorOf(Acker.props(
               systemConfig.defaultMinimalTime(),
               ackers.size() == 1,
-              systemConfig.ackerWindow()
+              systemConfig.ackerWindow(),
+              systemConfig.ackerVerticesNumber
       ), "acker");
     }
     if (systemConfig.workersResourcesDistributor.master(ids).equals(id)) {

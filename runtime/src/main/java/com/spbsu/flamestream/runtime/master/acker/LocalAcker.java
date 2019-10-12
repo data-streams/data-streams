@@ -14,7 +14,6 @@ import com.spbsu.flamestream.runtime.master.acker.api.commit.MinTimeUpdateListen
 import com.spbsu.flamestream.runtime.master.acker.api.registry.UnregisterFront;
 import com.spbsu.flamestream.runtime.utils.akka.LoggingActor;
 import com.spbsu.flamestream.runtime.utils.akka.PingActor;
-import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -53,6 +52,7 @@ public class LocalAcker extends LoggingActor {
 
   private final int flushDelayInMillis;
   private final int flushCount;
+  private final int ackerVerticesNumber;
 
   private long nodeTime = Long.MIN_VALUE;
   private final SortedMap<GlobalTime, Long> ackCache = new TreeMap<>(Comparator.reverseOrder());
@@ -63,7 +63,7 @@ public class LocalAcker extends LoggingActor {
   private final List<ActorRef> ackers;
   private final Partitions partitions;
   private final List<ActorRef> listeners = new ArrayList<>();
-  private final MinTimeUpdater minTimeUpdater;
+  private final MinTimeUpdater[] vertexMinTimeUpdater;
   private final String nodeId;
   private final ActorRef pingActor;
   private long acksSent = 0;
@@ -71,22 +71,32 @@ public class LocalAcker extends LoggingActor {
 
   private int flushCounter = 0;
 
-  public LocalAcker(List<ActorRef> ackers, String nodeId, int flushDelayInMillis, int flushCount) {
+  public LocalAcker(
+          List<ActorRef> ackers,
+          String nodeId,
+          int flushDelayInMillis,
+          int flushCount,
+          int ackerVerticesNumber
+  ) {
     this.ackers = ackers;
     partitions = new Partitions(ackers.size());
-    minTimeUpdater = new MinTimeUpdater(ackers);
+    vertexMinTimeUpdater = new MinTimeUpdater[ackerVerticesNumber];
+    for (int vertex = 0; vertex < ackerVerticesNumber; vertex++) {
+      vertexMinTimeUpdater[vertex] = new MinTimeUpdater(ackers);
+    }
     this.nodeId = nodeId;
     pingActor = context().actorOf(PingActor.props(self(), Flush.FLUSH));
     this.flushDelayInMillis = flushDelayInMillis;
     this.flushCount = flushCount;
+    this.ackerVerticesNumber = ackerVerticesNumber;
   }
 
   public static class Builder {
     private int flushDelayInMillis = 5;
     private int flushCount = 1000;
 
-    public Props props(List<ActorRef> ackers, String nodeId) {
-      return Props.create(LocalAcker.class, ackers, nodeId, flushDelayInMillis, flushCount)
+    public Props props(List<ActorRef> ackers, String nodeId, int ackerVerticesNumber) {
+      return Props.create(LocalAcker.class, ackers, nodeId, flushDelayInMillis, flushCount, ackerVerticesNumber)
               .withDispatcher("processing-dispatcher");
     }
 
@@ -104,7 +114,7 @@ public class LocalAcker extends LoggingActor {
   @Override
   public void preStart() throws Exception {
     super.preStart();
-    minTimeUpdater.subscribe(self());
+    vertexMinTimeUpdater[0].subscribe(self());
     pingActor.tell(new PingActor.Start(TimeUnit.MILLISECONDS.toNanos(flushDelayInMillis)), self());
   }
 
@@ -138,9 +148,13 @@ public class LocalAcker extends LoggingActor {
             })
             .match(MinTimeUpdateListener.class, minTimeUpdateListener -> listeners.add(minTimeUpdateListener.actorRef))
             .match(MinTimeUpdate.class, minTimeUpdate -> {
-              @Nullable MinTimeUpdate minTime = minTimeUpdater.onShardMinTimeUpdate(sender(), minTimeUpdate);
-              if (minTime != null) {
-                listeners.forEach(listener -> listener.tell(minTime, self()));
+              if ((minTimeUpdate = vertexMinTimeUpdater[minTimeUpdate.minTime().getVertexIndex()].onShardMinTimeUpdate(
+                      sender(),
+                      minTimeUpdate
+              )) != null) {
+                for (final ActorRef listener : listeners) {
+                  listener.tell(minTimeUpdate, self());
+                }
               }
             })
             .matchAny(e -> ackers.forEach(acker -> acker.forward(e, context())))

@@ -70,6 +70,7 @@ public class WorkerApplication implements Runnable {
             "ACKERS_NUMBER"
     );
     configureFromEnv(systemConfigBuilder::ackerWindow, "ACKER_WINDOW");
+    configureFromEnv(systemConfigBuilder::ackerVerticesNumber, "ACKER_VERTICES_NUMBER");
     final WorkerConfig config = configBuilder.build(
             System.getenv("ID"),
             new InetSocketAddress(localAddressHostAndPort[0], Integer.parseInt(localAddressHostAndPort[1])),

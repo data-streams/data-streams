@@ -27,6 +27,7 @@ import java.util.stream.Stream;
 public class SinkJoba extends Joba {
   private final LoggingAdapter log;
   private final boolean barrierDisabled;
+  private final int ackerVerticesNumber;
   private final InvalidatingBucket invalidatingBucket = new ArrayInvalidatingBucket();
   private final Map<ActorRef, GlobalTime> rears = new HashMap<>();
 
@@ -35,10 +36,11 @@ public class SinkJoba extends Joba {
 
   private GlobalTime minTime = GlobalTime.MIN;
 
-  SinkJoba(Joba.Id id, ActorContext context, boolean barrierDisabled) {
+  SinkJoba(Id id, ActorContext context, boolean barrierDisabled, int ackerVerticesNumber) {
     super(id);
     log = Logging.getLogger(context.system(), context.self());
     this.barrierDisabled = barrierDisabled;
+    this.ackerVerticesNumber = ackerVerticesNumber;
   }
 
   @Override
@@ -70,6 +72,8 @@ public class SinkJoba extends Joba {
 
   @Override
   public void onMinTime(GlobalTime minTime) {
+    if (minTime.getVertexIndex() != ackerVerticesNumber - 1)
+      return;
     this.minTime = minTime;
     tryEmmit(minTime);
   }

@@ -31,6 +31,10 @@ public interface Graph {
   interface Vertex {
     String id();
 
+    default int index() {
+      return 0;
+    }
+
     abstract class Stub implements Vertex {
       private final long id = ThreadLocalRandom.current().nextLong();
 

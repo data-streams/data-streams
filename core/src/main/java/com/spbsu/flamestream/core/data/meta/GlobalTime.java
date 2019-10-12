@@ -5,23 +5,34 @@ import java.util.Objects;
 
 public final class GlobalTime implements Comparable<GlobalTime> {
   public static final GlobalTime MIN = new GlobalTime(Long.MIN_VALUE, EdgeId.Min.INSTANCE);
-  public static final GlobalTime MAX = new GlobalTime(Long.MAX_VALUE, EdgeId.Max.INSTANCE);
+  public static final GlobalTime MAX = new GlobalTime(Long.MAX_VALUE, EdgeId.Max.INSTANCE, Integer.MAX_VALUE);
   //Inner representation is a subject for a discussion and/or an optimization
 
   private static final Comparator<GlobalTime> NATURAL_ORDER = Comparator
-          .comparingLong(GlobalTime::time)
+          .comparingInt(GlobalTime::getVertexIndex)
+          .thenComparingLong(GlobalTime::time)
           .thenComparing(GlobalTime::frontId);
 
   private final long time;
   private final EdgeId frontId;
+  private final int vertexIndex;
 
   public GlobalTime(long time, EdgeId frontId) {
+    this(time, frontId, 0);
+  }
+
+  public GlobalTime(long time, EdgeId frontId, int vertexIndex) {
     this.time = time;
     this.frontId = frontId;
+    this.vertexIndex = vertexIndex;
   }
 
   public long time() {
     return time;
+  }
+
+  public int getVertexIndex() {
+    return vertexIndex;
   }
 
   public EdgeId frontId() {
@@ -43,6 +54,7 @@ public final class GlobalTime implements Comparable<GlobalTime> {
     }
     final GlobalTime that = (GlobalTime) o;
     return time == that.time &&
+            vertexIndex == that.vertexIndex &&
             Objects.equals(frontId, that.frontId);
   }
 
@@ -53,6 +65,6 @@ public final class GlobalTime implements Comparable<GlobalTime> {
 
   @Override
   public String toString() {
-    return String.format("(%07d, %s)", time, frontId);
+    return String.format("(%07d, %s, %d)", time, frontId, vertexIndex);
   }
 }

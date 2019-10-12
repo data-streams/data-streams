@@ -6,6 +6,7 @@ import akka.japi.pf.ReceiveBuilder;
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.HashFunction;
+import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
@@ -30,7 +31,6 @@ import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,10 +44,12 @@ public class Component extends LoggingActor {
   private class JobaWrapper<WrappedJoba extends Joba> {
     WrappedJoba joba;
     Consumer<DataItem> downstream;
+    final Graph.Vertex vertex;
 
-    JobaWrapper(WrappedJoba joba, Consumer<DataItem> downstream) {
+    JobaWrapper(WrappedJoba joba, Consumer<DataItem> downstream, Graph.Vertex vertex) {
       this.joba = joba;
       this.downstream = downstream;
+      this.vertex = vertex;
     }
   }
 
@@ -79,7 +81,7 @@ public class Component extends LoggingActor {
               final Joba.Id jobaId = new Joba.Id(nodeId, vertex.id());
               final Joba joba;
               if (vertex instanceof Sink) {
-                joba = new SinkJoba(jobaId, context(), props.barrierIsDisabled());
+                joba = new SinkJoba(jobaId, context(), props.barrierIsDisabled(), props.getAckerVerticesNumber());
               } else if (vertex instanceof FlameMap) {
                 joba = new MapJoba(jobaId, (FlameMap<?, ?>) vertex);
               } else if (vertex instanceof Grouping) {
@@ -95,7 +97,10 @@ public class Component extends LoggingActor {
                 stateByVertex.putIfAbsent(vertex.id(), new GroupGroupingState(values));
                 joba = new GroupingJoba(jobaId, grouping, stateByVertex.get(vertex.id()));
               } else if (vertex instanceof Source) {
-                joba = new SourceJoba(jobaId, props.maxElementsInGraph(), context(), props.barrierIsDisabled());
+                joba = new SourceJoba(
+                        jobaId, props.maxElementsInGraph(), context(), props.barrierIsDisabled(),
+                        props.getAckerVerticesNumber()
+                );
               } else {
                 throw new RuntimeException("Invalid vertex type");
               }
@@ -111,10 +116,8 @@ public class Component extends LoggingActor {
                             groupingSendTracer.log(item.xor());
                             final HashFunction hash = ((HashingVertexStub) to).hash();
                             if (hash instanceof HashFunction.Broadcast) {
-                              final Iterator<Map.Entry<HashUnit, ActorRef>> iterator = routes.entrySet().iterator();
                               int childId = 0;
-                              while (iterator.hasNext()) {
-                                final Map.Entry<HashUnit, ActorRef> next = iterator.next();
+                              for (Map.Entry<HashUnit, ActorRef> next : routes.entrySet()) {
                                 if (next.getKey().to() == next.getKey().from()) {
                                   //ignore empty ranges
                                   continue;
@@ -125,18 +128,18 @@ public class Component extends LoggingActor {
                                         0,
                                         childId++
                                 ));
-                                ack(new Ack(cloned.meta().globalTime(), cloned.xor()));
+                                ack(cloned, to);
                                 next.getValue().tell(new AddressedItem(cloned, toDest), self());
                               }
                             } else {
-                              ack(new Ack(item.meta().globalTime(), item.xor()));
+                              ack(item, to);
                               routes.get(Objects.requireNonNull(hash).applyAsInt(item))
                                       .tell(new AddressedItem(item, toDest), self());
                             }
                           };
                         } else {
                           sink = item -> {
-                            ack(new Ack(item.meta().globalTime(), item.xor()));
+                            ack(item, to);
                             localManager.tell(new AddressedItem(item, toDest), self());
                           };
                         }
@@ -161,11 +164,11 @@ public class Component extends LoggingActor {
                   };
               }
               if (joba instanceof SinkJoba) {
-                return wrappedSinkJoba = new JobaWrapper<>((SinkJoba) joba, downstream);
+                return wrappedSinkJoba = new JobaWrapper<>((SinkJoba) joba, downstream, vertex);
               } else if (joba instanceof SourceJoba) {
-                return wrappedSourceJoba = new JobaWrapper<>((SourceJoba) joba, downstream);
+                return wrappedSourceJoba = new JobaWrapper<>((SourceJoba) joba, downstream, vertex);
               } else {
-                return new JobaWrapper<>(joba, downstream);
+                return new JobaWrapper<>(joba, downstream, vertex);
               }
             }
     ));
@@ -229,13 +232,17 @@ public class Component extends LoggingActor {
     final DataItem item = addressedItem.item();
     injectInTracer.log(item.xor());
     localCall(item, addressedItem.destination());
-    ack(new Ack(item.meta().globalTime(), item.xor()));
+    ack(item, wrappedJobas.get(addressedItem.destination()).vertex);
     injectOutTracer.log(item.xor());
   }
 
-  private void ack(Ack ack) {
+  private void ack(DataItem dataItem, Graph.Vertex to) {
     if (localAcker != null) {
-      localAcker.tell(ack, self());
+      final GlobalTime globalTime = dataItem.meta().globalTime();
+      localAcker.tell(new Ack(
+              new GlobalTime(globalTime.time(), globalTime.frontId(), to.index()),
+              dataItem.xor()
+      ), self());
     }
   }
 

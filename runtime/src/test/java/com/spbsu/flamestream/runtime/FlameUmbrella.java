@@ -102,7 +102,8 @@ class Cluster extends LoggingActor {
                         default:
                           throw new IllegalStateException("Unexpected value: " + acking);
                       }
-                    }
+                    },
+                    1
             );
 
     final Registry registry = new InMemoryRegistry();
@@ -111,7 +112,8 @@ class Cluster extends LoggingActor {
               final Props ackerProps = Acker.props(
                       defaultMinimalTime,
                       false,
-                      systemConfig.ackerWindow()
+                      systemConfig.ackerWindow(),
+                      1
               );
               final List<ActorRef> ackers;
               switch (acking) {
@@ -131,7 +133,7 @@ class Cluster extends LoggingActor {
                   throw new IllegalStateException("Unexpected value: " + acking);
               }
               final ActorRef localAcker = ackers.isEmpty() ? null : context.actorOf(
-                      systemConfig.getLocalAckerBuilder().props(ackers, ""),
+                      systemConfig.getLocalAckerBuilder().props(ackers, "", 1),
                       "localAcker"
               );
               final ActorRef registryHolder = context.actorOf(
@@ -151,7 +153,7 @@ class Cluster extends LoggingActor {
                       localAcker,
                       registryHolder,
                       committer,
-                      new ComputationProps(ranges, maxElementsInGraph, barrierDisabled),
+                      new ComputationProps(ranges, maxElementsInGraph, barrierDisabled, 1),
                       stateStorage
               ), id)).collect(Collectors.toList());
             },
