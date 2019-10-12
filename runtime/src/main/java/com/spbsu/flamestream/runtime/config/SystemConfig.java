@@ -85,6 +85,7 @@ public class SystemConfig {
   private final LocalAcker.Builder localAckerBuilder;
   private final int ackerWindow;
   public final WorkersResourcesDistributor workersResourcesDistributor;
+  public final int ackerVerticesNumber;
 
   public SystemConfig(
           int maxElementsInGraph,
@@ -93,7 +94,8 @@ public class SystemConfig {
           boolean barrierDisabled,
           LocalAcker.Builder localAckerBuilder,
           int ackerWindow,
-          WorkersResourcesDistributor workersResourcesDistributor
+          WorkersResourcesDistributor workersResourcesDistributor,
+          int ackerVerticesNumber
   ) {
     this.maxElementsInGraph = maxElementsInGraph;
     this.millisBetweenCommits = millisBetweenCommits;
@@ -102,6 +104,7 @@ public class SystemConfig {
     this.localAckerBuilder = localAckerBuilder;
     this.ackerWindow = ackerWindow;
     this.workersResourcesDistributor = workersResourcesDistributor;
+    this.ackerVerticesNumber = ackerVerticesNumber;
   }
 
   public long defaultMinimalTime() {
@@ -142,6 +145,7 @@ public class SystemConfig {
     private int ackerWindow = 1;
     private SystemConfig.WorkersResourcesDistributor workersResourcesDistributor =
             SystemConfig.WorkersResourcesDistributor.DEFAULT_CENTRALIZED;
+    private int ackerVerticesNumber = 1;
 
     public Builder maxElementsInGraph(int maxElementsInGraph) {
       this.maxElementsInGraph = maxElementsInGraph;
@@ -178,6 +182,11 @@ public class SystemConfig {
       return this;
     }
 
+    public Builder ackerVerticesNumber(int ackerVerticesNumber) {
+      this.ackerVerticesNumber = ackerVerticesNumber;
+      return this;
+    }
+
     public SystemConfig build() {
       return new SystemConfig(
               maxElementsInGraph,
@@ -186,7 +195,8 @@ public class SystemConfig {
               barrierDisabled,
               localAckerBuilder,
               ackerWindow,
-              workersResourcesDistributor
+              workersResourcesDistributor,
+              ackerVerticesNumber
       );
     }
   }

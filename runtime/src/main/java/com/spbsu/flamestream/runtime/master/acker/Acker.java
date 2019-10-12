@@ -23,6 +23,7 @@ import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -57,17 +58,23 @@ public class Acker extends LoggingActor {
   private final Set<ActorRef> listeners = new HashSet<>();
   private final Map<EdgeId, GlobalTime> maxHeartbeats = new HashMap<>();
 
-  private final AckTable table;
+  private final AckTable[] vertexTable;
 
   private long defaultMinimalTime;
-  private GlobalTime lastMinTime = GlobalTime.MIN;
+  private final long[] vertexLastMinTime;
 
-  private Acker(long defaultMinimalTime, boolean assertAckingBackInTime, int window) {
-    table = new ArrayAckTable(defaultMinimalTime, SIZE, window, assertAckingBackInTime);
+  private Acker(long defaultMinimalTime, boolean assertAckingBackInTime, int window, int verticesNumber) {
+    vertexTable = new ArrayAckTable[verticesNumber];
+    vertexLastMinTime = new long[verticesNumber];
+    Arrays.fill(vertexLastMinTime, Long.MIN_VALUE);
+    for (int i = 0; i < verticesNumber; i++) {
+      vertexTable[i] =
+              new ArrayAckTable(defaultMinimalTime, SIZE / verticesNumber, window, assertAckingBackInTime);
+    }
   }
 
-  public static Props props(long defaultMinimalTime, boolean assertAckingBackInTime, int window) {
-    return Props.create(Acker.class, defaultMinimalTime, assertAckingBackInTime, window)
+  public static Props props(long defaultMinimalTime, boolean assertAckingBackInTime, int window, int verticesNumber) {
+    return Props.create(Acker.class, defaultMinimalTime, assertAckingBackInTime, window, verticesNumber)
             .withDispatcher("processing-dispatcher");
   }
 
@@ -109,11 +116,11 @@ public class Acker extends LoggingActor {
   }
 
   private void registerFront(EdgeId frontId) {
-    registerFrontFromTime(new GlobalTime(minAmongTables().time(), frontId));
+    registerFrontFromTime(new GlobalTime(minAmongTables(vertexTable.length - 1).time(), frontId));
   }
 
   private void registerFrontFromTime(GlobalTime startTime) {
-    if (startTime.compareTo(minAmongTables()) < 0) {
+    if (startTime.compareTo(minAmongTables(vertexTable.length - 1)) < 0) {
       throw new RuntimeException("Registering front back in time");
     }
     maxHeartbeats.put(startTime.frontId(), startTime);
@@ -147,29 +154,35 @@ public class Acker extends LoggingActor {
   private void handleAck(Ack ack) {
     acksReceived++;
     tracer.log(ack.xor());
-    if (table.ack(ack.time().time(), ack.xor())) {
+    if (ack.time().getVertexIndex() < vertexTable.length
+            && vertexTable[ack.time().getVertexIndex()].ack(ack.time().time(), ack.xor())) {
       checkMinTime();
     }
   }
 
   private void checkMinTime() {
-    final GlobalTime minAmongTables = minAmongTables();
-    if (minAmongTables.compareTo(lastMinTime) > 0) {
-      minTimeUpdatesSent++;
-      this.lastMinTime = minAmongTables;
-      log().debug("New min time: {}", lastMinTime);
-      listeners.forEach(s -> s.tell(new MinTimeUpdate(lastMinTime, nodeTimes), self()));
-    }
-  }
-
-  private GlobalTime minAmongTables() {
-    final GlobalTime minHeartbeat;
+    GlobalTime minHeartbeat;
     if (maxHeartbeats.isEmpty()) {
       minHeartbeat = new GlobalTime(defaultMinimalTime, EdgeId.Min.INSTANCE);
     } else {
       minHeartbeat = Collections.min(maxHeartbeats.values());
     }
-    final long minTime = table.tryPromote(minHeartbeat.time());
-    return new GlobalTime(minTime, EdgeId.Min.INSTANCE);
+    for (int vertex = 0; vertex < vertexLastMinTime.length; vertex++) {
+      final long minTime = vertexTable[vertex].tryPromote(minHeartbeat.time());
+      if (minTime == vertexLastMinTime[vertex]) {
+        break;
+      }
+      vertexLastMinTime[vertex] = minTime;
+      minHeartbeat = minAmongTables(vertex);
+      minTimeUpdatesSent++;
+      log().debug("New min time: {}", minHeartbeat);
+      for (final ActorRef listener : listeners) {
+        listener.tell(new MinTimeUpdate(minHeartbeat, nodeTimes), self());
+      }
+    }
+  }
+
+  private GlobalTime minAmongTables(int vertex) {
+    return new GlobalTime(vertexLastMinTime[vertex], EdgeId.Min.INSTANCE, vertex);
   }
 }

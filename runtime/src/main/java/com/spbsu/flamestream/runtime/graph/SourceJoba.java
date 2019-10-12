@@ -22,13 +22,21 @@ public class SourceJoba extends Joba {
 
   private int unutilizedRequests;
   private final boolean barrierIsDisabled;
+  private final int ackerVerticesNumber;
 
-  public SourceJoba(Joba.Id id, int maxInFlightItems, ActorContext context, boolean barrierIsDisabled) {
+  public SourceJoba(
+          Id id,
+          int maxInFlightItems,
+          ActorContext context,
+          boolean barrierIsDisabled,
+          int ackerVerticesNumber
+  ) {
     super(id);
     this.maxInFlightItems = maxInFlightItems;
     this.context = context;
     this.unutilizedRequests = maxInFlightItems;
     this.barrierIsDisabled = barrierIsDisabled;
+    this.ackerVerticesNumber = ackerVerticesNumber;
   }
 
   @Override
@@ -44,6 +52,8 @@ public class SourceJoba extends Joba {
 
   @Override
   public void onMinTime(GlobalTime minTime) {
+    if (minTime.getVertexIndex() != ackerVerticesNumber - 1)
+      return;
     inFlight.removeIf(nextTime -> nextTime.compareTo(minTime) < 0);
     requestNext();
   }

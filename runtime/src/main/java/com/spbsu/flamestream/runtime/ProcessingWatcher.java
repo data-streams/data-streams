@@ -9,7 +9,6 @@ import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.runtime.config.ClusterConfig;
 import com.spbsu.flamestream.runtime.config.ComputationProps;
-import com.spbsu.flamestream.runtime.config.HashGroup;
 import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.config.ZookeeperWorkersNode;
 import com.spbsu.flamestream.runtime.edge.api.AttachFront;
@@ -34,9 +33,7 @@ import org.apache.zookeeper.data.Stat;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -192,7 +189,8 @@ public class ProcessingWatcher extends LoggingActor {
                     new ComputationProps(
                             systemConfig.workersResourcesDistributor.hashGroups(config.paths().keySet()),
                             systemConfig.maxElementsInGraph(),
-                            systemConfig.barrierIsDisabled()
+                            systemConfig.barrierIsDisabled(),
+                            systemConfig.ackerVerticesNumber
                     ),
                     stateStorage
             ),
