@@ -216,7 +216,7 @@ public class LocalAcker extends LoggingActor {
               final List<Object> objects = ackerBufferedMessages.get(acker);
               objects.addAll(acks.stream().flatMap(ack -> {
                 final Ack random = new Ack(ack.time(), new Random().nextLong());
-                return Stream.of(random, random, random, random, random, random, random, random, random, random, ack);
+                return Stream.of(random, random, ack);
               }).collect(Collectors.toList()));
             });
     ackCache.clear();
