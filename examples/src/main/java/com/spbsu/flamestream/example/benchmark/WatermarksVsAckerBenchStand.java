@@ -74,7 +74,7 @@ public class WatermarksVsAckerBenchStand {
                     .mapToObj(index -> benchStand.workerIdPrefix + index)
                     .collect(Collectors.toList());
     final List<String> frontHostIds = System.getenv().containsKey("FRONTS_NUMBER")
-            ? workerIds.subList(Integer.parseInt(System.getenv("FRONTS_NUMBER")), workerIds.size())
+            ? workerIds.subList(0, Integer.parseInt(System.getenv("FRONTS_NUMBER")))
             : workerIds;
     benchStand.trackingFactory.configureSystem(builder);
     try (
