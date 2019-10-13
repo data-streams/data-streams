@@ -325,7 +325,7 @@ public class WatermarksVsAckerBenchStand {
 
       @Override
       void send(int id, List<Connection> connections) {
-        if (Math.floorDiv(id, connections.size()) % frequency == 0) {
+        if (Math.floorMod(Math.floorDiv(id, connections.size()), frequency) == 0) {
           final int partition = Math.floorMod(id, connections.size());
           connections.get(partition).sendTCP(new WatermarksVsAckerGraph.Watermark(id, partition));
         }
