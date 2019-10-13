@@ -63,6 +63,7 @@ public class WatermarksVsAckerBenchStand {
     final SystemConfig.Builder builder = new SystemConfig.Builder()
             .millisBetweenCommits(1000000000)
             .barrierDisabled(true)
+            .ackerVerticesNumber(benchStand.iterations + 3)
             .workersResourcesDistributor(
                     new SystemConfig.WorkersResourcesDistributor.Enumerated(
                             benchStand.workerIdPrefix,
@@ -83,7 +84,8 @@ public class WatermarksVsAckerBenchStand {
                     WatermarksVsAckerGraph.apply(
                             frontHostIds.size(),
                             HashUnit.covering(workerIds.size()).collect(Collectors.toCollection(ArrayList::new)),
-                            benchStand.iterations
+                            benchStand.iterations,
+                            -benchStand.warmUpStreamLength - 1
                     ),
                     new SocketFrontType(
                             benchStand.benchHost,
@@ -119,6 +121,7 @@ public class WatermarksVsAckerBenchStand {
   private final TrackingFactory trackingFactory;
   private final List<String> frontHostIds;
   private final Tracking<?> tracking;
+  private final int warmUpStreamLength;
 
   interface TrackingFactory {
     static TrackingFactory fromConfig(Config config) throws ClassNotFoundException {
@@ -384,10 +387,10 @@ public class WatermarksVsAckerBenchStand {
             .mapToObj(index -> workerIdPrefix + index)
             .collect(Collectors.toList());
     tracking = trackingFactory.create(streamLength, frontHostIds.size());
+    warmUpStreamLength = Integer.parseInt(System.getenv().getOrDefault("WARM_UP_STREAM_LENGTH", "0"));
   }
 
   public void run(GraphDeployer graphDeployer, List<String> inputHostIds) throws Exception {
-    final int warmUpStreamLength = Integer.parseInt(System.getenv().getOrDefault("WARM_UP_STREAM_LENGTH", "200"));
     final long warmUpDelayNanos = Integer.parseInt(System.getenv().getOrDefault("WARM_UP_DELAY_MS", "50")) * 1000000;
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
 
@@ -426,7 +429,7 @@ public class WatermarksVsAckerBenchStand {
                                       }
                               ), id -> {
                                 latencies.put(id, new LatencyMeasurer());
-                                if ((id + 1) % 1000 == 0) {
+                                if (Math.floorMod(id + 1, 1000) == 0) {
                                   LOG.info("Sending: {}", id + 1);
                                 }
                                 return id;

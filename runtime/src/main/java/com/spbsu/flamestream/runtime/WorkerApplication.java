@@ -2,6 +2,7 @@ package com.spbsu.flamestream.runtime;
 
 import akka.actor.ActorSystem;
 import akka.actor.CoordinatedShutdown;
+import com.spbsu.flamestream.runtime.config.Snapshots;
 import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.master.acker.LocalAcker;
 import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
@@ -111,6 +112,11 @@ public class WorkerApplication implements Runnable {
         Tracing.TRACING.flush(Paths.get("/tmp/trace.csv"));
       } catch (IOException e) {
         log.error("Something went wrong during trace flush", e);
+      }
+      try {
+        Snapshots.flush();
+      } catch (Exception e) {
+        throw new RuntimeException(e);
       }
     });
   }

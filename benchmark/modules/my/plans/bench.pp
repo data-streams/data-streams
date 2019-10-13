@@ -9,7 +9,7 @@ plan my::bench(
       ensure   => present,
       provider => git,
       source   => 'https://github.com/flame-stream/FlameStream',
-      revision => 'feature/acker-bench',
+      revision => 'feature/snapshots-bench',
     }
     file { "${facts['home']}/FlameStream/benchmark/ansible/remote.yml":
       content => inline_template(@(ERB))

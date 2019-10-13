@@ -190,7 +190,8 @@ public class ProcessingWatcher extends LoggingActor {
                             systemConfig.workersResourcesDistributor.hashGroups(config.paths().keySet()),
                             systemConfig.maxElementsInGraph(),
                             systemConfig.barrierIsDisabled(),
-                            systemConfig.ackerVerticesNumber
+                            systemConfig.ackerVerticesNumber,
+                            systemConfig.defaultMinimalTime()
                     ),
                     stateStorage
             ),

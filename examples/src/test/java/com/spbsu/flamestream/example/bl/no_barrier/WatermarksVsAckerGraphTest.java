@@ -42,6 +42,7 @@ public class WatermarksVsAckerGraphTest extends FlameAkkaSuite {
   public void test(Integer iterations) throws InterruptedException, TimeoutException {
     final int parallelism = 4;
     final ActorSystem system = ActorSystem.create("testStand", ConfigFactory.load("remote"));
+    int streamLength = 100;
     try (
             final LocalClusterRuntime runtime = new LocalClusterRuntime(
                     parallelism,
@@ -50,10 +51,10 @@ public class WatermarksVsAckerGraphTest extends FlameAkkaSuite {
             final FlameRuntime.Flame flame = runtime.run(WatermarksVsAckerGraph.apply(
                     1,
                     HashUnit.covering(parallelism).collect(Collectors.toCollection(ArrayList::new)),
-                    iterations
+                    iterations,
+                    -streamLength - 1
             ))
     ) {
-      int streamLength = 100;
       final AwaitResultConsumer<WatermarksVsAckerGraph.Data> awaitResultConsumer =
               new AwaitResultConsumer<>(streamLength);
       CountDownLatch watermarkReceived = new CountDownLatch(parallelism);

@@ -66,7 +66,7 @@ public class Acker extends LoggingActor {
   private Acker(long defaultMinimalTime, boolean assertAckingBackInTime, int window, int verticesNumber) {
     vertexTable = new ArrayAckTable[verticesNumber];
     vertexLastMinTime = new long[verticesNumber];
-    Arrays.fill(vertexLastMinTime, Long.MIN_VALUE);
+    Arrays.fill(vertexLastMinTime, defaultMinimalTime);
     for (int i = 0; i < verticesNumber; i++) {
       vertexTable[i] = new ArrayAckTable(
               defaultMinimalTime,
@@ -158,8 +158,7 @@ public class Acker extends LoggingActor {
   private void handleAck(Ack ack) {
     acksReceived++;
     tracer.log(ack.xor());
-    if (ack.time().getVertexIndex() < vertexTable.length
-            && vertexTable[ack.time().getVertexIndex()].ack(ack.time().time(), ack.xor())) {
+    if (vertexTable[ack.time().getVertexIndex()].ack(ack.time().time(), ack.xor())) {
       checkMinTime();
     }
   }

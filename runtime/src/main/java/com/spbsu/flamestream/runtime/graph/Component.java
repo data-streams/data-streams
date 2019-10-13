@@ -15,6 +15,7 @@ import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import com.spbsu.flamestream.runtime.config.ComputationProps;
 import com.spbsu.flamestream.runtime.config.HashUnit;
+import com.spbsu.flamestream.runtime.config.Snapshots;
 import com.spbsu.flamestream.runtime.graph.api.AddressedItem;
 import com.spbsu.flamestream.runtime.graph.api.ComponentPrepared;
 import com.spbsu.flamestream.runtime.graph.api.NewRear;
@@ -41,15 +42,17 @@ import java.util.stream.Collectors;
 public class Component extends LoggingActor {
   private final ActorRef localAcker;
 
-  private class JobaWrapper<WrappedJoba extends Joba> {
+  private static class JobaWrapper<WrappedJoba extends Joba> {
     WrappedJoba joba;
     Consumer<DataItem> downstream;
     final Graph.Vertex vertex;
+    final Snapshots<DataItem> snapshots;
 
-    JobaWrapper(WrappedJoba joba, Consumer<DataItem> downstream, Graph.Vertex vertex) {
+    JobaWrapper(WrappedJoba joba, Consumer<DataItem> downstream, Graph.Vertex vertex, long minTime) {
       this.joba = joba;
       this.downstream = downstream;
       this.vertex = vertex;
+      snapshots = Snapshots.acking ? new Snapshots<>(dataItem -> dataItem.meta().globalTime().time(), minTime) : null;
     }
   }
 
@@ -164,11 +167,15 @@ public class Component extends LoggingActor {
                   };
               }
               if (joba instanceof SinkJoba) {
-                return wrappedSinkJoba = new JobaWrapper<>((SinkJoba) joba, downstream, vertex);
+                return wrappedSinkJoba = new JobaWrapper<>((SinkJoba) joba, downstream, vertex,
+                        props.defaultMinimalTime
+                );
               } else if (joba instanceof SourceJoba) {
-                return wrappedSourceJoba = new JobaWrapper<>((SourceJoba) joba, downstream, vertex);
+                return wrappedSourceJoba = new JobaWrapper<>((SourceJoba) joba, downstream, vertex,
+                        props.defaultMinimalTime
+                );
               } else {
-                return new JobaWrapper<>(joba, downstream, vertex);
+                return new JobaWrapper<>(joba, downstream, vertex, props.defaultMinimalTime);
               }
             }
     ));
@@ -247,21 +254,36 @@ public class Component extends LoggingActor {
   }
 
   private void localCall(DataItem item, GraphManager.Destination destination) {
-    wrappedJobas.get(destination).joba.accept(item, wrappedJobas.get(destination).downstream);
+    accept(item, wrappedJobas.get(destination));
   }
 
   private void onMinTime(MinTimeUpdate minTime) {
-    wrappedJobas.values().forEach(jobaWrapper -> jobaWrapper.joba.onMinTime(minTime.minTime()));
+    for (final JobaWrapper<?> jobaWrapper : wrappedJobas.values()) {
+      jobaWrapper.joba.onMinTime(minTime.minTime());
+      if (jobaWrapper.vertex.index() == minTime.minTime().getVertexIndex()) {
+        if (jobaWrapper.snapshots != null) {
+          for (final DataItem dataItem : jobaWrapper.snapshots.minTimeUpdate(minTime.minTime().time())) {
+            accept(dataItem, jobaWrapper);
+          }
+        }
+      }
+    }
   }
 
   private void accept(DataItem item) {
     if (wrappedSourceJoba != null) {
       acceptInTracer.log(item.xor());
       wrappedSourceJoba.joba.addFront(item.meta().globalTime().frontId(), sender());
-      wrappedSourceJoba.joba.accept(item, wrappedSourceJoba.downstream);
+      accept(item, wrappedSourceJoba);
       acceptOutTracer.log(item.xor());
     } else {
       throw new IllegalStateException("Source doesn't belong to this component");
+    }
+  }
+
+  private void accept(DataItem item, JobaWrapper<?> joba) {
+    if (joba.snapshots == null || !joba.snapshots.putIfBlocked(item)) {
+      joba.joba.accept(item, joba.downstream);
     }
   }
 
