@@ -64,7 +64,10 @@ public class WatermarksVsAckerBenchStand {
             .millisBetweenCommits(1000000000)
             .barrierDisabled(true)
             .workersResourcesDistributor(
-                    benchStand.trackingFactory.workerResourcesDistributor(benchStand.parallelism)
+                    new SystemConfig.WorkersResourcesDistributor.Enumerated(
+                            benchStand.workerIdPrefix,
+                            benchStand.trackingFactory.getAckersNumber()
+                    )
             );
     final List<String> workerIds =
             IntStream.range(1 + benchStand.trackingFactory.getAckersNumber(), benchStand.parallelism)
@@ -130,8 +133,6 @@ public class WatermarksVsAckerBenchStand {
 
     default void configureSystem(SystemConfig.Builder builder) {}
 
-    SystemConfig.WorkersResourcesDistributor workerResourcesDistributor(int parallelism);
-
     default int getAckersNumber() {
       return 0;
     }
@@ -142,10 +143,6 @@ public class WatermarksVsAckerBenchStand {
         return new Tracking.Disabled();
       }
 
-      @Override
-      public SystemConfig.WorkersResourcesDistributor workerResourcesDistributor(int parallelism) {
-        return SystemConfig.WorkersResourcesDistributor.DEFAULT_DISABLED;
-      }
     }
 
     class Acking implements TrackingFactory {
@@ -174,10 +171,6 @@ public class WatermarksVsAckerBenchStand {
         this.ackersNumber = ackersNumber;
       }
 
-      @Override
-      public SystemConfig.WorkersResourcesDistributor workerResourcesDistributor(int parallelism) {
-        return SystemConfig.WorkersResourcesDistributor.DEFAULT_CENTRALIZED;
-      }
     }
 
     class Watermarking implements TrackingFactory {
@@ -190,11 +183,6 @@ public class WatermarksVsAckerBenchStand {
                 new PriorityQueue<>(Comparator.comparingInt(o -> o.payload(WatermarksVsAckerGraph.Data.class).id)),
                 (dataItem, integer) -> dataItem.payload(WatermarksVsAckerGraph.Data.class).id <= integer
         ), frequency, workersNumber);
-      }
-
-      @Override
-      public SystemConfig.WorkersResourcesDistributor workerResourcesDistributor(int parallelism) {
-        return SystemConfig.WorkersResourcesDistributor.DEFAULT_DISABLED;
       }
 
       public int getFrequency() {
