@@ -25,6 +25,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +33,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.lang.Integer.parseInt;
+
 public class LocalAcker extends LoggingActor {
+  private static int additionalAcks = System.getenv().containsKey("LOCAL_ACKER_ACKS_MULTIPLIER") ?
+          parseInt(System.getenv("LOCAL_ACKER_ACKS_MULTIPLIER")) : 1;
+
   public static class Partitions {
     final int size;
 
@@ -210,7 +216,14 @@ public class LocalAcker extends LoggingActor {
                     o.time().frontId().hashCode(),
                     o.time().time()
             ))))
-            .forEach((acker, acks) -> ackerBufferedMessages.get(acker).addAll(acks));
+            .forEach((acker, acks) -> acks.forEach(ack -> {
+              final List<Object> objects = ackerBufferedMessages.get(acker);
+              final Ack random = new Ack(ack.time(), new Random().nextLong());
+              for (int i = 0; i < additionalAcks * 2; i++) {
+                objects.add(random);
+              }
+              objects.add(ack);
+            }));
     ackCache.clear();
 
     edgeIdHeartbeatIncrease.forEach((edgeId, heartbeatIncrease) -> {
