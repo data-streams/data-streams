@@ -6,7 +6,7 @@ usage() {
 
 start() {
   echo "Starting flamestream worker"
-  local java_ops="-Daeron.term.buffer.length=1048576 -Daeron.mtu.length=16384 -Xms1500m -Xmx1500m -XX:+PrintGC -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps -XX:+HeapDumpOnOutOfMemoryError"
+  local java_ops="-Daeron.term.buffer.length=4194304 -Daeron.mtu.length=16384 -Xms1500m -Xmx1500m -XX:+PrintGC -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps -XX:+HeapDumpOnOutOfMemoryError"
   echo "java_ops=$java_ops"
   local main="com.spbsu.flamestream.runtime.WorkerApplication"
   nohup bash -c "java $java_ops -cp lib/*:flamestream-runtime-1.0-SNAPSHOT.jar $main &>worker.log" &
