@@ -23,24 +23,29 @@
     src: "{{ flamestream_dir }}/bench.log"
     dest: "{{ results_dir }}/flamestream/bench.log"
     flat: true
+    fail_on_missing: false
 
 - name: Fetch latencies
   fetch:
     src: /tmp/lat.data
     dest: "{{ results_dir }}/flamestream/latency/lat.data"
     flat: true
+    fail_on_missing: false
 
 - fetch:
     src: /tmp/duration
     dest: "{{ results_dir }}/flamestream/duration.txt"
     flat: true
+    fail_on_missing: false
 
 - fetch:
     src: /tmp/durations
     dest: "{{ results_dir }}/flamestream/durations.txt"
     flat: true
+    fail_on_missing: false
 
 - fetch:
     src: /tmp/notification_await_times.csv
     dest: "{{ results_dir }}/flamestream/notification_await_times.csv"
     flat: true
+    fail_on_missing: false
