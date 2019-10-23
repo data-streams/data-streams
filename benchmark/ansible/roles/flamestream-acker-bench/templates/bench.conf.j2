@@ -17,8 +17,6 @@ benchmark {
     frequency = {{ tracking_frequency }}
     {% elif tracking == "disabled" %}
     class = "com.spbsu.flamestream.example.benchmark.WatermarksVsAckerBenchStand$TrackingFactory$Disabled"
-    {% else %}
-    {% raise "unknown tracking – " + tracking %}
     {% endif %}
   }
   iterations = {{ iterations }}
