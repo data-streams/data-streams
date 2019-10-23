@@ -15,8 +15,10 @@ benchmark {
     {% elif tracking == "watermarking" %}
     class = "com.spbsu.flamestream.example.benchmark.WatermarksVsAckerBenchStand$TrackingFactory$Watermarking"
     frequency = {{ tracking_frequency }}
-    {% else %}
+    {% elif tracking == "disabled" %}
     class = "com.spbsu.flamestream.example.benchmark.WatermarksVsAckerBenchStand$TrackingFactory$Disabled"
+    {% else %}
+    {% raise "unknown tracking – " + tracking %}
     {% endif %}
   }
   iterations = {{ iterations }}
