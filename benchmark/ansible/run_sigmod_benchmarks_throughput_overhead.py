@@ -7,8 +7,8 @@ import os
 from functools import reduce
 
 default_args = dict(
-    tracking_frequency=10, parallelism=15, stream_length=10000, local_acker_flush_delay_in_millis=5, rate=10,
-    iterations=30,
+    tracking_frequency=1, parallelism=20, stream_length=50000, local_acker_flush_delay_in_millis=5,
+    iterations=20,
 )
 
 
@@ -16,7 +16,7 @@ def run_benchmarks(bench_environment={}, worker_environment={}, **args):
     args = dict(
         {**default_args, **args},
         bench_environment={**dict(
-            WARM_UP_STREAM_LENGTH="10000", WARM_UP_DELAY_MS="10", FRONTS_NUMBER="1"
+            WARM_UP_STREAM_LENGTH="50000", WARM_UP_DELAY_MS="5",
         ), **bench_environment},
         worker_environment={
             **dict(BARRIER_DISABLED="TRUE", LOCAL_ACKER_FLUSH_COUNT=1000000000),
@@ -34,17 +34,11 @@ def run_benchmarks(bench_environment={}, worker_environment={}, **args):
 for args, tracking_args in itertools.product(
         reduce(
             lambda collection, args: collection if args in collection else collection + [args],
-            [{**default_args, **dict(rate=rate)} for rate in [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]],
+            [{**default_args, **dict(rate=rate / 100)} for rate in range(20, 8, -1)],
             [],
         ),
         [
             dict(tracking="acking", distributed_acker=False),
-            dict(tracking="acking", distributed_acker=False, tracking_frequency=1),
-            dict(tracking="acking", distributed_acker=True),
-            dict(tracking="acking", distributed_acker=True, tracking_frequency=1),
-            dict(tracking="watermarking"),
-            dict(tracking="watermarking", tracking_frequency=1),
-            dict(tracking="disabled"),
         ],
 ):
     run_benchmarks(**args, **tracking_args)
