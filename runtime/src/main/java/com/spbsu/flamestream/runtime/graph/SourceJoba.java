@@ -40,7 +40,7 @@ public class SourceJoba extends Joba {
   }
 
   @Override
-  public void accept(DataItem item, Consumer<DataItem> sink) {
+  public void accept(DataItem item, Consumer<DataItem> sink, int vertexIndex) {
     sink.accept(item);
     unutilizedRequests--;
     final GlobalTime globalTime = item.meta().globalTime();

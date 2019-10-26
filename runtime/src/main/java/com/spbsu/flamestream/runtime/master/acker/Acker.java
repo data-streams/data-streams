@@ -72,7 +72,7 @@ public class Acker extends LoggingActor {
               defaultMinimalTime,
               SIZE / verticesNumber,
               window,
-              assertAckingBackInTime && verticesNumber == 1
+              assertAckingBackInTime
       );
     }
   }

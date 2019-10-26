@@ -44,7 +44,7 @@ public class SinkJoba extends Joba {
   }
 
   @Override
-  public void accept(DataItem item, Consumer<DataItem> sink) {
+  public void accept(DataItem item, Consumer<DataItem> sink, int vertexIndex) {
     barrierReceiveTracer.log(item.xor());
     if (barrierDisabled) {
       rears.forEach((rear, lastEmmit) -> emmitRearBatch(

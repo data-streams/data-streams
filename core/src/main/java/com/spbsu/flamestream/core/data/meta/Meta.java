@@ -33,8 +33,8 @@ public class Meta implements Comparable<Meta> {
     this.trace = previous.trace ^ physicalId;
   }
 
-  public Meta(Meta previous, long physicalId, int childId) {
-    this.globalTime = previous.globalTime();
+  public Meta(Meta previous, long physicalId, int childId, GlobalTime globalTime) {
+    this.globalTime = globalTime;
     this.childIds = Arrays.copyOf(previous.childIds, previous.childIds.length + 1);
     childIds[childIds.length - 1] = childId;
     this.tombstone = previous.tombstone;

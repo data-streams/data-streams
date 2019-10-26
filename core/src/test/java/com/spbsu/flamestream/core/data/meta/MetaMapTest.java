@@ -31,7 +31,7 @@ public class MetaMapTest extends FlameStreamSuite {
 
     //noinspection ConstantConditions
     final List<DataItem> out = input.stream()
-            .flatMap(dataItem -> map.operation(0).apply(dataItem))
+            .flatMap(dataItem -> map.operation(0).apply(dataItem, 0))
             .collect(Collectors.toList());
 
     for (int i = 0; i < inputSize; i++) {

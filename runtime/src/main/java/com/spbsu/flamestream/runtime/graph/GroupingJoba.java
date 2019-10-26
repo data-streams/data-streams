@@ -28,7 +28,7 @@ public class GroupingJoba extends Joba {
   }
 
   @Override
-  public void accept(DataItem item, Consumer<DataItem> sink) {
+  public void accept(DataItem item, Consumer<DataItem> sink, int vertexIndex) {
     tracer.log(item.xor());
 
     final InvalidatingBucket bucket = state.bucketFor(item, grouping.hash(), grouping.equalz());

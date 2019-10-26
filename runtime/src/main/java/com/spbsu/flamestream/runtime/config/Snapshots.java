@@ -68,6 +68,7 @@ public class Snapshots<Element> {
         throw new RuntimeException(e);
       }
     }
+    minTime = time;
     List<Element> elements = new ArrayList<>();
     while (!buffer.isEmpty() && !blocked(buffer.peek())) {
       bufferingDuration += System.nanoTime() - baseNanos;
@@ -79,7 +80,6 @@ public class Snapshots<Element> {
       totalBufferedCount.addAndGet(bufferedCount);
       bufferedCount = 0;
     }
-    minTime = time;
     return elements;
   }
 

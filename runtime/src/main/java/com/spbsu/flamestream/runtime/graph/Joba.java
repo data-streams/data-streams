@@ -1,7 +1,6 @@
 package com.spbsu.flamestream.runtime.graph;
 
 import com.spbsu.flamestream.core.DataItem;
-import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
 
 import java.util.Comparator;
@@ -46,7 +45,7 @@ public abstract class Joba {
     this.id = id;
   }
 
-  abstract void accept(DataItem item, Consumer<DataItem> sink);
+  abstract void accept(DataItem item, Consumer<DataItem> sink, int vertexIndex);
 
   void onMinTime(GlobalTime time) {
   }

@@ -42,17 +42,28 @@ import java.util.stream.Collectors;
 public class Component extends LoggingActor {
   private final ActorRef localAcker;
 
+  static class AcceptedDataItem {
+    final DataItem dataItem;
+    final boolean ack;
+
+    AcceptedDataItem(DataItem dataItem, boolean ack) {
+      this.dataItem = dataItem;
+      this.ack = ack;
+    }
+  }
+
   private static class JobaWrapper<WrappedJoba extends Joba> {
     WrappedJoba joba;
     Consumer<DataItem> downstream;
     final Graph.Vertex vertex;
-    final Snapshots<DataItem> snapshots;
+    final Snapshots<AcceptedDataItem> snapshots;
 
     JobaWrapper(WrappedJoba joba, Consumer<DataItem> downstream, Graph.Vertex vertex, long minTime) {
       this.joba = joba;
       this.downstream = downstream;
       this.vertex = vertex;
-      snapshots = Snapshots.acking ? new Snapshots<>(dataItem -> dataItem.meta().globalTime().time(), minTime) : null;
+      snapshots = Snapshots.acking ?
+              new Snapshots<>(dataItem -> dataItem.dataItem.meta().globalTime().time(), minTime + 1) : null;
     }
   }
 
@@ -113,7 +124,7 @@ public class Component extends LoggingActor {
 
                         final Consumer<DataItem> sink;
                         if (componentVertices.contains(to)) {
-                          sink = item -> localCall(item, toDest);
+                          sink = item -> localCall(new AcceptedDataItem(item, false), toDest);
                         } else if (to instanceof HashingVertexStub && ((HashingVertexStub) to).hash() != null) {
                           sink = item -> {
                             groupingSendTracer.log(item.xor());
@@ -129,20 +140,21 @@ public class Component extends LoggingActor {
                                 final DataItem cloned = item.cloneWith(new Meta(
                                         item.meta(),
                                         0,
-                                        childId++
+                                        childId++,
+                                        item.meta().globalTime()
                                 ));
-                                ack(cloned, to);
+                                ack(cloned);
                                 next.getValue().tell(new AddressedItem(cloned, toDest), self());
                               }
                             } else {
-                              ack(item, to);
+                              ack(item);
                               routes.get(Objects.requireNonNull(hash).applyAsInt(item))
                                       .tell(new AddressedItem(item, toDest), self());
                             }
                           };
                         } else {
                           sink = item -> {
-                            ack(item, to);
+                            ack(item);
                             localManager.tell(new AddressedItem(item, toDest), self());
                           };
                         }
@@ -162,7 +174,7 @@ public class Component extends LoggingActor {
                   downstream = item -> {
                     int childId = 0;
                     for (Consumer<DataItem> sink : sinks) {
-                      sink.accept(item.cloneWith(new Meta(item.meta(), 0, childId++)));
+                      sink.accept(item.cloneWith(new Meta(item.meta(), 0, childId++, item.meta().globalTime())));
                     }
                   };
               }
@@ -238,22 +250,18 @@ public class Component extends LoggingActor {
   private void inject(AddressedItem addressedItem) {
     final DataItem item = addressedItem.item();
     injectInTracer.log(item.xor());
-    localCall(item, addressedItem.destination());
-    ack(item, wrappedJobas.get(addressedItem.destination()).vertex);
+    localCall(new AcceptedDataItem(item, true), addressedItem.destination());
     injectOutTracer.log(item.xor());
   }
 
-  private void ack(DataItem dataItem, Graph.Vertex to) {
+  private void ack(DataItem dataItem) {
     if (localAcker != null) {
       final GlobalTime globalTime = dataItem.meta().globalTime();
-      localAcker.tell(new Ack(
-              new GlobalTime(globalTime.time(), globalTime.frontId(), to.index()),
-              dataItem.xor()
-      ), self());
+      localAcker.tell(new Ack(globalTime, dataItem.xor()), self());
     }
   }
 
-  private void localCall(DataItem item, GraphManager.Destination destination) {
+  private void localCall(AcceptedDataItem item, GraphManager.Destination destination) {
     accept(item, wrappedJobas.get(destination));
   }
 
@@ -262,7 +270,7 @@ public class Component extends LoggingActor {
       jobaWrapper.joba.onMinTime(minTime.minTime());
       if (jobaWrapper.vertex.index() == minTime.minTime().getVertexIndex()) {
         if (jobaWrapper.snapshots != null) {
-          for (final DataItem dataItem : jobaWrapper.snapshots.minTimeUpdate(minTime.minTime().time())) {
+          for (final AcceptedDataItem dataItem : jobaWrapper.snapshots.minTimeUpdate(minTime.minTime().time())) {
             accept(dataItem, jobaWrapper);
           }
         }
@@ -274,16 +282,19 @@ public class Component extends LoggingActor {
     if (wrappedSourceJoba != null) {
       acceptInTracer.log(item.xor());
       wrappedSourceJoba.joba.addFront(item.meta().globalTime().frontId(), sender());
-      accept(item, wrappedSourceJoba);
+      accept(new AcceptedDataItem(item, false), wrappedSourceJoba);
       acceptOutTracer.log(item.xor());
     } else {
       throw new IllegalStateException("Source doesn't belong to this component");
     }
   }
 
-  private void accept(DataItem item, JobaWrapper<?> joba) {
+  private void accept(AcceptedDataItem item, JobaWrapper<?> joba) {
     if (joba.snapshots == null || !joba.snapshots.putIfBlocked(item)) {
-      joba.joba.accept(item, joba.downstream);
+      joba.joba.accept(item.dataItem, joba.downstream, joba.vertex.index());
+      if (item.ack) {
+        ack(item.dataItem);
+      }
     }
   }
 

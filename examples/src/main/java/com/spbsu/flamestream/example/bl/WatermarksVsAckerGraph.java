@@ -28,6 +28,11 @@ public class WatermarksVsAckerGraph {
     public Data(int id) {
       super(id);
     }
+
+    @Override
+    public String toString() {
+      return "Data(id = " + id + ")";
+    }
   }
 
   static public final class Watermark extends Element {

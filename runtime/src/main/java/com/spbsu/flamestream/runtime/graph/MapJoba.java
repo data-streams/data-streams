@@ -15,7 +15,7 @@ public class MapJoba extends Joba {
   }
 
   @Override
-  public void accept(DataItem item, Consumer<DataItem> sink) {
-    operation.apply(item).forEach(sink);
+  public void accept(DataItem item, Consumer<DataItem> sink, int vertexIndex) {
+    operation.apply(item, vertexIndex).forEach(sink);
   }
 }
