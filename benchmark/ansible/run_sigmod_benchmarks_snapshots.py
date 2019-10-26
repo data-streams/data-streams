@@ -16,11 +16,11 @@ def run_benchmarks(bench_environment={}, worker_environment={}, **args):
     args = dict(
         {**default_args, **args},
         bench_environment={**dict(
-            WARM_UP_STREAM_LENGTH="10000", WARM_UP_DELAY_MS="10", FRONTS_NUMBER="1"
+            WARM_UP_STREAM_LENGTH="50000", WARM_UP_DELAY_MS="10", FRONTS_NUMBER="1"
         ), **bench_environment},
         worker_environment={
             **dict(
-                BARRIER_DISABLED="TRUE", LOCAL_ACKER_FLUSH_COUNT=1000000000, SNAPSHOTS_WINDOW=1000,
+                BARRIER_DISABLED="TRUE", LOCAL_ACKER_FLUSH_COUNT=1000000000, SNAPSHOTS_WINDOW=55000,
                 ACKER_VERTICES_NUMBER=args['iterations'] + 3,
             ),
             **worker_environment
