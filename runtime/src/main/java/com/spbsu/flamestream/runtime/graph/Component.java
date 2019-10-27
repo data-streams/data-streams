@@ -40,7 +40,9 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class Component extends LoggingActor {
+  private final String nodeId;
   private final ActorRef localAcker;
+  private final ComputationProps props;
 
   private static class Blocked {
     final Object message;
@@ -87,7 +89,9 @@ public class Component extends LoggingActor {
                     @Nullable ActorRef localAcker,
                     ComputationProps props,
                     Map<String, GroupGroupingState> stateByVertex) {
+    this.nodeId = nodeId;
     this.localAcker = localAcker;
+    this.props = props;
     this.wrappedJobas = componentVertices.stream().collect(Collectors.toMap(
             vertex -> GraphManager.Destination.fromVertexId(vertex.id()),
             vertex -> {
@@ -274,7 +278,10 @@ public class Component extends LoggingActor {
       jobaWrapper.joba.onMinTime(minTime.minTime());
       if (jobaWrapper.vertex.index() == minTime.minTime().getVertexIndex()) {
         if (jobaWrapper.snapshots != null) {
-          jobaWrapper.snapshots.minTimeUpdate(minTime.minTime().time() + 1).forEach(v1 -> receive().apply(v1.message));
+          if (!props.hashGroups().get(nodeId).units().stream().allMatch(HashUnit::isEmpty)) {
+            jobaWrapper.snapshots.minTimeUpdate(minTime.minTime().time() + 1)
+                    .forEach(v1 -> receive().apply(v1.message));
+          }
         }
       }
     }

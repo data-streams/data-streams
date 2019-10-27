@@ -65,6 +65,11 @@ public class HashUnit {
     return hash >= from && hash < to;
   }
 
+  @JsonIgnore
+  public boolean isEmpty() {
+    return from >= to;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) {
