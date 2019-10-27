@@ -66,7 +66,7 @@ public class WatermarksVsAckerGraph {
     final int fromPartitions, toPartitions;
     final int[] watermarks;
     int lastEmitted;
-    Snapshots<Data> initializedSnapshots;
+    Snapshots<Element> initializedSnapshots;
 
     Iteration(int fromPartitions, int toPartitions, int defaultMinimalTime) {
       this.fromPartitions = fromPartitions;
@@ -78,12 +78,11 @@ public class WatermarksVsAckerGraph {
 
     @Override
     public Stream<Element> apply(Element element) {
+      if (snapshots() != null && snapshots().putIfBlocked(element)) {
+        return Stream.empty();
+      }
       if (element instanceof Data) {
-        if (snapshots() != null && snapshots().putIfBlocked((Data) element)) {
-          return Stream.empty();
-        } else {
-          return Stream.of(element);
-        }
+        return Stream.of(element);
       }
       if (element instanceof Watermark) {
         final Watermark incoming = (Watermark) element;
@@ -96,9 +95,10 @@ public class WatermarksVsAckerGraph {
           if (lastEmitted < watermarkToEmit) {
             lastEmitted = watermarkToEmit;
             final Stream<Element> watermarks = watermarkStream(toPartitions, watermarkToEmit, incoming.toPartition);
-            if (snapshots() == null)
+            if (snapshots() == null) {
               return watermarks;
-            return Stream.concat(watermarks, snapshots().minTimeUpdate(watermarkToEmit + 1).stream());
+            }
+            return Stream.concat(watermarks, snapshots().minTimeUpdate(watermarkToEmit + 1).stream().flatMap(this));
           }
         }
         return Stream.empty();
@@ -106,9 +106,9 @@ public class WatermarksVsAckerGraph {
       throw new IllegalArgumentException(element.toString());
     }
 
-    private Snapshots<Data> snapshots() {
+    private Snapshots<Element> snapshots() {
       if (!Snapshots.acking && initializedSnapshots == null) {
-        initializedSnapshots = new Snapshots<>(data -> data.id, lastEmitted);
+        initializedSnapshots = new Snapshots<>(data -> data.id, lastEmitted + 1);
       }
       return initializedSnapshots;
     }

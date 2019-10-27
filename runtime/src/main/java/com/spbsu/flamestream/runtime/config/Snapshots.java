@@ -90,7 +90,11 @@ public class Snapshots<Element> {
     return 0;
   }
 
-  private boolean blocked(Element item) {
+  public boolean blocked(Element item) {
     return period(minTime) < period(elementTime.applyAsLong(item));
+  }
+
+  public boolean blocked(long time) {
+    return period(minTime) < period(time);
   }
 }

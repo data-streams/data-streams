@@ -42,13 +42,13 @@ import java.util.stream.Collectors;
 public class Component extends LoggingActor {
   private final ActorRef localAcker;
 
-  static class AcceptedDataItem {
-    final DataItem dataItem;
-    final boolean ack;
+  private static class Blocked {
+    final Object message;
+    final long time;
 
-    AcceptedDataItem(DataItem dataItem, boolean ack) {
-      this.dataItem = dataItem;
-      this.ack = ack;
+    Blocked(Object message, long time) {
+      this.message = message;
+      this.time = time;
     }
   }
 
@@ -56,14 +56,13 @@ public class Component extends LoggingActor {
     WrappedJoba joba;
     Consumer<DataItem> downstream;
     final Graph.Vertex vertex;
-    final Snapshots<AcceptedDataItem> snapshots;
+    final Snapshots<Blocked> snapshots;
 
     JobaWrapper(WrappedJoba joba, Consumer<DataItem> downstream, Graph.Vertex vertex, long minTime) {
       this.joba = joba;
       this.downstream = downstream;
       this.vertex = vertex;
-      snapshots = Snapshots.acking ?
-              new Snapshots<>(dataItem -> dataItem.dataItem.meta().globalTime().time(), minTime + 1) : null;
+      snapshots = Snapshots.acking ? new Snapshots<>(dataItem -> dataItem.time, minTime + 1) : null;
     }
   }
 
@@ -124,7 +123,7 @@ public class Component extends LoggingActor {
 
                         final Consumer<DataItem> sink;
                         if (componentVertices.contains(to)) {
-                          sink = item -> localCall(new AcceptedDataItem(item, false), toDest);
+                          sink = item -> localCall(item, toDest);
                         } else if (to instanceof HashingVertexStub && ((HashingVertexStub) to).hash() != null) {
                           sink = item -> {
                             groupingSendTracer.log(item.xor());
@@ -222,6 +221,8 @@ public class Component extends LoggingActor {
             .match(MinTimeUpdate.class, this::onMinTime)
             .match(NewRear.class, this::onNewRear)
             .match(Heartbeat.class, h -> {
+              if (bufferIfBlocked(h, wrappedSourceJoba, h.time().time()))
+                return;
               if (localAcker != null) {
                 localAcker.forward(h, context());
               }
@@ -249,8 +250,11 @@ public class Component extends LoggingActor {
 
   private void inject(AddressedItem addressedItem) {
     final DataItem item = addressedItem.item();
+    if (bufferIfBlocked(addressedItem, wrappedJobas.get(addressedItem.destination()), item.meta().globalTime().time()))
+      return;
     injectInTracer.log(item.xor());
-    localCall(new AcceptedDataItem(item, true), addressedItem.destination());
+    localCall(item, addressedItem.destination());
+    ack(item);
     injectOutTracer.log(item.xor());
   }
 
@@ -261,7 +265,7 @@ public class Component extends LoggingActor {
     }
   }
 
-  private void localCall(AcceptedDataItem item, GraphManager.Destination destination) {
+  private void localCall(DataItem item, GraphManager.Destination destination) {
     accept(item, wrappedJobas.get(destination));
   }
 
@@ -270,9 +274,7 @@ public class Component extends LoggingActor {
       jobaWrapper.joba.onMinTime(minTime.minTime());
       if (jobaWrapper.vertex.index() == minTime.minTime().getVertexIndex()) {
         if (jobaWrapper.snapshots != null) {
-          for (final AcceptedDataItem dataItem : jobaWrapper.snapshots.minTimeUpdate(minTime.minTime().time())) {
-            accept(dataItem, jobaWrapper);
-          }
+          jobaWrapper.snapshots.minTimeUpdate(minTime.minTime().time() + 1).forEach(v1 -> receive().apply(v1.message));
         }
       }
     }
@@ -280,22 +282,28 @@ public class Component extends LoggingActor {
 
   private void accept(DataItem item) {
     if (wrappedSourceJoba != null) {
+      if (bufferIfBlocked(item, wrappedSourceJoba, item.meta().globalTime().time()))
+        return;
       acceptInTracer.log(item.xor());
       wrappedSourceJoba.joba.addFront(item.meta().globalTime().frontId(), sender());
-      accept(new AcceptedDataItem(item, false), wrappedSourceJoba);
+      accept(item, wrappedSourceJoba);
       acceptOutTracer.log(item.xor());
     } else {
       throw new IllegalStateException("Source doesn't belong to this component");
     }
   }
 
-  private void accept(AcceptedDataItem item, JobaWrapper<?> joba) {
-    if (joba.snapshots == null || !joba.snapshots.putIfBlocked(item)) {
-      joba.joba.accept(item.dataItem, joba.downstream, joba.vertex.index());
-      if (item.ack) {
-        ack(item.dataItem);
-      }
+  private <WrappedJoba extends Joba> boolean bufferIfBlocked(Object message, JobaWrapper<WrappedJoba> joba, long time) {
+    if (joba.snapshots == null)
+      return false;
+    return joba.snapshots.putIfBlocked(new Blocked(message, time));
+  }
+
+  private void accept(DataItem item, JobaWrapper<?> joba) {
+    if (joba.snapshots != null && joba.snapshots.blocked(item.meta().globalTime().time())) {
+      throw new RuntimeException("item is blocked: " + item);
     }
+    joba.joba.accept(item, joba.downstream, joba.vertex.index());
   }
 
   private void onNewRear(NewRear attachRear) {

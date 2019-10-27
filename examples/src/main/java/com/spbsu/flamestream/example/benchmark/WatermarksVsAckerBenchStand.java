@@ -85,7 +85,7 @@ public class WatermarksVsAckerBenchStand {
                             frontHostIds.size(),
                             HashUnit.covering(workerIds.size()).collect(Collectors.toCollection(ArrayList::new)),
                             benchStand.iterations,
-                            -benchStand.warmUpStreamLength - 1
+                            -benchStand.warmUpStreamLength
                     ),
                     new SocketFrontType(
                             benchStand.benchHost,
