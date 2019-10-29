@@ -29,15 +29,19 @@ import com.spbsu.flamestream.runtime.master.acker.api.registry.UnregisterFront;
 import com.spbsu.flamestream.runtime.utils.akka.LoggingActor;
 import com.spbsu.flamestream.runtime.utils.collections.HashUnitMap;
 import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Component extends LoggingActor {
   private final String nodeId;
@@ -225,8 +229,9 @@ public class Component extends LoggingActor {
             .match(MinTimeUpdate.class, this::onMinTime)
             .match(NewRear.class, this::onNewRear)
             .match(Heartbeat.class, h -> {
-              if (bufferIfBlocked(h, wrappedSourceJoba, h.time().time()))
+              if (bufferIfBlocked(h, wrappedSourceJoba, h.time().time())) {
                 return;
+              }
               if (localAcker != null) {
                 localAcker.forward(h, context());
               }
@@ -254,8 +259,13 @@ public class Component extends LoggingActor {
 
   private void inject(AddressedItem addressedItem) {
     final DataItem item = addressedItem.item();
-    if (bufferIfBlocked(addressedItem, wrappedJobas.get(addressedItem.destination()), item.meta().globalTime().time()))
+    if (bufferIfBlocked(
+            addressedItem,
+            wrappedJobas.get(addressedItem.destination()),
+            item.meta().globalTime().time()
+    )) {
       return;
+    }
     injectInTracer.log(item.xor());
     localCall(item, addressedItem.destination());
     ack(item);
@@ -279,8 +289,10 @@ public class Component extends LoggingActor {
       if (jobaWrapper.vertex.index() == minTime.minTime().getVertexIndex()) {
         if (jobaWrapper.snapshots != null) {
           if (!props.hashGroups().get(nodeId).units().stream().allMatch(HashUnit::isEmpty)) {
-            jobaWrapper.snapshots.minTimeUpdate(minTime.minTime().time() + 1)
-                    .forEach(v1 -> receive().apply(v1.message));
+            jobaWrapper.snapshots.minTimeUpdate(
+                    minTime.minTime().time() + 1,
+                    scheduleDoneSnapshot(v1 -> receive().apply(v1.message))
+            );
           }
         }
       }
@@ -289,8 +301,9 @@ public class Component extends LoggingActor {
 
   private void accept(DataItem item) {
     if (wrappedSourceJoba != null) {
-      if (bufferIfBlocked(item, wrappedSourceJoba, item.meta().globalTime().time()))
+      if (bufferIfBlocked(item, wrappedSourceJoba, item.meta().globalTime().time())) {
         return;
+      }
       acceptInTracer.log(item.xor());
       wrappedSourceJoba.joba.addFront(item.meta().globalTime().frontId(), sender());
       accept(item, wrappedSourceJoba);
@@ -301,8 +314,9 @@ public class Component extends LoggingActor {
   }
 
   private <WrappedJoba extends Joba> boolean bufferIfBlocked(Object message, JobaWrapper<WrappedJoba> joba, long time) {
-    if (joba.snapshots == null)
+    if (joba.snapshots == null) {
       return false;
+    }
     return joba.snapshots.putIfBlocked(new Blocked(message, time));
   }
 
@@ -310,7 +324,16 @@ public class Component extends LoggingActor {
     if (joba.snapshots != null && joba.snapshots.blocked(item.meta().globalTime().time())) {
       throw new RuntimeException("item is blocked: " + item);
     }
-    joba.joba.accept(item, joba.downstream, joba.vertex.index());
+    joba.joba.accept(item, joba.downstream, joba.vertex.index(), scheduleDoneSnapshot(joba.downstream));
+  }
+
+  @NotNull
+  private <Element> Consumer<Supplier<Stream<Element>>> scheduleDoneSnapshot(Consumer<Element> consumer) {
+    return onSnapshotDone -> context().system().scheduler().scheduleOnce(
+            Duration.ofMillis(Snapshots.durationMs),
+            () -> onSnapshotDone.get().forEach(consumer),
+            context().dispatcher()
+    );
   }
 
   private void onNewRear(NewRear attachRear) {

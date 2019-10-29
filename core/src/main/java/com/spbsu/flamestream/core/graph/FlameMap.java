@@ -7,7 +7,9 @@ import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.core.data.meta.Meta;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class FlameMap<T, R> extends HashingVertexStub {
@@ -67,6 +69,10 @@ public class FlameMap<T, R> extends HashingVertexStub {
     return hashFunction;
   }
 
+  public Stream<R> apply(T value, Consumer<Supplier<Stream<R>>> scheduleDoneSnapshot) {
+    return function.apply(value);
+  }
+
   public class FlameMapOperation {
     private final long physicalId;
 
@@ -74,19 +80,21 @@ public class FlameMap<T, R> extends HashingVertexStub {
       this.physicalId = physicalId;
     }
 
-    public Stream<DataItem> apply(DataItem dataItem, int vertexIndex) {
-      //noinspection unchecked
-      final Stream<R> result = function.apply(dataItem.payload((Class<T>) clazz));
+    public Stream<DataItem> apply(DataItem dataItem,
+                                  int vertexIndex,
+                                  Consumer<Supplier<Stream<DataItem>>> scheduleDoneSnapshot) {
       final int[] childId = {0};
-      return result.map(r -> {
-        final Meta newMeta = new Meta(
-                dataItem.meta(),
-                physicalId,
-                childId[0]++,
-                new GlobalTime(dataItem.meta().globalTime().time(), dataItem.meta().globalTime().frontId(), vertexIndex)
-        );
-        return new PayloadDataItem(newMeta, r);
-      });
+      final Function<R, DataItem> rDataItemFunction = r -> new PayloadDataItem(new Meta(
+              dataItem.meta(),
+              physicalId,
+              childId[0]++,
+              new GlobalTime(dataItem.meta().globalTime().time(), dataItem.meta().globalTime().frontId(), vertexIndex)
+      ), r);
+      //noinspection unchecked
+      return FlameMap.this.apply(
+              dataItem.payload((Class<T>) clazz),
+              onDoneSnapshot -> scheduleDoneSnapshot.accept(() -> onDoneSnapshot.get().map(rDataItemFunction))
+      ).map(rDataItemFunction);
     }
   }
 }

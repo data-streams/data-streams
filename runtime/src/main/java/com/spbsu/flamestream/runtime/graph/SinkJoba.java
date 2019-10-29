@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class SinkJoba extends Joba {
@@ -44,7 +45,10 @@ public class SinkJoba extends Joba {
   }
 
   @Override
-  public void accept(DataItem item, Consumer<DataItem> sink, int vertexIndex) {
+  public void accept(DataItem item,
+                     Consumer<DataItem> sink,
+                     int vertexIndex,
+                     Consumer<Supplier<Stream<DataItem>>> supplierConsumer) {
     barrierReceiveTracer.log(item.xor());
     if (barrierDisabled) {
       rears.forEach((rear, lastEmmit) -> emmitRearBatch(

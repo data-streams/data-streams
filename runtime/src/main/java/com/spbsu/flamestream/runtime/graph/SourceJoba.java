@@ -13,6 +13,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 public class SourceJoba extends Joba {
   private final Collection<GlobalTime> inFlight = new ArrayList<>();
@@ -40,7 +42,10 @@ public class SourceJoba extends Joba {
   }
 
   @Override
-  public void accept(DataItem item, Consumer<DataItem> sink, int vertexIndex) {
+  public void accept(DataItem item,
+                     Consumer<DataItem> sink,
+                     int vertexIndex,
+                     Consumer<Supplier<Stream<DataItem>>> supplierConsumer) {
     sink.accept(item);
     unutilizedRequests--;
     final GlobalTime globalTime = item.meta().globalTime();

@@ -10,6 +10,8 @@ import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
 
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 public class GroupingJoba extends Joba {
   private final Tracing.Tracer tracer = Tracing.TRACING.forEvent("grouping-receive");
@@ -28,7 +30,10 @@ public class GroupingJoba extends Joba {
   }
 
   @Override
-  public void accept(DataItem item, Consumer<DataItem> sink, int vertexIndex) {
+  public void accept(DataItem item,
+                     Consumer<DataItem> sink,
+                     int vertexIndex,
+                     Consumer<Supplier<Stream<DataItem>>> supplierConsumer) {
     tracer.log(item.xor());
 
     final InvalidatingBucket bucket = state.bucketFor(item, grouping.hash(), grouping.equalz());

@@ -9,7 +9,10 @@ import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
+import java.util.stream.Stream;
 
 import static java.lang.Integer.parseInt;
 import static java.lang.Long.parseLong;
@@ -29,7 +32,7 @@ public class Snapshots<Element> {
 
   private static final int window =
           System.getenv().containsKey("SNAPSHOTS_WINDOW") ? parseInt(System.getenv("SNAPSHOTS_WINDOW")) : 0;
-  private static final long durationMs =
+  public static final long durationMs =
           System.getenv().containsKey("SNAPSHOTS_DURATION_MS") ? parseLong(System.getenv("SNAPSHOTS_DURATION_MS")) : 0;
   private static final long baseNanos = System.nanoTime();
   private static final AtomicLong totalBufferingDuration = new AtomicLong();
@@ -38,14 +41,14 @@ public class Snapshots<Element> {
   public Snapshots(ToLongFunction<Element> elementTime, long defaultMinimalTime) {
     this.elementTime = elementTime;
     this.defaultMinimalTime = defaultMinimalTime;
-    this.minTime = defaultMinimalTime;
+    scheduledPeriod = currentPeriod = period(defaultMinimalTime);
     buffer = new PriorityQueue<>(Comparator.comparingLong(this.elementTime));
   }
 
   private final ToLongFunction<Element> elementTime;
   private final long defaultMinimalTime;
   private final PriorityQueue<Element> buffer;
-  private long minTime;
+  private long scheduledPeriod, currentPeriod;
   private long bufferingDuration = 0;
   private int bufferedCount = 0;
 
@@ -59,28 +62,31 @@ public class Snapshots<Element> {
     return false;
   }
 
-  public List<Element> minTimeUpdate(long time) {
-    for (int i = 0; i < period(time) - period(minTime); i++) {
-      try {
-        System.out.println("SNAPSHOT");
-        Thread.sleep(durationMs);
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
+  public void minTimeUpdate(long time, Consumer<Supplier<Stream<Element>>> scheduleDone) {
+    checkPeriodIncrement(time, scheduleDone);
+  }
+
+  private void checkPeriodIncrement(long time, Consumer<Supplier<Stream<Element>>> scheduleSnapshotDone) {
+    if (period(time) > scheduledPeriod) {
+      System.out.println("SNAPSHOT");
+      scheduledPeriod++;
+      scheduleSnapshotDone.accept(() -> {
+        currentPeriod++;
+        checkPeriodIncrement(time, scheduleSnapshotDone);
+        List<Element> elements = new ArrayList<>();
+        while (!buffer.isEmpty() && !blocked(buffer.peek())) {
+          bufferingDuration += System.nanoTime() - baseNanos;
+          elements.add(buffer.poll());
+        }
+        if (buffer.isEmpty()) {
+          totalBufferingDuration.addAndGet(bufferingDuration);
+          bufferingDuration = 0;
+          totalBufferedCount.addAndGet(bufferedCount);
+          bufferedCount = 0;
+        }
+        return elements.stream();
+      });
     }
-    minTime = time;
-    List<Element> elements = new ArrayList<>();
-    while (!buffer.isEmpty() && !blocked(buffer.peek())) {
-      bufferingDuration += System.nanoTime() - baseNanos;
-      elements.add(buffer.poll());
-    }
-    if (buffer.isEmpty()) {
-      totalBufferingDuration.addAndGet(bufferingDuration);
-      bufferingDuration = 0;
-      totalBufferedCount.addAndGet(bufferedCount);
-      bufferedCount = 0;
-    }
-    return elements;
   }
 
   private long period(long time) {
@@ -91,10 +97,10 @@ public class Snapshots<Element> {
   }
 
   public boolean blocked(Element item) {
-    return period(minTime) < period(elementTime.applyAsLong(item));
+    return blocked(elementTime.applyAsLong(item));
   }
 
   public boolean blocked(long time) {
-    return period(minTime) < period(time);
+    return currentPeriod < period(time);
   }
 }

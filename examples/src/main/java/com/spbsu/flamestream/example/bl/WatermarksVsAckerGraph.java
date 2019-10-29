@@ -11,7 +11,8 @@ import com.spbsu.flamestream.runtime.config.Snapshots;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -62,22 +63,25 @@ public class WatermarksVsAckerGraph {
     ));
   }
 
-  private static class Iteration implements Function<Element, Stream<Element>> {
+  private static class Iteration extends FlameMap<Element, Element> {
     final int fromPartitions, toPartitions;
     final int[] watermarks;
     int lastEmitted;
+    private final int index;
     Snapshots<Element> initializedSnapshots;
 
-    Iteration(int fromPartitions, int toPartitions, int defaultMinimalTime) {
+    Iteration(int fromPartitions, int toPartitions, int defaultMinimalTime, HashFunction hashFunction, int index) {
+      super(null, Element.class, hashFunction);
       this.fromPartitions = fromPartitions;
       this.toPartitions = toPartitions;
       watermarks = new int[fromPartitions];
       lastEmitted = defaultMinimalTime;
       Arrays.fill(watermarks, lastEmitted);
+      this.index = index;
     }
 
     @Override
-    public Stream<Element> apply(Element element) {
+    public Stream<Element> apply(Element element, Consumer<Supplier<Stream<Element>>> done) {
       if (snapshots() != null && snapshots().putIfBlocked(element)) {
         return Stream.empty();
       }
@@ -95,15 +99,23 @@ public class WatermarksVsAckerGraph {
           if (lastEmitted < watermarkToEmit) {
             lastEmitted = watermarkToEmit;
             final Stream<Element> watermarks = watermarkStream(toPartitions, watermarkToEmit, incoming.toPartition);
-            if (snapshots() == null) {
-              return watermarks;
+            if (snapshots() != null) {
+              snapshots().minTimeUpdate(
+                      watermarkToEmit + 1,
+                      supplier -> done.accept(() -> supplier.get().flatMap(blocked -> apply(blocked, done)))
+              );
             }
-            return Stream.concat(watermarks, snapshots().minTimeUpdate(watermarkToEmit + 1).stream().flatMap(this));
+            return watermarks;
           }
         }
         return Stream.empty();
       }
       throw new IllegalArgumentException(element.toString());
+    }
+
+    @Override
+    public int index() {
+      return index;
     }
 
     private Snapshots<Element> snapshots() {
@@ -139,42 +151,22 @@ public class WatermarksVsAckerGraph {
     final Graph.Builder graphBuilder = new Graph.Builder();
     final Source source = new Source();
     final Sink sink = new Sink();
-    final Graph.Vertex start = new FlameMap<Element, Element>(
-            new Iteration(1, covering.size(), defaultMinimalTime),
-            Element.class
-    ) {
-      @Override
-      public int index() {
-        return 0;
-      }
-    };
-    final Graph.Vertex end = new FlameMap<Element, Element>(
-            new Iteration(covering.size(), 1, defaultMinimalTime),
-            Element.class,
-            new HashFunction(covering, allIterations)
-    ) {
-      @Override
-      public int index() {
-        return allIterations + 1;
-      }
-    };
+    final Graph.Vertex start = new Iteration(1, covering.size(), defaultMinimalTime, null, 0);
+    final Graph.Vertex end = new Iteration(
+            covering.size(),
+            1,
+            defaultMinimalTime,
+            new HashFunction(covering, allIterations),
+            allIterations + 1
+    );
 
     graphBuilder
             .link(source, start)
             .link(
                     IntStream.range(0, allIterations).boxed().<Graph.Vertex>map(iteration ->
-                            new FlameMap<Element, Element>(
-                                    new Iteration(iteration == 0 ? frontsNumber : covering.size(), covering.size(),
-                                            defaultMinimalTime
-                                    ),
-                                    Element.class,
-                                    new HashFunction(covering, iteration)
-                            ) {
-                              @Override
-                              public int index() {
-                                return iteration + 1;
-                              }
-                            }).reduce(start, (from, to) -> {
+                            new Iteration(iteration == 0 ? frontsNumber : covering.size(), covering.size(),
+                                    defaultMinimalTime, new HashFunction(covering, iteration), iteration + 1
+                            )).reduce(start, (from, to) -> {
                       graphBuilder.link(from, to);
                       return to;
                     }),
