@@ -145,7 +145,7 @@ public class BenchStandComponentFactory {
       @Override
       public void received(Connection connection, Object object) {
         if (
-                object instanceof DataItem && Math.floorMod(((DataItem) object).meta().globalTime().time() + 10, 5000) < 10
+                object instanceof DataItem && Math.floorMod(((DataItem) object).meta().globalTime().time() + 10, 5000) < 20
                 || object instanceof Rear.MinTime && Math.floorMod(((Rear.MinTime) object).time.time(), 5000) == 0
         ) {
           System.out.println(connection.getRemoteAddressTCP() + ": " + object);

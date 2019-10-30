@@ -49,7 +49,7 @@ public class SinkJoba extends Joba {
                      Consumer<DataItem> sink,
                      int vertexIndex,
                      Consumer<Supplier<Stream<DataItem>>> supplierConsumer) {
-    if (Math.floorMod(item.meta().globalTime().time() + 10, 5000) < 10) {
+    if (Math.floorMod(item.meta().globalTime().time() + 10, 5000) < 20) {
       System.out.println(item);
     }
     barrierReceiveTracer.log(item.xor());
