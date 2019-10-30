@@ -156,7 +156,7 @@ public class WatermarksVsAckerBenchStand {
         return new Tracking.Acking(new NotificationAwaitTimes<>(
                 streamLength,
                 new PriorityQueue<>(Comparator.comparing(o -> o.meta().globalTime())),
-                (dataItem, time) -> dataItem.meta().globalTime().compareTo(time) < 0
+                (dataItem, time) -> dataItem.meta().globalTime().time() < time.time()
         ));
       }
 
