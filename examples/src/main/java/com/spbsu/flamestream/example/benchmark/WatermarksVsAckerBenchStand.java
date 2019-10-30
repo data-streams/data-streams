@@ -63,7 +63,7 @@ public class WatermarksVsAckerBenchStand {
     final SystemConfig.Builder builder = new SystemConfig.Builder()
             .millisBetweenCommits(1000000000)
             .barrierDisabled(true)
-            .ackerVerticesNumber(benchStand.iterations + 3)
+            .ackerVerticesNumber(benchStand.iterations + 4)
             .workersResourcesDistributor(
                     new SystemConfig.WorkersResourcesDistributor.Enumerated(
                             benchStand.workerIdPrefix,

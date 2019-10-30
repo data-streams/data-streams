@@ -21,7 +21,7 @@ def run_benchmarks(bench_environment={}, worker_environment={}, **args):
         worker_environment={
             **dict(
                 BARRIER_DISABLED="TRUE", LOCAL_ACKER_FLUSH_COUNT=1000000000, SNAPSHOTS_WINDOW=55000,
-                ACKER_VERTICES_NUMBER=args['iterations'] + 3,
+                ACKER_VERTICES_NUMBER=args['iterations'] + 4,
             ),
             **worker_environment
         },

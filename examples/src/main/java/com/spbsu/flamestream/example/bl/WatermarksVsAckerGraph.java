@@ -150,7 +150,12 @@ public class WatermarksVsAckerGraph {
     final int allIterations = iterations + 1;
     final Graph.Builder graphBuilder = new Graph.Builder();
     final Source source = new Source();
-    final Sink sink = new Sink();
+    final Sink sink = new Sink() {
+      @Override
+      public int index() {
+        return allIterations + 2;
+      }
+    };
     final Graph.Vertex start = new Iteration(1, covering.size(), defaultMinimalTime, null, 0);
     final Graph.Vertex end = new Iteration(
             covering.size(),
