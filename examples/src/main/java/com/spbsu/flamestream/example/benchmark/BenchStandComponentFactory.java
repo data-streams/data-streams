@@ -4,6 +4,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.esotericsoftware.kryonet.Server;
+import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.data.PayloadDataItem;
 import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
@@ -143,6 +144,12 @@ public class BenchStandComponentFactory {
     server.addListener(new Listener() {
       @Override
       public void received(Connection connection, Object object) {
+        if (
+                object instanceof DataItem && Math.floorMod(((DataItem) object).meta().globalTime().time(), 5000) == 0
+                || object instanceof Rear.MinTime && Math.floorMod(((Rear.MinTime) object).time.time(), 5000) == 0
+        ) {
+          System.out.println(connection.getRemoteAddressTCP() + ": " + object);
+        }
         consumer.accept(object);
       }
     });

@@ -12,6 +12,11 @@ public interface Rear {
     public final GlobalTime time;
 
     public MinTime(GlobalTime time) {this.time = time;}
+
+    @Override
+    public String toString() {
+      return time.toString();
+    }
   }
 
   /**
