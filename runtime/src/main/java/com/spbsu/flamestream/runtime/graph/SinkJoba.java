@@ -49,9 +49,6 @@ public class SinkJoba extends Joba {
                      Consumer<DataItem> sink,
                      int vertexIndex,
                      Consumer<Supplier<Stream<DataItem>>> supplierConsumer) {
-    if (Math.floorMod(item.meta().globalTime().time() + 10, 5000) < 20) {
-      System.out.println(item);
-    }
     barrierReceiveTracer.log(item.xor());
     if (barrierDisabled) {
       rears.forEach((rear, lastEmmit) -> emmitRearBatch(
@@ -79,9 +76,6 @@ public class SinkJoba extends Joba {
 
   @Override
   public void onMinTime(GlobalTime minTime) {
-    if (Math.floorMod(minTime.time(), 5000) == 0) {
-      System.out.println(minTime);
-    }
     if (minTime.getVertexIndex() != ackerVerticesNumber - 1)
       return;
     this.minTime = minTime;
