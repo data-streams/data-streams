@@ -225,10 +225,11 @@ public class ProcessingWatcher extends LoggingActor {
                 curator.getData().forPath(event.getData().getPath()),
                 FlameRuntime.FrontInstance.class
         );
-        self().tell(
-                new AttachFront<>(StringUtils.substringAfterLast(event.getData().getPath(), "/"), front),
-                self()
-        );
+        self().tell(new AttachFront<>(
+                StringUtils.substringAfterLast(event.getData().getPath(), "/"),
+                front,
+                systemConfig.ackerWindow()
+        ), self());
       }
     });
     frontsCache.start();
