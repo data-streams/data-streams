@@ -150,6 +150,7 @@ public class WatermarksVsAckerBenchStand {
 
     class Acking implements TrackingFactory {
       private int ackersNumber = 1;
+      private int frequency = 1;
 
       @Override
       public Tracking create(int streamLength, int workersNumber) {
@@ -162,7 +163,15 @@ public class WatermarksVsAckerBenchStand {
 
       @Override
       public void configureSystem(SystemConfig.Builder builder) {
-        builder.ackerWindow(10);
+        builder.ackerWindow(frequency);
+      }
+
+      public int getFrequency() {
+        return this.frequency;
+      }
+
+      public void setFrequency(int frequency) {
+        this.frequency = frequency;
       }
 
       @Override
