@@ -25,9 +25,7 @@ public interface Front {
     }
 
     protected synchronized GlobalTime currentTime() {
-      long globalTs = prevGlobalTs + 1;
-      prevGlobalTs = globalTs;
-      return new GlobalTime(globalTs, edgeId);
+      return new GlobalTime(prevGlobalTs++, edgeId);
     }
   }
 }

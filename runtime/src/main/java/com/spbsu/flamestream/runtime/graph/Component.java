@@ -68,7 +68,7 @@ public class Component extends LoggingActor {
       this.joba = joba;
       this.downstream = downstream;
       this.vertex = vertex;
-      snapshots = Snapshots.acking ? new Snapshots<>(dataItem -> dataItem.time, minTime + 1) : null;
+      snapshots = Snapshots.acking ? new Snapshots<>(dataItem -> dataItem.time, minTime) : null;
     }
   }
 
@@ -229,7 +229,7 @@ public class Component extends LoggingActor {
             .match(MinTimeUpdate.class, this::onMinTime)
             .match(NewRear.class, this::onNewRear)
             .match(Heartbeat.class, h -> {
-              if (bufferIfBlocked(h, wrappedSourceJoba, h.time().time())) {
+              if (bufferIfBlocked(h, wrappedSourceJoba, h.time().time() - 1)) {
                 return;
               }
               if (localAcker != null) {
@@ -290,7 +290,7 @@ public class Component extends LoggingActor {
         if (jobaWrapper.snapshots != null) {
           if (!props.hashGroups().get(nodeId).units().stream().allMatch(HashUnit::isEmpty)) {
             jobaWrapper.snapshots.minTimeUpdate(
-                    minTime.minTime().time() + 1,
+                    minTime.minTime().time(),
                     scheduleDoneSnapshot(v1 -> receive().apply(v1.message))
             );
           }
