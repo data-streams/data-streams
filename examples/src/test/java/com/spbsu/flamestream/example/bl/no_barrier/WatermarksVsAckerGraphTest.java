@@ -46,7 +46,7 @@ public class WatermarksVsAckerGraphTest extends FlameAkkaSuite {
     try (
             final LocalClusterRuntime runtime = new LocalClusterRuntime(
                     parallelism,
-                    new SystemConfig.Builder().millisBetweenCommits(10000).ackerVerticesNumber(iterations + 3).build()
+                    new SystemConfig.Builder().millisBetweenCommits(10000).ackerVerticesNumber(iterations + 5).build()
             );
             final FlameRuntime.Flame flame = runtime.run(WatermarksVsAckerGraph.apply(
                     1,
