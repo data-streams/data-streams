@@ -75,5 +75,11 @@
         dest: "{{ results_dir }}/flamestream/snapshots/{{ inventory_hostname }}.csv"
         flat: true
         fail_on_missing: false
+    - name: Fetch vertex snapshots
+      fetch:
+        src: /tmp/vertex_snapshots.csv
+        dest: "{{ results_dir }}/flamestream/vertex_snapshots/{{ inventory_hostname }}.csv"
+        flat: true
+        fail_on_missing: false
   tags:
     - lat

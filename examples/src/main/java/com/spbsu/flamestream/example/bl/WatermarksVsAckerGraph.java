@@ -120,7 +120,7 @@ public class WatermarksVsAckerGraph {
 
     private Snapshots<Element> snapshots() {
       if (!Snapshots.acking && initializedSnapshots == null) {
-        initializedSnapshots = new Snapshots<>(data -> data.id, lastEmitted);
+        initializedSnapshots = new Snapshots<>(data -> data.id, lastEmitted, index);
       }
       return initializedSnapshots;
     }

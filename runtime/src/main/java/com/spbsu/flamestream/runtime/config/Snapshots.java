@@ -8,7 +8,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
@@ -20,13 +22,33 @@ import static java.lang.Long.parseLong;
 public class Snapshots<Element> {
   public static final boolean acking =
           System.getenv().containsKey("ACKERS_NUMBER") ? parseInt(System.getenv("ACKERS_NUMBER")) > 0 : true;
+  private static final int verticesNumber =
+          System.getenv().containsKey("ACKER_VERTICES_NUMBER") ? parseInt(System.getenv("ACKER_VERTICES_NUMBER")) :
+                  100;
 
   public static void flush() throws Exception {
+    long totalBufferingDuration = 0;
+    int totalBufferedCount = 0;
+    try (final PrintWriter printWriter = new PrintWriter(Files.newBufferedWriter(Paths.get(
+            "/tmp/vertex_snapshots.csv"
+    )))) {
+      int nonZeroLength = 0;
+      for (int i = 0; i < verticesNumber; i++) {
+        totalBufferingDuration += vertexTotalBufferingDuration.get(i);
+        totalBufferedCount += vertexTotalBufferedCount.get(i);
+        if (vertexTotalBufferingDuration.get(i) > 0 || vertexTotalBufferedCount.get(i) > 0)
+          nonZeroLength = i + 1;
+      }
+      printWriter.println("buffering_duration,buffered_count");
+      for (int i = 0; i < nonZeroLength; i++) {
+        printWriter.println(vertexTotalBufferingDuration.get(i) + "," + vertexTotalBufferedCount.get(i));
+      }
+    }
     try (final PrintWriter printWriter = new PrintWriter(Files.newBufferedWriter(Paths.get(
             "/tmp/snapshots.csv"
     )))) {
-      printWriter.println("buffering_duration," + totalBufferingDuration.get());
-      printWriter.println("buffered_count," + totalBufferedCount.get());
+      printWriter.println("buffering_duration," + totalBufferingDuration);
+      printWriter.println("buffered_count," + totalBufferedCount);
     }
   }
 
@@ -35,20 +57,23 @@ public class Snapshots<Element> {
   public static final long durationMs =
           System.getenv().containsKey("SNAPSHOTS_DURATION_MS") ? parseLong(System.getenv("SNAPSHOTS_DURATION_MS")) : 0;
   private static final long baseNanos = System.nanoTime();
-  private static final AtomicLong totalBufferingDuration = new AtomicLong();
-  private static final AtomicInteger totalBufferedCount = new AtomicInteger();
+  private static final AtomicLongArray vertexTotalBufferingDuration = new AtomicLongArray(verticesNumber);
+  private static final AtomicIntegerArray vertexTotalBufferedCount = new AtomicIntegerArray(verticesNumber);
 
-  public Snapshots(ToLongFunction<Element> elementTime, long defaultMinimalTime) {
+  public Snapshots(ToLongFunction<Element> elementTime, long defaultMinimalTime, int vertexIndex) {
     this.elementTime = elementTime;
     this.defaultMinimalTime = defaultMinimalTime;
     scheduledPeriod = currentPeriod = period(defaultMinimalTime);
+    this.vertexIndex = vertexIndex;
     buffer = new PriorityQueue<>(Comparator.comparingLong(this.elementTime));
   }
 
   private final ToLongFunction<Element> elementTime;
   private final long defaultMinimalTime;
   private final PriorityQueue<Element> buffer;
-  private long scheduledPeriod, currentPeriod;
+  private long scheduledPeriod;
+  private final int vertexIndex;
+  private long currentPeriod;
   private long bufferingDuration = 0;
   private int bufferedCount = 0;
 
@@ -79,9 +104,9 @@ public class Snapshots<Element> {
           elements.add(buffer.poll());
         }
         if (buffer.isEmpty()) {
-          totalBufferingDuration.addAndGet(bufferingDuration);
+          vertexTotalBufferingDuration.addAndGet(vertexIndex, bufferingDuration);
           bufferingDuration = 0;
-          totalBufferedCount.addAndGet(bufferedCount);
+          vertexTotalBufferedCount.addAndGet(vertexIndex, bufferedCount);
           bufferedCount = 0;
         }
         return elements.stream();

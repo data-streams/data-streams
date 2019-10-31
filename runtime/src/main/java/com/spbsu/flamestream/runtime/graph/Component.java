@@ -68,7 +68,7 @@ public class Component extends LoggingActor {
       this.joba = joba;
       this.downstream = downstream;
       this.vertex = vertex;
-      snapshots = Snapshots.acking ? new Snapshots<>(dataItem -> dataItem.time, minTime) : null;
+      snapshots = Snapshots.acking ? new Snapshots<>(dataItem -> dataItem.time, minTime, vertex.index()) : null;
     }
   }
 
