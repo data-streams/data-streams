@@ -7,7 +7,7 @@ import os
 from functools import reduce
 
 default_args = dict(
-    tracking_frequency=10, parallelism=15, stream_length=10000, local_acker_flush_delay_in_millis=5, rate=10,
+    tracking_frequency=5000, parallelism=20, stream_length=10000, local_acker_flush_delay_in_millis=5, rate=10,
     iterations=30,
 )
 
