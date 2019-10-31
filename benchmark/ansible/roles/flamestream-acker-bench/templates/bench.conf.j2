@@ -12,6 +12,7 @@ benchmark {
     {% if tracking == "acking" %}
     class = "com.spbsu.flamestream.example.benchmark.WatermarksVsAckerBenchStand$TrackingFactory$Acking"
     ackersNumber = {{ ackers_number }}
+    frequency = {{ tracking_frequency }}
     {% elif tracking == "watermarking" %}
     class = "com.spbsu.flamestream.example.benchmark.WatermarksVsAckerBenchStand$TrackingFactory$Watermarking"
     frequency = {{ tracking_frequency }}
