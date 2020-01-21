@@ -51,15 +51,38 @@ public class BreadthSearchGraph {
     final Request.Identifier identifier;
 
     RequestKey(Request.Identifier identifier) {this.identifier = identifier;}
+
+    @Override
+    public boolean equals(Object obj) {
+      if (this == obj) {
+        return true;
+      }
+      if (obj instanceof RequestKey) {
+        return identifier.equals(((RequestKey) obj).identifier);
+      }
+      return super.equals(obj);
+    }
   }
 
-  private static class RequestOutput {
+  public static class RequestOutput {
     final Request.Identifier requestIdentifier;
     final VertexIdentifier vertexIdentifier;
 
-    private RequestOutput(Request.Identifier requestIdentifier, VertexIdentifier vertexIdentifier) {
+    public RequestOutput(Request.Identifier requestIdentifier, VertexIdentifier vertexIdentifier) {
       this.requestIdentifier = requestIdentifier;
       this.vertexIdentifier = vertexIdentifier;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+      if (this == obj) {
+        return true;
+      }
+      if (obj instanceof RequestOutput) {
+        final RequestOutput other = (RequestOutput) obj;
+        return requestIdentifier.equals(other.requestIdentifier) && vertexIdentifier.equals(other.vertexIdentifier);
+      }
+      return super.equals(obj);
     }
   }
 
@@ -89,7 +112,7 @@ public class BreadthSearchGraph {
     mutableFlow(new HashMap<>());
   }
 
-  protected static Flow<Request, Either<RequestOutput, RequestKey>> immutableFlow(
+  public static Flow<Request, Either<RequestOutput, RequestKey>> immutableFlow(
           Map<VertexIdentifier, List<VertexIdentifier>> vertexEdges
   ) {
     final Operator.Input<Request> requestInput = new Operator.Input<>();
@@ -124,7 +147,7 @@ public class BreadthSearchGraph {
     return new Flow<>(requestInput, output);
   }
 
-  protected static Flow<Input, Either<RequestOutput, RequestKey>> mutableFlow(
+  public static Flow<Input, Either<RequestOutput, RequestKey>> mutableFlow(
           Map<VertexIdentifier, List<VertexIdentifier>> vertexEdges
   ) {
     final Operator.Input<Input> requestInput = new Operator.Input<>();
@@ -135,16 +158,12 @@ public class BreadthSearchGraph {
                     .spawnLabel(RequestKey.class, request -> new RequestKey(request.identifier))
                     .map(request -> new Agent(request.identifier, request.vertexIdentifier, request.pathLength))
     );
-    requestInput
-            .flatMap(input ->
-                    input instanceof VertexEdgesUpdate ? Stream.of((VertexEdgesUpdate) input) : Stream.empty()
-            );
     final Operator.Input<Either<Agent, VertexEdgesUpdate>> vertexEdgesInput = new Operator.Input<>();
     final Operator<Tuple2<Agent, Agent.ActionAfterVisit>> agentAndActionAfterVisit =
             agentAndActionAfterVisit(agentInput);
     agentInput.link(vertexEdgesInput
             .keyedBy(either -> either.isLeft() ? either.left().get().vertexIdentifier : either.right().get().source)
-            .<List<VertexIdentifier>, Agent>statefulFlatMap((either, edges) -> {
+            .statefulFlatMap((Either<Agent, VertexEdgesUpdate> either, List<VertexIdentifier> edges) -> {
               if (either.isLeft()) {
                 final Agent agent = either.left().get();
                 return new Tuple2<>(
@@ -178,21 +197,18 @@ public class BreadthSearchGraph {
     return agentInput
             .filter(agent -> agent.remainingPathLength > 0)
             .keyedBy(agent -> agent.vertexIdentifier)
-            .<Integer, Tuple2<Agent, Agent.ActionAfterVisit>>statefulMap(
-                    (agent, remainingPathLength) -> {
-                      final Agent.ActionAfterVisit actionAfterVisit;
-                      if (remainingPathLength == null) {
-                        actionAfterVisit = Agent.ActionAfterVisit.VisitFirstTime;
-                        remainingPathLength = agent.remainingPathLength;
-                      } else if (remainingPathLength < agent.remainingPathLength) {
-                        actionAfterVisit = Agent.ActionAfterVisit.Revisit;
-                        remainingPathLength = agent.remainingPathLength;
-                      } else {
-                        actionAfterVisit = Agent.ActionAfterVisit.Stop;
-                      }
-                      return new Tuple2<>(remainingPathLength, new Tuple2<>(agent, actionAfterVisit));
-                    },
-                    Collections.singleton(RequestKey.class)
-            );
+            .statefulMap((Agent agent, Integer remainingPathLength) -> {
+              final Agent.ActionAfterVisit actionAfterVisit;
+              if (remainingPathLength == null) {
+                actionAfterVisit = Agent.ActionAfterVisit.VisitFirstTime;
+                remainingPathLength = agent.remainingPathLength;
+              } else if (remainingPathLength < agent.remainingPathLength) {
+                actionAfterVisit = Agent.ActionAfterVisit.Revisit;
+                remainingPathLength = agent.remainingPathLength;
+              } else {
+                actionAfterVisit = Agent.ActionAfterVisit.Stop;
+              }
+              return new Tuple2<>(remainingPathLength, new Tuple2<>(agent, actionAfterVisit));
+            }, Collections.singleton(RequestKey.class));
   }
 }

@@ -110,7 +110,7 @@ public abstract class Operator<Type> {
     }
 
     public <S, Output> Operator<Output> statefulMapRecords(
-            BiFunction<Record<Source>, S, Tuple2<S, Stream<Record<Output>>>> mapper,
+            BiFunction<Record<? extends Source>, S, Tuple2<S, Stream<Record<Output>>>> mapper,
             Set<Class<? extends Label>> labels
     ) {
       return new Reduce<>(this, labels, mapper);
@@ -145,23 +145,29 @@ public abstract class Operator<Type> {
       return added;
     }
 
+    @org.jetbrains.annotations.NotNull public final Operator<Value> source;
+    public final Class<L> lClass;
     public final Function<Value, L> mapper;
 
     public LabelSpawn(Operator<Value> source, Class<L> lClass, Function<Value, L> mapper) {
       super(addLabel(source.labels, lClass));
+      this.source = source;
+      this.lClass = lClass;
       this.mapper = mapper;
     }
   }
 
   public static class Map<In, Out> extends Operator<Out> {
-    private final Function<Record<In>, Stream<Record<Out>>> mapper;
+    private final Function<Record<? extends In>, Stream<Record<? extends Out>>> mapper;
+    public final Operator<In> source;
 
     public Map(
             Set<Class<? extends Label>> labels,
             Operator<In> source,
-            Function<Record<In>, Stream<Record<Out>>> mapper
+            Function<Record<? extends In>, Stream<Record<? extends Out>>> mapper
     ) {
       super(labels);
+      this.source = source;
       for (final Class<? extends Label> label : labels) {
         if (!source.labels.contains(label)) {
           throw new IllegalArgumentException(label.toString());
@@ -170,7 +176,7 @@ public abstract class Operator<Type> {
       this.mapper = mapper;
     }
 
-    Stream<Record<Out>> map(Record<In> in) {
+    Stream<Record<? extends Out>> map(Record<? extends In> in) {
       return mapper.apply(in).peek(out -> {
         for (final Class<? extends Label> label : labels) {
           if (!out.labels.get(label).equals(in.labels.get(label))) {
@@ -183,19 +189,19 @@ public abstract class Operator<Type> {
 
   public static class Reduce<In, Key, S, Out> extends Operator<Out> {
     public final KeyedOperator<In, Key> source;
-    private final BiFunction<Record<In>, S, Tuple2<S, Stream<Record<Out>>>> reducer;
+    private final BiFunction<Record<? extends In>, S, Tuple2<S, Stream<Record<Out>>>> reducer;
 
     public Reduce(
             KeyedOperator<In, Key> source,
             Set<Class<? extends Label>> labels,
-            BiFunction<Record<In>, S, Tuple2<S, Stream<Record<Out>>>> reducer
+            BiFunction<Record<? extends In>, S, Tuple2<S, Stream<Record<Out>>>> reducer
     ) {
       super(labels);
       this.reducer = reducer;
       this.source = source;
     }
 
-    Tuple2<S, Stream<Record<Out>>> reduce(Record<In> in, S state) {
+    Tuple2<S, Stream<Record<Out>>> reduce(Record<? extends In> in, S state) {
       final Tuple2<S, Stream<Record<Out>>> result = reducer.apply(in, state);
       return Tuple2.apply(result._1, result._2.peek(out -> {
         for (final Class<? extends Label> label : labels) {
@@ -207,11 +213,13 @@ public abstract class Operator<Type> {
     }
   }
 
-  public static class LabelMarkers<L extends Label> extends Operator<L> {
-    public final Operator<?> source;
+  public static class LabelMarkers<In, L extends Label> extends Operator<L> {
+    public final Class<L> lClass;
+    public final Operator<In> source;
 
-    public LabelMarkers(Class<? extends Label> label, Operator<?> source) {
-      super(Collections.singleton(label));
+    public LabelMarkers(Class<L> lClass, Operator<In> source) {
+      super(Collections.singleton(lClass));
+      this.lClass = lClass;
       this.source = source;
     }
   }
