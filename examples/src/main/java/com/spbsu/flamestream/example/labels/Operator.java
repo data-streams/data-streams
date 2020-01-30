@@ -14,24 +14,24 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 public abstract class Operator<Type> {
-  public final Set<Class<? extends Label>> labels;
+  public final Set<Class<?>> labels;
 
-  private Operator(Set<Class<? extends Label>> labels) {
+  private Operator(Set<Class<?>> labels) {
     this.labels = labels;
   }
 
-  public <L extends Label> Operator<Type> spawnLabel(Class<L> label, Function<Type, L> mapper) {
+  public <L> Operator<Type> spawnLabel(Class<L> label, Function<Type, L> mapper) {
     return new LabelSpawn<>(this, label, mapper);
   }
 
   public <Key> KeyedOperator<Type, Key> keyedBy(
-          Set<Class<? extends Label>> keyLabels,
+          Set<Class<?>> keyLabels,
           @Nullable Function<Type, Key> keyFunction
   ) {
     return new KeyedOperator<>(this, keyLabels, keyFunction);
   }
 
-  public <Key> KeyedOperator<Type, Key> keyedBy(Set<Class<? extends Label>> keyLabels) {
+  public <Key> KeyedOperator<Type, Key> keyedBy(Set<Class<?>> keyLabels) {
     return new KeyedOperator<>(this, keyLabels, null);
   }
 
@@ -51,21 +51,21 @@ public abstract class Operator<Type> {
     return new Map<>(labels, this, in -> predicate.test(in.value) ? Stream.of(in) : Stream.empty());
   }
 
-  public <L extends Label> Operator<L> labelMarkers(Class<L> lClass) {
+  public <L> Operator<L> labelMarkers(Class<L> lClass) {
     return new LabelMarkers<>(lClass, this);
   }
 
   public static class KeyedOperator<Source, Key> {
     public final Operator<Source> source;
-    final Set<Class<? extends Label>> keyLabels;
+    final Set<Class<?>> keyLabels;
     final @Nullable Function<Source, Key> keyFunction;
 
     public KeyedOperator(
             Operator<Source> source,
-            Set<Class<? extends Label>> keyLabels,
+            Set<Class<?>> keyLabels,
             @Nullable Function<Source, Key> keyFunction
     ) {
-      for (final Class<? extends Label> keyLabel : keyLabels) {
+      for (final Class<?> keyLabel : keyLabels) {
         if (!source.labels.contains(keyLabel)) {
           throw new IllegalArgumentException(keyLabel.toString());
         }
@@ -83,7 +83,7 @@ public abstract class Operator<Type> {
 
     public <S, Output> Operator<Output> statefulMap(
             BiFunction<Source, S, Tuple2<S, Output>> mapper,
-            Set<Class<? extends Label>> labels
+            Set<Class<?>> labels
     ) {
       return new Reduce<Source, Key, S, Output>(
               this,
@@ -97,7 +97,7 @@ public abstract class Operator<Type> {
 
     public <S, Output> Operator<Output> statefulFlatMap(
             BiFunction<Source, S, Tuple2<S, Stream<Output>>> mapper,
-            Set<Class<? extends Label>> labels
+            Set<Class<?>> labels
     ) {
       return new Reduce<Source, Key, S, Output>(
               this,
@@ -111,7 +111,7 @@ public abstract class Operator<Type> {
 
     public <S, Output> Operator<Output> statefulMapRecords(
             BiFunction<Record<? extends Source>, S, Tuple2<S, Stream<Record<Output>>>> mapper,
-            Set<Class<? extends Label>> labels
+            Set<Class<?>> labels
     ) {
       return new Reduce<>(this, labels, mapper);
     }
@@ -124,12 +124,12 @@ public abstract class Operator<Type> {
       super(Collections.emptySet());
     }
 
-    public Input(Set<Class<? extends Label>> labels) {
+    public Input(Set<Class<?>> labels) {
       super(labels);
     }
 
     public void link(Operator<Type> operator) {
-      for (final Class<? extends Label> label : labels) {
+      for (final Class<?> label : labels) {
         if (!operator.labels.contains(label)) {
           throw new IllegalArgumentException(label.toString());
         }
@@ -138,9 +138,9 @@ public abstract class Operator<Type> {
     }
   }
 
-  public static class LabelSpawn<Value, L extends Label> extends Operator<Value> {
-    static Set<Class<? extends Label>> addLabel(Set<Class<? extends Label>> labels, Class<? extends Label> label) {
-      final HashSet<Class<? extends Label>> added = new HashSet<>(labels);
+  public static class LabelSpawn<Value, L> extends Operator<Value> {
+    static Set<Class<?>> addLabel(Set<Class<?>> labels, Class<?> label) {
+      final HashSet<Class<?>> added = new HashSet<>(labels);
       added.add(label);
       return added;
     }
@@ -162,13 +162,13 @@ public abstract class Operator<Type> {
     public final Operator<In> source;
 
     public Map(
-            Set<Class<? extends Label>> labels,
+            Set<Class<?>> labels,
             Operator<In> source,
             Function<Record<? extends In>, Stream<Record<? extends Out>>> mapper
     ) {
       super(labels);
       this.source = source;
-      for (final Class<? extends Label> label : labels) {
+      for (final Class<?> label : labels) {
         if (!source.labels.contains(label)) {
           throw new IllegalArgumentException(label.toString());
         }
@@ -178,7 +178,7 @@ public abstract class Operator<Type> {
 
     Stream<Record<? extends Out>> map(Record<? extends In> in) {
       return mapper.apply(in).peek(out -> {
-        for (final Class<? extends Label> label : labels) {
+        for (final Class<?> label : labels) {
           if (!out.labels.get(label).equals(in.labels.get(label))) {
             throw new IllegalArgumentException(label.toString());
           }
@@ -193,7 +193,7 @@ public abstract class Operator<Type> {
 
     public Reduce(
             KeyedOperator<In, Key> source,
-            Set<Class<? extends Label>> labels,
+            Set<Class<?>> labels,
             BiFunction<Record<? extends In>, S, Tuple2<S, Stream<Record<Out>>>> reducer
     ) {
       super(labels);
@@ -204,7 +204,7 @@ public abstract class Operator<Type> {
     Tuple2<S, Stream<Record<Out>>> reduce(Record<? extends In> in, S state) {
       final Tuple2<S, Stream<Record<Out>>> result = reducer.apply(in, state);
       return Tuple2.apply(result._1, result._2.peek(out -> {
-        for (final Class<? extends Label> label : labels) {
+        for (final Class<?> label : labels) {
           if (!out.labels.get(label).equals(in.labels.get(label))) {
             throw new IllegalArgumentException(label.toString());
           }
@@ -213,7 +213,7 @@ public abstract class Operator<Type> {
     }
   }
 
-  public static class LabelMarkers<In, L extends Label> extends Operator<L> {
+  public static class LabelMarkers<In, L> extends Operator<L> {
     public final Class<L> lClass;
     public final Operator<In> source;
 

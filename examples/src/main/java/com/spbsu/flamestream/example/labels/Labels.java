@@ -10,13 +10,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class Labels {
-  private final Map<Class<? extends Label>, Label> all;
+  private final Map<Class<?>, Label<?>> all;
 
-  public static class Entry<Value extends Label> {
+  public static class Entry<Value> {
     public final Class<Value> aClass;
-    public final Value value;
+    public final Label<? extends Value> value;
 
-    public Entry(Class<Value> aClass, Value value) {
+    public Entry(Class<Value> aClass, Label<? extends Value> value) {
       this.aClass = aClass;
       this.value = value;
     }
@@ -41,7 +41,7 @@ public class Labels {
     all = entries.stream().collect(Collectors.toMap(entry -> entry.aClass, entry -> entry.value));
   }
 
-  private Labels(Map<Class<? extends Label>, Label> all) {
+  private Labels(Map<Class<?>, Label<?>> all) {
     this.all = all;
   }
 
@@ -58,13 +58,13 @@ public class Labels {
     return obj.equals(all);
   }
 
-  public <Value extends Label> Labels added(Class<Value> valueClass, Value value) {
-    final HashMap<Class<? extends Label>, Label> added = new HashMap<>(all);
+  public <Value> Labels added(Class<Value> valueClass, Label<Value> value) {
+    final HashMap<Class<?>, Label<?>> added = new HashMap<>(all);
     added.put(valueClass, value);
     return new Labels(added);
   }
 
-  @Nullable <Value extends Label> Value get(Class<Value> aClass) {
-    return (Value) all.get(aClass);
+  @Nullable <Value> Label<Value> get(Class<Value> aClass) {
+    return (Label<Value>) all.get(aClass);
   }
 }

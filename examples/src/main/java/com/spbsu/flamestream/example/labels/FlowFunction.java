@@ -18,6 +18,17 @@ public class FlowFunction<FlowInput, FlowOutput> {
   private final Map<Operator<?>, Materialized<?, ?>> materializedOperator = new HashMap<>();
   private final Materialized<FlowInput, ?> consumer;
 
+  public static class Label<Value> implements com.spbsu.flamestream.example.labels.Label<Value> {
+    private final Value value;
+
+    public Label(Value value) {this.value = value;}
+
+    @Override
+    public Value value() {
+      return value;
+    }
+  }
+
   private static abstract class Materialized<Input, Output> implements Consumer<Record<? extends Input>> {
     final List<Consumer<Record<? extends Output>>> listeners = new ArrayList<>();
     final Set<LabelTracker<?, ?>> labelTrackers = new HashSet<>();
@@ -30,13 +41,16 @@ public class FlowFunction<FlowInput, FlowOutput> {
 
     private void changeLabelCounts(Record<?> record, int diff, Materialized<?, ?> materialized) {
       for (final LabelTracker<?, ?> labelTracker : labelTrackers) {
-        if (!materialized.labelTrackers.contains(labelTracker))
-          continue;
-        final Label label = record.labels.get(labelTracker.labelMarkers.lClass);
-        if (label != null) {
-          ((LabelTracker<?, Label>) labelTracker).change(label, diff);
+        if (materialized.labelTrackers.contains(labelTracker)) {
+          changeLabelTrackerCount(record, diff, labelTracker);
         }
       }
+    }
+
+    private <L> void changeLabelTrackerCount(Record<?> record, int diff, LabelTracker<?, L> labelTracker) {
+      final Label<L> label = ((Label<L>) record.labels.get(labelTracker.labelMarkers.lClass));
+      if (label != null)
+        labelTracker.change(label, diff);
     }
 
     abstract void handle(Record<? extends Input> record);
@@ -55,9 +69,9 @@ public class FlowFunction<FlowInput, FlowOutput> {
     }
   }
 
-  private static class LabelTracker<In, L extends Label> {
+  private static class LabelTracker<In, L> {
     final Operator.LabelMarkers<In, L> labelMarkers;
-    final Map<L, Integer> labelCount = new HashMap<>();
+    final Map<Label<? extends L>, Integer> labelCount = new HashMap<>();
     final Materialized<In, L> materialized = new Materialized<In, L>() {
       @Override
       public void handle(Record<? extends In> in) {
@@ -69,14 +83,14 @@ public class FlowFunction<FlowInput, FlowOutput> {
       this.labelMarkers = labelMarkers;
     }
 
-    void spawn(L label) {
+    void spawn(Label<L> label) {
       labelCount.put(label, 0);
     }
 
-    void change(L label, int diff) {
+    void change(Label<? extends L> label, int diff) {
       if (labelCount.compute(label, (ignored, value) -> value + diff == 0 ? null : value + diff) == null) {
         materialized.emit(new Record<>(
-                label,
+                label.value,
                 new Labels(Collections.singleton(new Labels.Entry<>(labelMarkers.lClass, label)))
         ));
       }
@@ -158,11 +172,11 @@ public class FlowFunction<FlowInput, FlowOutput> {
     return materialized;
   }
 
-  private <Value, L extends Label> Materialized<?, Value> materializeLabelSpawn(Operator.LabelSpawn<Value, L> labelSpawn) {
+  private <Value, L> Materialized<?, Value> materializeLabelSpawn(Operator.LabelSpawn<Value, L> labelSpawn) {
     final Materialized<Value, Value> materialized = new Materialized<Value, Value>() {
       @Override
       public void handle(Record<? extends Value> in) {
-        final L label = labelSpawn.mapper.apply(in.value);
+        final Label<L> label = new Label<>(labelSpawn.mapper.apply(in.value));
         for (final LabelTracker<?, ?> labelTracker : labelTrackers) {
           if (labelTracker.labelMarkers.lClass.equals(labelSpawn.lClass)) {
             ((LabelTracker<?, L>) labelTracker).spawn(label);
@@ -176,7 +190,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
     return materialized;
   }
 
-  private <In, L extends Label> Materialized<?, L> materializeLabelMarkers(Operator.LabelMarkers<In, L> labelMarkers) {
+  private <In, L> Materialized<?, L> materializeLabelMarkers(Operator.LabelMarkers<In, L> labelMarkers) {
     final LabelTracker<In, L> labelTracker = new LabelTracker<>(labelMarkers);
     materializedOperator.put(labelMarkers, labelTracker.materialized);
     materialize(labelMarkers.source);
@@ -188,7 +202,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
     consumer.accept(new Record<>(input, new Labels(Collections.emptySet())));
   }
 
-  private <L extends Label, Value> void trackLabels(LabelTracker<?, L> labelTracker, Operator<Value> operator) {
+  private <L, Value> void trackLabels(LabelTracker<?, L> labelTracker, Operator<Value> operator) {
     if (operator.equals(labelTracker.labelMarkers)) {
       throw new RuntimeException();
     }

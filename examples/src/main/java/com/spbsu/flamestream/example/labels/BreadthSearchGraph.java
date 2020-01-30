@@ -47,7 +47,7 @@ public class BreadthSearchGraph {
     }
   }
 
-  static class RequestKey implements Label {
+  static class RequestKey {
     final Request.Identifier identifier;
 
     RequestKey(Request.Identifier identifier) {this.identifier = identifier;}
