@@ -63,16 +63,16 @@ public class LocalAcker extends LoggingActor {
 
   private int flushCounter = 0;
 
-  public LocalAcker(List<ActorRef> ackers, String nodeId) {
+  public LocalAcker(List<ActorRef> ackers, String nodeId, long defaultMinimalTime) {
     this.ackers = ackers;
     partitions = new Partitions(ackers.size());
-    minTimeUpdater = new MinTimeUpdater(ackers);
+    minTimeUpdater = new MinTimeUpdater(ackers, defaultMinimalTime);
     this.nodeId = nodeId;
     pingActor = context().actorOf(PingActor.props(self(), Flush.FLUSH));
   }
 
-  public static Props props(List<ActorRef> ackers, String nodeId) {
-    return Props.create(LocalAcker.class, ackers, nodeId).withDispatcher("processing-dispatcher");
+  public static Props props(List<ActorRef> ackers, String nodeId, long defaultMinimalTime) {
+    return Props.create(LocalAcker.class, ackers, nodeId, defaultMinimalTime).withDispatcher("processing-dispatcher");
   }
 
   @Override

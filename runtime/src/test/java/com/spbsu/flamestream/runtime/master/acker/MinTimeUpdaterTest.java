@@ -5,7 +5,6 @@ import akka.actor.ActorSystem;
 import akka.testkit.TestProbe;
 import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
-import com.spbsu.flamestream.runtime.graph.Joba;
 import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
 import org.testng.annotations.Test;
 
@@ -22,7 +21,7 @@ public class MinTimeUpdaterTest {
     final ArrayList<ActorRef> shards = new ArrayList<>();
     shards.add(shard1);
     shards.add(shard2);
-    final MinTimeUpdater minTimeUpdater = new MinTimeUpdater(shards);
+    final MinTimeUpdater minTimeUpdater = new MinTimeUpdater(shards, 0);
     final String id = "";
     final EdgeId edgeId = new EdgeId("", "");
     assertNull(minTimeUpdater.onShardMinTimeUpdate(

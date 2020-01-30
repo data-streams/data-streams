@@ -57,10 +57,11 @@ public class Acker extends LoggingActor {
   private final AckTable table;
 
   private long defaultMinimalTime;
-  private GlobalTime lastMinTime = GlobalTime.MIN;
+  private GlobalTime lastMinTime;
 
   private Acker(long defaultMinimalTime, boolean assertAckingBackInTime) {
     table = new ArrayAckTable(defaultMinimalTime, SIZE, WINDOW, assertAckingBackInTime);
+    lastMinTime = new GlobalTime(defaultMinimalTime, EdgeId.Min.INSTANCE);
   }
 
   public static Props props(long defaultMinimalTime, boolean assertAckingBackInTime) {

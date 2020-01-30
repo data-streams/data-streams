@@ -104,7 +104,7 @@ class Cluster extends LoggingActor {
                   throw new IllegalStateException("Unexpected value: " + acking);
               }
               final ActorRef localAcker = ackers.isEmpty() ? null : context.actorOf(
-                      LocalAcker.props(ackers, ""),
+                      LocalAcker.props(ackers, "", systemConfig.defaultMinimalTime()),
                       "localAcker"
               );
               final ActorRef registryHolder = context.actorOf(
@@ -115,7 +115,7 @@ class Cluster extends LoggingActor {
                       clusterConfig.paths().size(),
                       systemConfig,
                       registryHolder,
-                      new MinTimeUpdater(ackers)
+                      new MinTimeUpdater(ackers, systemConfig.defaultMinimalTime())
               ));
               return paths.keySet().stream().map(id -> context.actorOf(FlameNode.props(
                       id,

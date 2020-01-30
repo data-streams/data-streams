@@ -1,6 +1,7 @@
 package com.spbsu.flamestream.runtime.master.acker;
 
 import akka.actor.ActorRef;
+import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
 import com.spbsu.flamestream.runtime.master.acker.api.commit.MinTimeUpdateListener;
@@ -23,9 +24,10 @@ public class MinTimeUpdater {
 
   private Map<ActorRef, ShardState> shardStates;
 
-  private MinTimeUpdate lastMinTime = new MinTimeUpdate(GlobalTime.MIN, new NodeTimes());
+  private MinTimeUpdate lastMinTime;
 
-  public MinTimeUpdater(List<ActorRef> shards) {
+  public MinTimeUpdater(List<ActorRef> shards, long defaultMinimalTime) {
+    lastMinTime = new MinTimeUpdate(new GlobalTime(defaultMinimalTime, EdgeId.Min.INSTANCE), new NodeTimes());
     this.shardStates = shards.stream().collect(Collectors.toMap(Function.identity(), __ -> new ShardState()));
   }
 
