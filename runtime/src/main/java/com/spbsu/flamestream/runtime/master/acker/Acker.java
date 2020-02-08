@@ -171,7 +171,7 @@ public class Acker extends LoggingActor {
       if (minTime == table.lastMinTime) {
         continue;
       }
-      componentsToRefresh.addAll(component.adjacent);
+      componentsToRefresh.addAll(component.inbound);
       table.lastMinTime = minTime;
       log().debug("New min time: {}", minHeartbeat);
       final GlobalTime minAmongTables = new GlobalTime(minTime, EdgeId.MIN);

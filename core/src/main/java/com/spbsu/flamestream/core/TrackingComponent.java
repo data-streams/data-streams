@@ -7,21 +7,20 @@ import java.util.Collections;
 import java.util.List;
 
 public class TrackingComponent implements Comparable<TrackingComponent> {
-  public static final TrackingComponent SOURCE = new TrackingComponent(0, Collections.emptyList());
-  public static final TrackingComponent MAX = new TrackingComponent(Integer.MAX_VALUE, Collections.emptyList());
+  public static final TrackingComponent DEFAULT = new TrackingComponent(0, Collections.emptyList());
 
   public final int index;
-  public final List<TrackingComponent> adjacent;
+  public final List<TrackingComponent> inbound;
 
-  public TrackingComponent(int index, List<TrackingComponent> adjacent) {
+  public TrackingComponent(int index, List<TrackingComponent> inbound) {
     if (index < 0)
       throw new IllegalArgumentException(String.valueOf(index));
-    for (final TrackingComponent trackingComponent : adjacent) {
+    for (final TrackingComponent trackingComponent : inbound) {
       if (index <= trackingComponent.index) {
         throw new IllegalArgumentException(trackingComponent.toString());
       }
     }
-    this.adjacent = Collections.unmodifiableList(adjacent);
+    this.inbound = Collections.unmodifiableList(inbound);
     this.index = index;
   }
 
