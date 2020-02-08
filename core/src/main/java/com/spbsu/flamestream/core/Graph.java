@@ -39,7 +39,7 @@ public interface Graph {
   interface Vertex {
     String id();
 
-    default TrackingComponent trackingComponent() { return TrackingComponent.SOURCE; }
+    default TrackingComponent trackingComponent() { return TrackingComponent.DEFAULT; }
 
     abstract class Stub implements Vertex {
       private final long id = ThreadLocalRandom.current().nextLong();

@@ -7,7 +7,7 @@ import java.util.Objects;
 
 public final class GlobalTime implements Comparable<GlobalTime> {
   public static final GlobalTime MIN = new GlobalTime(Long.MIN_VALUE, EdgeId.Min.INSTANCE);
-  public static final GlobalTime MAX = new GlobalTime(Long.MAX_VALUE, EdgeId.Max.INSTANCE, TrackingComponent.MAX.index);
+  public static final GlobalTime MAX = new GlobalTime(Long.MAX_VALUE, EdgeId.Max.INSTANCE, Integer.MAX_VALUE);
   //Inner representation is a subject for a discussion and/or an optimization
 
   private static final Comparator<GlobalTime> NATURAL_ORDER = Comparator
@@ -20,7 +20,7 @@ public final class GlobalTime implements Comparable<GlobalTime> {
   private final int trackingComponent;
 
   public GlobalTime(long time, EdgeId frontId) {
-    this(time, frontId, TrackingComponent.SOURCE.index);
+    this(time, frontId, 0);
   }
 
   public GlobalTime(long time, EdgeId frontId, int trackingComponent) {
