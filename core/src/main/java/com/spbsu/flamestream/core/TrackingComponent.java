@@ -4,15 +4,15 @@ package com.spbsu.flamestream.core;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collections;
-import java.util.List;
+import java.util.Set;
 
 public class TrackingComponent implements Comparable<TrackingComponent> {
-  public static final TrackingComponent DEFAULT = new TrackingComponent(0, Collections.emptyList());
+  public static final TrackingComponent DEFAULT = new TrackingComponent(0, Collections.emptySet());
 
   public final int index;
-  public final List<TrackingComponent> inbound;
+  public final Set<TrackingComponent> inbound;
 
-  public TrackingComponent(int index, List<TrackingComponent> inbound) {
+  public TrackingComponent(int index, Set<TrackingComponent> inbound) {
     if (index < 0)
       throw new IllegalArgumentException(String.valueOf(index));
     for (final TrackingComponent trackingComponent : inbound) {
@@ -20,7 +20,7 @@ public class TrackingComponent implements Comparable<TrackingComponent> {
         throw new IllegalArgumentException(trackingComponent.toString());
       }
     }
-    this.inbound = Collections.unmodifiableList(inbound);
+    this.inbound = Collections.unmodifiableSet(inbound);
     this.index = index;
   }
 
