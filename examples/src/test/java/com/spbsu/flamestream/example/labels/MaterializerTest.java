@@ -9,7 +9,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.testng.Assert.*;
@@ -17,11 +16,11 @@ import static org.testng.Assert.*;
 public class MaterializerTest {
   @Test
   public void testForkAndJoinWithLabels() {
-    final Operator.Input<Integer> input = new Operator.Input<>();
-    final Operator<Integer> labeled = input.spawnLabel(Integer.class, Function.identity());
-    final Operator.Input<Integer> union = new Operator.Input<>(Collections.singleton(Integer.class));
-    union.link(labeled.map(Function.identity()));
-    union.link(labeled.map(Function.identity()));
+    final Operator.Input<Integer> input = new Operator.Input<>(Integer.class);
+    final Operator<Integer> labeled = input.spawnLabel(Integer.class, i -> i);
+    final Operator.Input<Integer> union = new Operator.Input<>(Integer.class, Collections.singleton(Integer.class));
+    union.link(labeled.map(Integer.class, i -> i));
+    union.link(labeled.map(Integer.class, i -> i));
     final Flow<Integer, Integer> flow = new Flow<>(input, union.labelMarkers(Integer.class));
 
     final Map<Operator<?>, Materializer.StronglyConnectedComponent> stronglyConnectedComponents =
@@ -58,10 +57,13 @@ public class MaterializerTest {
   public void testMutableBreadthSearch() {
     final Flow<BreadthSearchGraph.Input, Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>> flow =
             BreadthSearchGraph.mutableFlow(new HashMap<>());
-    assertEquals(Materializer.buildTrackingComponents(Materializer.buildStronglyConnectedComponents(flow)
-            .get(flow.output)).entrySet().stream().collect(Collectors.groupingBy(
-            Map.Entry::getValue,
-            Collectors.mapping(Map.Entry::getKey, Collectors.toSet())
-    )).size(), 2);
+    assertEquals(
+            Materializer.buildTrackingComponents(Materializer.buildStronglyConnectedComponents(flow).get(flow.output))
+                    .entrySet().stream().collect(Collectors.groupingBy(
+                    Map.Entry::getValue,
+                    Collectors.mapping(Map.Entry::getKey, Collectors.toSet())
+            )).size(),
+            2
+    );
   }
 }
