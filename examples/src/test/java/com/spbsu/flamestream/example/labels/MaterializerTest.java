@@ -1,19 +1,42 @@
 package com.spbsu.flamestream.example.labels;
 
 import com.spbsu.flamestream.core.TrackingComponent;
+import com.spbsu.flamestream.example.bl.topwordcount.TopWordCountGraph;
+import com.spbsu.flamestream.example.bl.topwordcount.model.WordsTop;
+import com.spbsu.flamestream.runtime.FlameRuntime;
+import com.spbsu.flamestream.runtime.LocalRuntime;
+import com.spbsu.flamestream.runtime.acceptance.FlameAkkaSuite;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
+import com.spbsu.flamestream.runtime.edge.akka.AkkaFront;
+import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
+import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
+import com.spbsu.flamestream.runtime.utils.AwaitResultConsumer;
+import org.testng.Assert;
 import org.testng.annotations.Test;
 import scala.util.Either;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Queue;
+import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toMap;
 import static org.testng.Assert.*;
 
-public class MaterializerTest {
+public class MaterializerTest extends FlameAkkaSuite {
   @Test
   public void testForkAndJoinWithLabels() {
     final Operator.Input<Integer> input = new Operator.Input<>(Integer.class);
@@ -43,7 +66,7 @@ public class MaterializerTest {
   }
 
   @Test
-  public void testImmutableBreadthSearch() {
+  public void testImmutableBreadthSearch() throws InterruptedException {
     final Flow<BreadthSearchGraph.Request, Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>> flow =
             BreadthSearchGraph.immutableFlow(new HashMap<>());
     assertEquals(Materializer.buildTrackingComponents(Materializer.buildStronglyConnectedComponents(flow)
@@ -51,6 +74,31 @@ public class MaterializerTest {
             Map.Entry::getValue,
             Collectors.mapping(Map.Entry::getKey, Collectors.toSet())
     )).size(), 2);
+
+    try (final LocalRuntime runtime = new LocalRuntime.Builder().maxElementsInGraph(2)
+            .millisBetweenCommits(500)
+            .build()) {
+      try (final FlameRuntime.Flame flame = runtime.run(Materializer.materialize(flow))) {
+        final BreadthSearchGraph.VertexIdentifier vertexIdentifier = new BreadthSearchGraph.VertexIdentifier();
+        final ArrayList<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>> output = new ArrayList<>();
+        final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier();
+        final Queue<BreadthSearchGraph.Request> input = new ConcurrentLinkedQueue<>();
+        input.add(new BreadthSearchGraph.Request(requestIdentifier, vertexIdentifier, 1));
+
+        final AwaitResultConsumer<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>> awaitConsumer =
+                new AwaitResultConsumer<>(1);
+        flame.attachRear("wordCountRear", new AkkaRearType<>(runtime.system(), ((Class<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>>) (Class<?>) Either.class)))
+                .forEach(r -> r.addListener(awaitConsumer));
+        final List<AkkaFront.FrontHandle<BreadthSearchGraph.Request>> handles = flame
+                .attachFront("wordCountFront", new AkkaFrontType<BreadthSearchGraph.Request>(runtime.system()))
+                .collect(Collectors.toList());
+        applyDataToAllHandlesAsync(input, handles);
+        awaitConsumer.await(200, TimeUnit.SECONDS);
+
+        final BreadthSearchGraph.RequestOutput actualWordsTop = awaitConsumer.result().findFirst().get().left().get();
+        System.out.println(actualWordsTop);
+      }
+    }
   }
 
   @Test

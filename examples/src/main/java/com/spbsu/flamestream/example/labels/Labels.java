@@ -67,4 +67,16 @@ public class Labels {
   @Nullable <Value> Label<Value> get(Class<Value> aClass) {
     return (Label<Value>) all.get(aClass);
   }
+
+  @Nullable <Value> Entry<Value> entry(Class<Value> aClass) {
+    return new Entry<>(aClass, (Label<Value>) all.get(aClass));
+  }
+
+  public boolean hasAll(Set<Class<?>> classes) {
+    for (final Class<?> aClass : classes) {
+      if (!all.containsKey(aClass))
+        return false;
+    }
+    return true;
+  }
 }

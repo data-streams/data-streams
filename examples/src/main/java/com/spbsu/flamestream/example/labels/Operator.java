@@ -1,5 +1,6 @@
 package com.spbsu.flamestream.example.labels;
 
+import com.spbsu.flamestream.core.graph.FlameMap;
 import org.jetbrains.annotations.Nullable;
 import scala.Tuple2;
 
@@ -27,7 +28,7 @@ public abstract class Operator<Type> {
     this.labels = labels;
   }
 
-  public <L> Operator<Type> spawnLabel(Class<L> label, SerializableFunction<Type, L> mapper) {
+  public <L> LabelSpawn<Type, L> spawnLabel(Class<L> label, SerializableFunction<Type, L> mapper) {
     return new LabelSpawn<>(this, label, mapper);
   }
 
@@ -47,25 +48,25 @@ public abstract class Operator<Type> {
   }
 
   public <Output> Operator<Output> map(Class<Output> outputClass, SerializableFunction<Type, Output> mapper) {
-    return new Map<>(labels, this, outputClass, in -> Stream.of(new Record<>(mapper.apply(in.value), in.labels)));
+    return new Map<>(labels, this, outputClass, in -> Stream.of(mapper.apply(in)));
   }
 
   public <Output> Operator<Output> flatMap(
           Class<Output> outputClass,
           SerializableFunction<Type, Stream<Output>> mapper
   ) {
-    return new Map<>(labels, this, outputClass, in -> mapper.apply(in.value).map(out -> new Record<>(out, in.labels)));
+    return new Map<>(labels, this, outputClass, mapper);
   }
 
   public Operator<Type> filter(Predicate<Type> predicate) {
-    return new Map<>(labels, this, this.typeClass, in -> predicate.test(in.value) ? Stream.of(in) : Stream.empty());
+    return new Map<>(labels, this, this.typeClass, in -> predicate.test(in) ? Stream.of(in) : Stream.empty());
   }
 
   public <L> Operator<L> labelMarkers(Class<L> lClass) {
     return new LabelMarkers<>(lClass, this);
   }
 
-  public static class KeyedOperator<Source, Key> {
+  public static final class KeyedOperator<Source, Key> {
     public final Operator<Source> source;
     final Set<Class<?>> keyLabels;
     final @Nullable
@@ -97,15 +98,10 @@ public abstract class Operator<Type> {
             SerializableBiFunction<Source, S, Tuple2<S, Output>> mapper,
             Set<Class<?>> labels
     ) {
-      return new Reduce<Source, Key, S, Output>(
-              this,
-              labels,
-              outputClass,
-              (in, state) -> {
-                final Tuple2<S, Output> result = mapper.apply(in.value, state);
-                return Tuple2.apply(result._1, Stream.of(new Record<>(result._2, in.labels)));
-              }
-      );
+      return new StatefulMap<>(this, labels, outputClass, (Source in, S state) -> {
+        final Tuple2<S, Output> out = mapper.apply(in, state);
+        return new Tuple2<>(out._1, Stream.of(out._2));
+      });
     }
 
     public <S, Output> Operator<Output> statefulFlatMap(
@@ -113,27 +109,11 @@ public abstract class Operator<Type> {
             SerializableBiFunction<Source, S, Tuple2<S, Stream<Output>>> mapper,
             Set<Class<?>> labels
     ) {
-      return new Reduce<Source, Key, S, Output>(
-              this,
-              labels,
-              outputClass,
-              (in, state) -> {
-                final Tuple2<S, Stream<Output>> result = mapper.apply(in.value, state);
-                return Tuple2.apply(result._1, result._2.map(out -> new Record<>(out, in.labels)));
-              }
-      );
-    }
-
-    public <S, Output> Operator<Output> statefulMapRecords(
-            Class<Output> outputClass,
-            SerializableBiFunction<Record<? extends Source>, S, Tuple2<S, Stream<Record<Output>>>> mapper,
-            Set<Class<?>> labels
-    ) {
-      return new Reduce<>(this, labels, outputClass, mapper);
+      return new StatefulMap<>(this, labels, outputClass, mapper);
     }
   }
 
-  public static class Input<Type> extends Operator<Type> {
+  public static final class Input<Type> extends Operator<Type> {
     public final List<Operator<Type>> sources = new ArrayList<>();
 
     public Input(Class<Type> typeClass) {
@@ -154,7 +134,7 @@ public abstract class Operator<Type> {
     }
   }
 
-  public static class LabelSpawn<Value, L> extends Operator<Value> {
+  public static final class LabelSpawn<Value, L> extends Operator<Value> {
     static Set<Class<?>> addLabel(Set<Class<?>> labels, Class<?> label) {
       final HashSet<Class<?>> added = new HashSet<>(labels);
       added.add(label);
@@ -174,65 +154,39 @@ public abstract class Operator<Type> {
     }
   }
 
-  public static class Map<In, Out> extends Operator<Out> {
-    private final SerializableFunction<Record<? extends In>, Stream<Record<? extends Out>>> mapper;
+  public static final class Map<In, Out> extends Operator<Out> {
+    public final SerializableFunction<In, Stream<Out>> mapper;
     public final Operator<In> source;
 
     public Map(
             Set<Class<?>> labels,
             Operator<In> source,
             Class<Out> outClass,
-            SerializableFunction<Record<? extends In>, Stream<Record<? extends Out>>> mapper
+            SerializableFunction<In, Stream<Out>> mapper
     ) {
       super(outClass, labels);
       this.source = source;
-      for (final Class<?> label : labels) {
-        if (!source.labels.contains(label)) {
-          throw new IllegalArgumentException(label.toString());
-        }
-      }
       this.mapper = mapper;
-    }
-
-    Stream<Record<? extends Out>> map(Record<? extends In> in) {
-      return mapper.apply(in).peek(out -> {
-        for (final Class<?> label : labels) {
-          if (!out.labels.get(label).equals(in.labels.get(label))) {
-            throw new IllegalArgumentException(label.toString());
-          }
-        }
-      });
     }
   }
 
-  public static class Reduce<In, Key, S, Out> extends Operator<Out> {
+  public static final class StatefulMap<In, Key, S, Out> extends Operator<Out> {
     public final KeyedOperator<In, Key> source;
-    private final SerializableBiFunction<Record<? extends In>, S, Tuple2<S, Stream<Record<Out>>>> reducer;
+    public final SerializableBiFunction<In, S, Tuple2<S, Stream<Out>>> reducer;
 
-    public Reduce(
+    public StatefulMap(
             KeyedOperator<In, Key> source,
             Set<Class<?>> labels,
             Class<Out> outClass,
-            SerializableBiFunction<Record<? extends In>, S, Tuple2<S, Stream<Record<Out>>>> reducer
+            SerializableBiFunction<In, S, Tuple2<S, Stream<Out>>> reducer
     ) {
       super(outClass, labels);
       this.reducer = reducer;
       this.source = source;
     }
-
-    Tuple2<S, Stream<Record<Out>>> reduce(Record<? extends In> in, S state) {
-      final Tuple2<S, Stream<Record<Out>>> result = reducer.apply(in, state);
-      return Tuple2.apply(result._1, result._2.peek(out -> {
-        for (final Class<?> label : labels) {
-          if (!out.labels.get(label).equals(in.labels.get(label))) {
-            throw new IllegalArgumentException(label.toString());
-          }
-        }
-      }));
-    }
   }
 
-  public static class LabelMarkers<In, L> extends Operator<L> {
+  public static final class LabelMarkers<In, L> extends Operator<L> {
     public final Class<L> lClass;
     public final Operator<In> source;
 
