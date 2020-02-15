@@ -12,6 +12,7 @@ import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
 import com.spbsu.flamestream.core.graph.HashingVertexStub;
+import com.spbsu.flamestream.core.graph.LabelSpawn;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import com.spbsu.flamestream.runtime.config.ComputationProps;
@@ -84,6 +85,8 @@ public class Component extends LoggingActor {
               final Joba joba;
               if (vertex instanceof Sink) {
                 joba = new SinkJoba(jobaId, context(), props.barrierIsDisabled(), sinkTrackingComponent.index);
+              } else if (vertex instanceof LabelSpawn) {
+                joba = new LabelSpawnJoba(jobaId, (LabelSpawn<?, ?>) vertex);
               } else if (vertex instanceof FlameMap) {
                 joba = new MapJoba(jobaId, (FlameMap<?, ?>) vertex);
               } else if (vertex instanceof Grouping) {

@@ -10,6 +10,8 @@ import com.spbsu.flamestream.core.Job;
 import com.spbsu.flamestream.core.data.PayloadDataItem;
 import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
+import com.spbsu.flamestream.core.data.meta.Label;
+import com.spbsu.flamestream.core.data.meta.Labels;
 import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Sink;
@@ -140,6 +142,9 @@ public class ZkFlameClientTest {
             .getInstantiatorStrategy())
             .setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
     consumer.getKryo().register(PayloadDataItem.class);
+    consumer.getKryo().register(Label.class);
+    consumer.getKryo().register(Label[].class);
+    consumer.getKryo().register(Labels.class);
     consumer.getKryo().register(Meta.class);
     consumer.getKryo().register(GlobalTime.class);
     consumer.getKryo().register(EdgeId.class);

@@ -2,6 +2,7 @@ package com.spbsu.flamestream.core.graph;
 
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.HashFunction;
+import com.spbsu.flamestream.core.data.meta.Labels;
 import com.spbsu.flamestream.core.data.meta.Meta;
 
 import java.util.function.BiPredicate;
@@ -25,6 +26,11 @@ public class DataItemForTest implements DataItem {
   @Override
   public Meta meta() {
     return inner.meta();
+  }
+
+  @Override
+  public Labels labels() {
+    return inner.labels();
   }
 
   @Override

@@ -1,6 +1,5 @@
 package com.spbsu.flamestream.example.labels;
 
-import com.spbsu.flamestream.core.graph.FlameMap;
 import org.jetbrains.annotations.Nullable;
 import scala.Tuple2;
 

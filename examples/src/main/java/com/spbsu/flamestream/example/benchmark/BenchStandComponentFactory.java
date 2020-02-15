@@ -7,6 +7,8 @@ import com.esotericsoftware.kryonet.Server;
 import com.spbsu.flamestream.core.data.PayloadDataItem;
 import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
+import com.spbsu.flamestream.core.data.meta.Label;
+import com.spbsu.flamestream.core.data.meta.Labels;
 import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.runtime.FlameRuntime;
 import com.spbsu.flamestream.runtime.LocalClusterRuntime;
@@ -117,6 +119,9 @@ public class BenchStandComponentFactory {
       server.getKryo().register(clazz);
     }
     server.getKryo().register(PayloadDataItem.class);
+    server.getKryo().register(Label.class);
+    server.getKryo().register(Label[].class);
+    server.getKryo().register(Labels.class);
     server.getKryo().register(Meta.class);
     server.getKryo().register(GlobalTime.class);
     server.getKryo().register(EdgeId.class);

@@ -1,9 +1,11 @@
 package com.spbsu.flamestream.example.labels;
 
+import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.TrackingComponent;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
+import com.spbsu.flamestream.core.graph.LabelSpawn;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import scala.Tuple2;
@@ -31,15 +33,10 @@ public class Materializer {
 
   private <In, Out> Materializer(Flow<In, Out> flow) {
     final Source source = new Source();
-    final Graph.Vertex
-            input = new FlameMap<>(in -> Stream.of(new Record<>(in, Labels.EMPTY)), flow.input.typeClass),
-            output = new FlameMap<Record<Out>, Out>(out -> Stream.of(out.value), Record.class);
     final Sink sink = new Sink();
     graphBuilder
-            .link(source, input)
-            .link(input, operatorVertex(flow.input))
-            .link(operatorVertex(flow.output), output)
-            .link(output, sink);
+            .link(source, operatorVertex(flow.input))
+            .link(operatorVertex(flow.output), sink);
     graph = graphBuilder.build(source, sink);
   }
 
@@ -74,7 +71,7 @@ public class Materializer {
   }
 
   <T> Graph.Vertex processInput(Operator.Input<T> input) {
-    final FlameMap<Record<T>, Record<T>> flameMap = new FlameMap<>(Stream::of, Record.class);
+    final FlameMap<T, T> flameMap = new FlameMap.Builder<T, T>(Stream::of, input.typeClass).build();
     cachedOperatorVertex.put(input, flameMap);
     for (final Operator<T> source : input.sources) {
       graphBuilder.link(operatorVertex(source), flameMap);
@@ -83,26 +80,18 @@ public class Materializer {
   }
 
   <In, Out> Graph.Vertex processMap(Operator.Map<In, Out> map) {
-    final FlameMap<Record<? extends In>, Record<? extends Out>> flameMap = new FlameMap<>(record -> {
-      final Stream<Out> result = map.mapper.apply(record.value);
-      final boolean hasLabels = record.labels.hasAll(map.labels);
-      return result.map(out -> {
-        if (!hasLabels)
-          throw new IllegalArgumentException();
-        return new Record<>(out, record.labels);
-      });
-    }, Record.class);
+    final FlameMap<In, Out> flameMap = new FlameMap.Builder<>(map.mapper::apply, map.source.typeClass).build();
     cachedOperatorVertex.put(map, flameMap);
     graphBuilder.link(operatorVertex(map.source), flameMap);
     return flameMap;
   }
 
   private static final class Grouped<Item, State> {
-    final Record<Item> item;
+    final Item item;
     final State state;
     final boolean isState;
 
-    private Grouped(Record<Item> item, State state, boolean isState) {
+    private Grouped(Item item, State state, boolean isState) {
       this.item = item;
       this.state = state;
       this.isState = isState;
@@ -110,58 +99,58 @@ public class Materializer {
   }
 
   <In, Key, S, Out> Graph.Vertex processStatefulMap(Operator.StatefulMap<In, Key, S, Out> statefulMap) {
-    @SuppressWarnings("unchecked") final Class<Record<In>> inClass = (Class<Record<In>>) (Class<?>) Record.class;
+    @SuppressWarnings("unchecked") final Class<In> inClass = statefulMap.source.source.typeClass;
     @SuppressWarnings("unchecked") final Class<Grouped<In, S>> groupedClass =
             (Class<Grouped<In, S>>) (Class<?>) Grouped.class;
-    final FlameMap<Record<In>, Grouped<In, S>> source = new FlameMap<>(
-            input -> Stream.of(new Grouped<>(input, null, false)),
-            inClass
-    );
-    final Function<Record<In>, Tuple2<Key, Labels>> recordKey = record -> new Tuple2<>(
-            statefulMap.source.keyFunction.apply(record.value),
-            new Labels(statefulMap.source.keyLabels.stream().map(record.labels::entry).collect(Collectors.toSet()))
-    );
+    @SuppressWarnings("unchecked") final Class<Tuple2<Grouped<In, S>, Stream<Out>>> tupleClass =
+            (Class<Tuple2<Grouped<In, S>, Stream<Out>>>) (Class<?>) Tuple2.class;
+    final FlameMap<In, Grouped<In, S>> source = new FlameMap.Builder<>((In input) -> Stream
+            .of(new Grouped<>(input, (S) null, false)), inClass).build();
+    final Function<DataItem, Tuple2<Key, List<?>>> dataItemKey =
+            dataItem -> new Tuple2<>(
+                    statefulMap.source.keyFunction.apply(dataItem.payload(groupedClass).item),
+                    statefulMap.source.keyLabels
+                            .stream()
+                            .map(__ -> dataItem.labels().get(0))
+                            .collect(Collectors.toList())
+            );
     final Grouping<Grouped<In, S>> grouping = new Grouping<>(
-            dataItem -> recordKey.apply(dataItem.payload(groupedClass).item).hashCode(),
-            (o1, o2) -> recordKey.apply(o1.payload(groupedClass).item)
-                    .equals(recordKey.apply(o2.payload(groupedClass).item)),
+            dataItem -> dataItemKey.apply(dataItem).hashCode(),
+            (o1, o2) -> dataItemKey.apply(o1).equals(dataItemKey.apply(o2)),
             2,
             groupedClass
     );
-    final BiFunction<S, Record<In>, Record<Tuple2<Grouped<In, S>, Stream<Out>>>> reduce = (state, in) -> {
-      final Record<Tuple2<S, Stream<Out>>> result = new Record<>(statefulMap.reducer.apply(in.value, state), in.labels);
-      return new Record<>(new Tuple2<>(
-              new Grouped<>(in, result.value._1, true),
-              result.value._2
-      ), result.labels);
+    final BiFunction<S, In, Tuple2<Grouped<In, S>, Stream<Out>>> reduce = (state, in) -> {
+      final Tuple2<S, Stream<Out>> result = statefulMap.reducer.apply(in, state);
+      return new Tuple2<>(new Grouped<>(in, result._1, true), result._2);
     };
-    final FlameMap<List<Grouped<In, S>>, Record<Tuple2<Grouped<In, S>, Stream<Out>>>> reducer = new FlameMap<>(
-            items -> {
-              switch (items.size()) {
-                case 1: {
-                  final Grouped<In, S> in = items.get(0);
-                  if (!in.isState) {
-                    return Stream.of(reduce.apply(null, in.item));
-                  }
-                  return Stream.empty();
-                }
-                case 2: {
-                  final Grouped<In, S> state = items.get(0), in = items.get(1);
-                  if (state.isState && !in.isState) {
-                    return Stream.of(reduce.apply(state.state, in.item));
-                  }
-                  return Stream.empty();
-                }
-                default:
-                  throw new IllegalStateException("Group size should be 1 or 2");
-              }
-            },
-            List.class
-    );
-    final FlameMap<Record<Tuple2<Grouped<In, S>, Stream<Out>>>, Grouped<In, S>> regrouper =
-            new FlameMap<>(item -> Stream.of(item.value._1), Record.class);
-    final FlameMap<Record<Tuple2<Grouped<In, S>, Stream<Out>>>, Record<Out>> sink =
-            new FlameMap<>(item -> item.value._2.map(out -> new Record<>(out, item.labels)), Record.class);
+    final FlameMap<List<Grouped<In, S>>, Tuple2<Grouped<In, S>, Stream<Out>>> reducer = new FlameMap.Builder<>((List<Grouped<In, S>> items) -> {
+      switch (items.size()) {
+        case 1: {
+          final Grouped<In, S> in = items.get(0);
+          if (!in.isState) {
+            return Stream.of(reduce.apply(null, in.item));
+          }
+          return Stream.empty();
+        }
+        case 2: {
+          final Grouped<In, S> state = items.get(0), in = items.get(1);
+          if (state.isState && !in.isState) {
+            return Stream.of(reduce.apply(state.state, in.item));
+          }
+          return Stream.empty();
+        }
+        default:
+          throw new IllegalStateException("Group size should be 1 or 2");
+      }
+    }, List.class).build();
+    final FlameMap<Tuple2<Grouped<In, S>, Stream<Out>>, Grouped<In, S>> regrouper =
+            new FlameMap.Builder<>(
+                    (Tuple2<Grouped<In, S>, Stream<Out>> item1) -> Stream.of(item1._1),
+                    tupleClass
+            ).build();
+    final FlameMap<Tuple2<Grouped<In, S>, Stream<Out>>, Out> sink =
+            new FlameMap.Builder<>((Tuple2<Grouped<In, S>, Stream<Out>> item) -> item._2, tupleClass).build();
     cachedOperatorVertex.put(statefulMap, sink);
     graphBuilder
             .link(operatorVertex(statefulMap.source.source), source)
@@ -180,16 +169,7 @@ public class Materializer {
         return vertex;
       }
     }
-    final FlameMap<Record<Value>, Record<Value>> flameMap = new FlameMap<>(
-            record -> {
-              final L label = labelSpawn.mapper.apply(record.value);
-              return Stream.of(new Record<>(
-                      record.value,
-                      record.labels.added(labelSpawn.lClass, () -> label)
-              ));
-            },
-            Record.class
-    );
+    final LabelSpawn<Value, L> flameMap = new LabelSpawn<>(labelSpawn.typeClass, 0, labelSpawn.mapper::apply);
     cachedOperatorVertex.put(labelSpawn, flameMap);
     graphBuilder.link(operatorVertex(labelSpawn.source), flameMap);
     return flameMap;
@@ -202,10 +182,9 @@ public class Materializer {
         return vertex;
       }
     }
-    final FlameMap<Record<?>, L> flameMap = new FlameMap<>(
-            __ -> {throw new RuntimeException();},
-            Record.class
-    );
+    final FlameMap<Void, L> flameMap = new FlameMap.Builder<Void, L>((Void __) -> {
+      throw new RuntimeException();
+    }, Void.class).build();
     cachedOperatorVertex.put(labelMarkers, flameMap);
     return flameMap;
   }

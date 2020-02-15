@@ -5,6 +5,8 @@ import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.spbsu.flamestream.core.Batch;
+import com.spbsu.flamestream.core.data.meta.Label;
+import com.spbsu.flamestream.core.data.meta.Labels;
 import com.spbsu.flamestream.runtime.edge.Rear;
 import com.spbsu.flamestream.core.data.PayloadDataItem;
 import com.spbsu.flamestream.core.data.meta.EdgeId;
@@ -36,6 +38,9 @@ public class SocketRear implements Rear {
     Arrays.stream(classes).forEach(clazz -> client.getKryo().register(clazz));
     { //register inners of data item
       client.getKryo().register(PayloadDataItem.class);
+      client.getKryo().register(Label.class);
+      client.getKryo().register(Label[].class);
+      client.getKryo().register(Labels.class);
       client.getKryo().register(Meta.class);
       client.getKryo().register(GlobalTime.class);
       client.getKryo().register(EdgeId.class);
