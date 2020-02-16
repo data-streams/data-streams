@@ -10,10 +10,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
@@ -30,16 +32,13 @@ public interface Graph {
   Stream<Vertex> adjacent(Vertex vertex);
 
   default TrackingComponent sinkTrackingComponent() {
-    for (Vertex vertex : (Iterable<Vertex>) components().flatMap(Function.identity())::iterator)
-      if (vertex instanceof Sink)
-        return vertex.trackingComponent();
-      return null;
+    return trackingComponent(sink());
   }
+
+  TrackingComponent trackingComponent(Vertex vertex);
 
   interface Vertex {
     String id();
-
-    default TrackingComponent trackingComponent() { return TrackingComponent.DEFAULT; }
 
     abstract class Stub implements Vertex {
       private final long id = ThreadLocalRandom.current().nextLong();
@@ -71,6 +70,10 @@ public interface Graph {
     }
 
     public Graph build(Source source, Sink sink) {
+      return build(source, sink, __ -> TrackingComponent.DEFAULT);
+    }
+
+    public Graph build(Source source, Sink sink, Function<Vertex, TrackingComponent> vertexTrackingComponent) {
       if (invertedAdjLists.keySet().contains(source)) {
         throw new IllegalStateException("Source must not have inputs");
       }
@@ -80,11 +83,15 @@ public interface Graph {
 
       final Set<Vertex> v = new HashSet<>(adjLists.keySet());
       v.addAll(invertedAdjLists.keySet());
+      final Map<Vertex, TrackingComponent> vertexTrackingComponentMap = v.stream().collect(Collectors.toMap(
+              Function.identity(),
+              ((Function<TrackingComponent, TrackingComponent>) Objects::requireNonNull).compose(vertexTrackingComponent)
+      ));
       components.forEach(v::removeAll);
 
       v.forEach(isolated -> components.add(Collections.singleton(isolated)));
 
-      return new MyGraph(adjLists, source, sink, components);
+      return new MyGraph(adjLists, source, sink, components, vertexTrackingComponentMap);
     }
 
     private static class MyGraph implements Graph {
@@ -94,13 +101,18 @@ public interface Graph {
       private final Map<Vertex, Collection<Vertex>> adjLists;
 
       private final Set<Set<Vertex>> components;
+      private final Map<Vertex, TrackingComponent> vertexTrackingComponent;
 
-      MyGraph(Multimap<Vertex, Vertex> adjLists,
+      MyGraph(
+              Multimap<Vertex, Vertex> adjLists,
               Source source,
               Sink sink,
-              Set<Set<Vertex>> components) {
+              Set<Set<Vertex>> components,
+              Map<Vertex, TrackingComponent> vertexTrackingComponent
+      ) {
         this.allVertices = new ArrayList<>(adjLists.keySet());
         this.components = components;
+        this.vertexTrackingComponent = vertexTrackingComponent;
         allVertices.add(sink);
         // Multimap is converted to Map<.,Set> to support serialization
         this.adjLists = adjLists.entries().stream().collect(Collectors.groupingBy(
@@ -118,6 +130,11 @@ public interface Graph {
       @Override
       public Stream<Vertex> adjacent(Vertex vertex) {
         return adjLists.getOrDefault(vertex, Collections.emptyList()).stream();
+      }
+
+      @Override
+      public TrackingComponent trackingComponent(Vertex vertex) {
+        return vertexTrackingComponent.get(vertex);
       }
 
       @Override

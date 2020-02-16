@@ -25,6 +25,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class Materializer {
+  private final Map<Operator<?>, TrackingComponent> operatorTrackingComponent;
+  private final Map<Graph.Vertex, TrackingComponent> vertexTrackingComponent = new HashMap<>();
+
   public static Graph materialize(Flow<?, ?> flow) {
     return new Materializer(flow).graph;
   }
@@ -32,12 +35,22 @@ public class Materializer {
   private final Graph graph;
 
   private <In, Out> Materializer(Flow<In, Out> flow) {
+    final Map<Operator<?>, StronglyConnectedComponent> operatorStronglyConnectedComponent =
+            buildStronglyConnectedComponents(flow);
+    final Map<StronglyConnectedComponent, TrackingComponent> stronglyConnectedComponentTracking =
+            buildTrackingComponents(operatorStronglyConnectedComponent.get(flow.output));
+    operatorTrackingComponent = operatorStronglyConnectedComponent.entrySet().stream().collect(Collectors.toMap(
+            Map.Entry::getKey,
+            entry -> stronglyConnectedComponentTracking.get(entry.getValue())
+    ));
     final Source source = new Source();
     final Sink sink = new Sink();
+    vertexTrackingComponent.put(source, operatorTrackingComponent.get(flow.input));
+    vertexTrackingComponent.put(sink, operatorTrackingComponent.get(flow.output));
     graphBuilder
             .link(source, operatorVertex(flow.input))
             .link(operatorVertex(flow.output), sink);
-    graph = graphBuilder.build(source, sink);
+    graph = graphBuilder.build(source, sink, vertexTrackingComponent::get);
   }
 
   public static class StronglyConnectedComponent {
@@ -73,6 +86,7 @@ public class Materializer {
   <T> Graph.Vertex processInput(Operator.Input<T> input) {
     final FlameMap<T, T> flameMap = new FlameMap.Builder<T, T>(Stream::of, input.typeClass).build();
     cachedOperatorVertex.put(input, flameMap);
+    vertexTrackingComponent.put(flameMap, operatorTrackingComponent.get(input));
     for (final Operator<T> source : input.sources) {
       graphBuilder.link(operatorVertex(source), flameMap);
     }
@@ -82,6 +96,7 @@ public class Materializer {
   <In, Out> Graph.Vertex processMap(Operator.Map<In, Out> map) {
     final FlameMap<In, Out> flameMap = new FlameMap.Builder<>(map.mapper::apply, map.source.typeClass).build();
     cachedOperatorVertex.put(map, flameMap);
+    vertexTrackingComponent.put(flameMap, operatorTrackingComponent.get(map));
     graphBuilder.link(operatorVertex(map.source), flameMap);
     return flameMap;
   }
@@ -152,6 +167,12 @@ public class Materializer {
     final FlameMap<Tuple2<Grouped<In, S>, Stream<Out>>, Out> sink =
             new FlameMap.Builder<>((Tuple2<Grouped<In, S>, Stream<Out>> item) -> item._2, tupleClass).build();
     cachedOperatorVertex.put(statefulMap, sink);
+    final TrackingComponent trackingComponent = operatorTrackingComponent.get(statefulMap);
+    vertexTrackingComponent.put(source, trackingComponent);
+    vertexTrackingComponent.put(grouping, trackingComponent);
+    vertexTrackingComponent.put(reducer, trackingComponent);
+    vertexTrackingComponent.put(regrouper, trackingComponent);
+    vertexTrackingComponent.put(sink, trackingComponent);
     graphBuilder
             .link(operatorVertex(statefulMap.source.source), source)
             .link(source, grouping)
@@ -163,30 +184,21 @@ public class Materializer {
   }
 
   <Value, L> Graph.Vertex processLabelSpawn(Operator.LabelSpawn<Value, L> labelSpawn) {
-    {
-      final Graph.Vertex vertex = cachedOperatorVertex.get(labelSpawn);
-      if (vertex != null) {
-        return vertex;
-      }
-    }
-    final LabelSpawn<Value, L> flameMap = new LabelSpawn<>(labelSpawn.typeClass, 0, labelSpawn.mapper::apply);
-    cachedOperatorVertex.put(labelSpawn, flameMap);
-    graphBuilder.link(operatorVertex(labelSpawn.source), flameMap);
-    return flameMap;
+    final LabelSpawn<Value, L> vertex = new LabelSpawn<>(labelSpawn.typeClass, 0, labelSpawn.mapper::apply);
+    cachedOperatorVertex.put(labelSpawn, vertex);
+    final TrackingComponent trackingComponent = operatorTrackingComponent.get(labelSpawn);
+    vertexTrackingComponent.put(vertex, trackingComponent);
+    graphBuilder.link(operatorVertex(labelSpawn.source), vertex);
+    return vertex;
   }
 
   <L> Graph.Vertex processLabelMarkers(Operator.LabelMarkers<?, L> labelMarkers) {
-    {
-      final Graph.Vertex vertex = cachedOperatorVertex.get(labelMarkers);
-      if (vertex != null) {
-        return vertex;
-      }
-    }
-    final FlameMap<Void, L> flameMap = new FlameMap.Builder<Void, L>((Void __) -> {
+    final FlameMap<Void, L> vertex = new FlameMap.Builder<Void, L>((Void __) -> {
       throw new RuntimeException();
     }, Void.class).build();
-    cachedOperatorVertex.put(labelMarkers, flameMap);
-    return flameMap;
+    vertexTrackingComponent.put(vertex, operatorTrackingComponent.get(labelMarkers));
+    cachedOperatorVertex.put(labelMarkers, vertex);
+    return vertex;
   }
 
   public static Map<StronglyConnectedComponent, TrackingComponent> buildTrackingComponents(StronglyConnectedComponent sink) {

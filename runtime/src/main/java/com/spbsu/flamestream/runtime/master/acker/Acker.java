@@ -78,13 +78,13 @@ public class Acker extends LoggingActor {
     int componentsNumber = 0;
     final Iterable<Graph.Vertex> vertices = () -> graph.components().flatMap(Function.identity()).iterator();
     for (Graph.Vertex component : vertices) {
-      componentsNumber = Integer.max(componentsNumber, component.trackingComponent().index + 1);
+      componentsNumber = Integer.max(componentsNumber, graph.trackingComponent(component).index + 1);
     }
     componentTable = new ComponentAckTable[componentsNumber];
     for (final Graph.Vertex vertex : vertices) {
-      if (componentTable[vertex.trackingComponent().index] == null) {
-        componentTable[vertex.trackingComponent().index] = new ComponentAckTable(
-                vertex.trackingComponent(),
+      if (componentTable[graph.trackingComponent(vertex).index] == null) {
+        componentTable[graph.trackingComponent(vertex).index] = new ComponentAckTable(
+                graph.trackingComponent(vertex),
                 new ArrayAckTable(defaultMinimalTime, SIZE / componentsNumber, WINDOW, assertAckingBackInTime),
                 defaultMinimalTime
         );
