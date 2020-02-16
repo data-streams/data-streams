@@ -246,14 +246,16 @@ public class Materializer {
                     return trackingComponent;
                   }
                 }
-                final Set<TrackingComponent> inbound = new HashSet<>();
+                final Set<TrackingComponent> allInbound = new HashSet<>();
                 for (final StronglyConnectedComponent component : trackingComponentsSet.get(labelMarkers)) {
-                  final Set<Operator.LabelMarkers<?, ?>> inboundLabelMarkers = componentLabelMarkers.get(component);
-                  if (!inboundLabelMarkers.equals(labelMarkers)) {
-                    inbound.add(this.apply(inboundLabelMarkers));
+                  for (final StronglyConnectedComponent inbound : component.inbound) {
+                    final Set<Operator.LabelMarkers<?, ?>> inboundLabelMarkers = componentLabelMarkers.get(inbound);
+                    if (!inboundLabelMarkers.equals(labelMarkers)) {
+                      allInbound.add(this.apply(inboundLabelMarkers));
+                    }
                   }
                 }
-                final TrackingComponent trackingComponent = new TrackingComponent(trackingComponents.size(), inbound);
+                final TrackingComponent trackingComponent = new TrackingComponent(trackingComponents.size(), allInbound);
                 trackingComponents.put(labelMarkers, trackingComponent);
                 return trackingComponent;
               }
