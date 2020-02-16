@@ -123,16 +123,14 @@ public class BreadthSearchGraph {
           Map<VertexIdentifier, List<VertexIdentifier>> vertexEdges
   ) {
     final Operator.Input<Request> requestInput = new Operator.Input<>(Request.class);
-    final Operator.Input<Agent> agentInput = new Operator.Input<>(Agent.class, Collections.singleton(RequestKey.class));
-    agentInput.link(
-            requestInput
-                    .spawnLabel(RequestKey.class, request -> new RequestKey(request.identifier))
-                    .map(Agent.class, request ->
-                            new Agent(request.identifier, request.vertexIdentifier, request.pathLength)
-                    )
-    );
+    final Operator.LabelSpawn<Request, RequestKey> requestLabel = requestInput
+            .spawnLabel(RequestKey.class, request -> new RequestKey(request.identifier));
+    final Operator.Input<Agent> agentInput = new Operator.Input<>(Agent.class, Collections.singleton(requestLabel));
+    agentInput.link(requestLabel.map(Agent.class, request ->
+            new Agent(request.identifier, request.vertexIdentifier, request.pathLength)
+    ));
     final Operator<Tuple2<Agent, Agent.ActionAfterVisit>> agentAndActionAfterVisit =
-            agentAndActionAfterVisit(agentInput);
+            agentAndActionAfterVisit(agentInput, requestLabel);
     agentInput.link(agentAndActionAfterVisit.flatMap(Agent.class, agent -> {
       if (agent._2 == Agent.ActionAfterVisit.Stop) {
         return Stream.empty();
@@ -155,7 +153,7 @@ public class BreadthSearchGraph {
     }));
     output.link(
             agentAndActionAfterVisit
-                    .labelMarkers(RequestKey.class)
+                    .labelMarkers(requestLabel)
                     .map(EITHER_REQUEST_OUTPUT_OR_REQUEST_KEY_CLASS, Right::apply)
     );
     return new Flow<>(requestInput, output);
@@ -165,23 +163,19 @@ public class BreadthSearchGraph {
           Map<VertexIdentifier, List<VertexIdentifier>> vertexEdges
   ) {
     final Operator.Input<Input> requestInput = new Operator.Input<>(Input.class);
-    final Operator.Input<Agent> agentInput = new Operator.Input<>(Agent.class, Collections.singleton(RequestKey.class));
-    agentInput.link(
-            requestInput
-                    .flatMap(
-                            Request.class,
-                            input -> input instanceof Request ? Stream.of(((Request) input)) : Stream.empty()
-                    )
-                    .spawnLabel(RequestKey.class, request -> new RequestKey(request.identifier))
-                    .map(
-                            Agent.class,
-                            request -> new Agent(request.identifier, request.vertexIdentifier, request.pathLength)
-                    )
-    );
+    final Operator.LabelSpawn<Request, RequestKey> requestLabel = requestInput.flatMap(
+            Request.class,
+            input -> input instanceof Request ? Stream.of(((Request) input)) : Stream.empty()
+    ).spawnLabel(RequestKey.class, request -> new RequestKey(request.identifier));
+    final Operator.Input<Agent> agentInput = new Operator.Input<>(Agent.class, Collections.singleton(requestLabel));
+    agentInput.link(requestLabel.map(
+            Agent.class,
+            request -> new Agent(request.identifier, request.vertexIdentifier, request.pathLength)
+    ));
     final Operator.Input<Either<Agent, VertexEdgesUpdate>> vertexEdgesInput =
             new Operator.Input<>(EITHER_AGENT_OR_VERTEX_EDGES_UPDATE_CLASS);
     final Operator<Tuple2<Agent, Agent.ActionAfterVisit>> agentAndActionAfterVisit =
-            agentAndActionAfterVisit(agentInput);
+            agentAndActionAfterVisit(agentInput, requestLabel);
     agentInput.link(vertexEdgesInput
             .keyedBy(either -> either.isLeft() ? either.left().get().vertexIdentifier : either.right().get().source)
             .statefulFlatMap(Agent.class, (Either<Agent, VertexEdgesUpdate> either, List<VertexIdentifier> edges) -> {
@@ -201,7 +195,7 @@ public class BreadthSearchGraph {
               } else {
                 return new Tuple2<>(either.right().get().targets, Stream.empty());
               }
-            }, Collections.singleton(RequestKey.class)));
+            }, Collections.singleton(requestLabel)));
     final Operator.Input<Either<RequestOutput, RequestKey>> output =
             new Operator.Input<>(EITHER_REQUEST_OUTPUT_OR_REQUEST_KEY_CLASS);
     output.link(agentAndActionAfterVisit.flatMap(EITHER_REQUEST_OUTPUT_OR_REQUEST_KEY_CLASS, agent -> {
@@ -212,17 +206,19 @@ public class BreadthSearchGraph {
     }));
     output.link(
             agentAndActionAfterVisit
-                    .labelMarkers(RequestKey.class)
+                    .labelMarkers(requestLabel)
                     .map(EITHER_REQUEST_OUTPUT_OR_REQUEST_KEY_CLASS, Right::apply)
     );
     return new Flow<>(requestInput, output);
   }
 
   private static Operator<Tuple2<Agent, Agent.ActionAfterVisit>> agentAndActionAfterVisit(
-          Operator.Input<Agent> agentInput) {
+          Operator.Input<Agent> agentInput,
+          Operator.LabelSpawn<Request, RequestKey> requestLabel
+  ) {
     return agentInput
             .filter(agent -> agent.remainingPathLength > 0)
-            .keyedBy(agent -> agent.vertexIdentifier)
+            .keyedBy(Collections.singleton(requestLabel), agent -> agent.vertexIdentifier)
             .statefulMap(AGENT_WITH_ACTION_AFTER_VISIT_CLASS, (Agent agent, Integer remainingPathLength) -> {
               final Agent.ActionAfterVisit actionAfterVisit;
               if (remainingPathLength == null) {
@@ -235,6 +231,6 @@ public class BreadthSearchGraph {
                 actionAfterVisit = Agent.ActionAfterVisit.Stop;
               }
               return new Tuple2<>(remainingPathLength, new Tuple2<>(agent, actionAfterVisit));
-            }, Collections.singleton(RequestKey.class));
+            }, Collections.singleton(requestLabel));
   }
 }

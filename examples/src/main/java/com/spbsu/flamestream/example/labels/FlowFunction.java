@@ -50,7 +50,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
     }
 
     private <L> void changeLabelTrackerCount(Record<?> record, int diff, LabelTracker<?, L> labelTracker) {
-      final Label<L> label = ((Label<L>) record.labels.get(labelTracker.labelMarkers.lClass));
+      final Label<L> label = record.labels.get(labelTracker.labelMarkers.labelSpawn);
       if (label != null)
         labelTracker.change(label, diff);
     }
@@ -93,7 +93,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
       if (labelCount.compute(label, (ignored, value) -> value + diff == 0 ? null : value + diff) == null) {
         materialized.emit(new Record<>(
                 label.value,
-                new Labels(Collections.singleton(new Labels.Entry<>(labelMarkers.lClass, label)))
+                new Labels(Collections.singleton(new Labels.Entry<>(labelMarkers.labelSpawn, label)))
         ));
       }
     }
@@ -193,7 +193,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
             ((LabelTracker<?, L>) labelTracker).spawn(label);
           }
         }
-        emit(new Record<>(in.value, in.labels.added(labelSpawn.lClass, label)));
+        emit(new Record<>(in.value, in.labels.added(labelSpawn, label)));
       }
     };
     materializedOperator.put(labelSpawn, materialized);
@@ -248,13 +248,13 @@ public class FlowFunction<FlowInput, FlowOutput> {
   }
 
   private static class Labels {
-    private final Map<Class<?>, Label<?>> all;
+    private final Map<Operator.LabelSpawn<?, ?>, Label<?>> all;
   
     public static class Entry<Value> {
-      public final Class<Value> aClass;
+      public final Operator.LabelSpawn<?, Value> aClass;
       public final Label<? extends Value> value;
   
-      public Entry(Class<Value> aClass, Label<? extends Value> value) {
+      public Entry(Operator.LabelSpawn<?, Value> aClass, Label<? extends Value> value) {
         this.aClass = aClass;
         this.value = value;
       }
@@ -279,7 +279,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
       all = entries.stream().collect(Collectors.toMap(entry -> entry.aClass, entry -> entry.value));
     }
   
-    private Labels(Map<Class<?>, Label<?>> all) {
+    private Labels(Map<Operator.LabelSpawn<?, ?>, Label<?>> all) {
       this.all = all;
     }
   
@@ -296,23 +296,23 @@ public class FlowFunction<FlowInput, FlowOutput> {
       return obj.equals(all);
     }
   
-    public <Value> Labels added(Class<Value> valueClass, Label<Value> value) {
-      final HashMap<Class<?>, Label<?>> added = new HashMap<>(all);
+    public <Value> Labels added(Operator.LabelSpawn<?, Value> valueClass, Label<Value> value) {
+      final HashMap<Operator.LabelSpawn<?, ?>, Label<?>> added = new HashMap<>(all);
       added.put(valueClass, value);
       return new Labels(added);
     }
   
     @Nullable
-    <Value> Label<Value> get(Class<Value> aClass) {
+    <Value> Label<Value> get(Operator.LabelSpawn<?, Value> aClass) {
       return (Label<Value>) all.get(aClass);
     }
   
-    @Nullable <Value> Entry<Value> entry(Class<Value> aClass) {
+    @Nullable <Value> Entry<Value> entry(Operator.LabelSpawn<?, Value> aClass) {
       return new Entry<>(aClass, (Label<Value>) all.get(aClass));
     }
   
-    public boolean hasAll(Set<Class<?>> classes) {
-      for (final Class<?> aClass : classes) {
+    public boolean hasAll(Set<Operator.LabelSpawn<?, ?>> classes) {
+      for (final Operator.LabelSpawn<?, ?> aClass : classes) {
         if (!all.containsKey(aClass))
           return false;
       }

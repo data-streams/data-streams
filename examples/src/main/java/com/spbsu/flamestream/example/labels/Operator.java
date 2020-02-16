@@ -16,15 +16,21 @@ import java.util.stream.Stream;
 
 public abstract class Operator<Type> {
   public final Class<Type> typeClass;
-  public final Set<Class<?>> labels;
+  public final Set<LabelSpawn<?, ?>> labels;
 
   interface SerializableFunction<T, R> extends Serializable, Function<T, R> {}
 
   interface SerializableBiFunction<T, U, R> extends Serializable, BiFunction<T, U, R> {}
 
-  private Operator(Class<Type> typeClass, Set<Class<?>> labels) {
+  static Set<LabelSpawn<?, ?>> addLabel(Set<LabelSpawn<?, ?>> labels, LabelSpawn<?, ?> label) {
+    final HashSet<LabelSpawn<?, ?>> added = new HashSet<>(labels);
+    added.add(label);
+    return added;
+  }
+
+  private Operator(Class<Type> typeClass, Set<LabelSpawn<?, ?>> labels) {
     this.typeClass = typeClass;
-    this.labels = labels;
+    this.labels = this instanceof LabelSpawn ? addLabel(labels, (LabelSpawn<?, ?>) this) : labels;
   }
 
   public <L> LabelSpawn<Type, L> spawnLabel(Class<L> label, SerializableFunction<Type, L> mapper) {
@@ -32,17 +38,17 @@ public abstract class Operator<Type> {
   }
 
   public <Key> KeyedOperator<Type, Key> keyedBy(
-          Set<Class<?>> keyLabels,
-          @Nullable SerializableFunction<Type, Key> keyFunction
+          Set<LabelSpawn<?, ?>> keyLabels,
+          SerializableFunction<Type, Key> keyFunction
   ) {
     return new KeyedOperator<>(this, keyLabels, keyFunction);
   }
 
-  public <Key> KeyedOperator<Type, Key> keyedBy(Set<Class<?>> keyLabels) {
-    return new KeyedOperator<>(this, keyLabels, null);
+  public <Key> KeyedOperator<Type, Void> keyedBy(Set<LabelSpawn<?, ?>> keyLabels) {
+    return new KeyedOperator<>(this, keyLabels, __ -> null);
   }
 
-  public <Key> KeyedOperator<Type, Key> keyedBy(@Nullable SerializableFunction<Type, Key> keyFunction) {
+  public <Key> KeyedOperator<Type, Key> keyedBy(SerializableFunction<Type, Key> keyFunction) {
     return new KeyedOperator<>(this, Collections.emptySet(), keyFunction);
   }
 
@@ -61,22 +67,21 @@ public abstract class Operator<Type> {
     return new Map<>(labels, this, this.typeClass, in -> predicate.test(in) ? Stream.of(in) : Stream.empty());
   }
 
-  public <L> Operator<L> labelMarkers(Class<L> lClass) {
+  public <L> Operator<L> labelMarkers(LabelSpawn<?, L> lClass) {
     return new LabelMarkers<>(lClass, this);
   }
 
   public static final class KeyedOperator<Source, Key> {
     public final Operator<Source> source;
-    final Set<Class<?>> keyLabels;
-    final @Nullable
-    Function<Source, Key> keyFunction;
+    final Set<LabelSpawn<?, ?>> keyLabels;
+    final Function<Source, Key> keyFunction;
 
     public KeyedOperator(
             Operator<Source> source,
-            Set<Class<?>> keyLabels,
-            @Nullable SerializableFunction<Source, Key> keyFunction
+            Set<LabelSpawn<?, ?>> keyLabels,
+            SerializableFunction<Source, Key> keyFunction
     ) {
-      for (final Class<?> keyLabel : keyLabels) {
+      for (final LabelSpawn<?, ?> keyLabel : keyLabels) {
         if (!source.labels.contains(keyLabel)) {
           throw new IllegalArgumentException(keyLabel.toString());
         }
@@ -95,7 +100,7 @@ public abstract class Operator<Type> {
     public <S, Output> Operator<Output> statefulMap(
             Class<Output> outputClass,
             SerializableBiFunction<Source, S, Tuple2<S, Output>> mapper,
-            Set<Class<?>> labels
+            Set<LabelSpawn<?, ?>> labels
     ) {
       return new StatefulMap<>(this, labels, outputClass, (Source in, S state) -> {
         final Tuple2<S, Output> out = mapper.apply(in, state);
@@ -106,7 +111,7 @@ public abstract class Operator<Type> {
     public <S, Output> Operator<Output> statefulFlatMap(
             Class<Output> outputClass,
             SerializableBiFunction<Source, S, Tuple2<S, Stream<Output>>> mapper,
-            Set<Class<?>> labels
+            Set<LabelSpawn<?, ?>> labels
     ) {
       return new StatefulMap<>(this, labels, outputClass, mapper);
     }
@@ -119,12 +124,12 @@ public abstract class Operator<Type> {
       super(typeClass, Collections.emptySet());
     }
 
-    public Input(Class<Type> typeClass, Set<Class<?>> labels) {
+    public Input(Class<Type> typeClass, Set<LabelSpawn<?, ?>> labels) {
       super(typeClass, labels);
     }
 
     public void link(Operator<Type> operator) {
-      for (final Class<?> label : labels) {
+      for (final LabelSpawn<?, ?> label : labels) {
         if (!operator.labels.contains(label)) {
           throw new IllegalArgumentException(label.toString());
         }
@@ -134,19 +139,13 @@ public abstract class Operator<Type> {
   }
 
   public static final class LabelSpawn<Value, L> extends Operator<Value> {
-    static Set<Class<?>> addLabel(Set<Class<?>> labels, Class<?> label) {
-      final HashSet<Class<?>> added = new HashSet<>(labels);
-      added.add(label);
-      return added;
-    }
-
     @org.jetbrains.annotations.NotNull
     public final Operator<Value> source;
     public final Class<L> lClass;
     public final SerializableFunction<Value, L> mapper;
 
     public LabelSpawn(Operator<Value> source, Class<L> lClass, SerializableFunction<Value, L> mapper) {
-      super(source.typeClass, addLabel(source.labels, lClass));
+      super(source.typeClass, source.labels);
       this.source = source;
       this.lClass = lClass;
       this.mapper = mapper;
@@ -158,7 +157,7 @@ public abstract class Operator<Type> {
     public final Operator<In> source;
 
     public Map(
-            Set<Class<?>> labels,
+            Set<LabelSpawn<?, ?>> labels,
             Operator<In> source,
             Class<Out> outClass,
             SerializableFunction<In, Stream<Out>> mapper
@@ -175,7 +174,7 @@ public abstract class Operator<Type> {
 
     public StatefulMap(
             KeyedOperator<In, Key> source,
-            Set<Class<?>> labels,
+            Set<LabelSpawn<?, ?>> labels,
             Class<Out> outClass,
             SerializableBiFunction<In, S, Tuple2<S, Stream<Out>>> reducer
     ) {
@@ -187,11 +186,14 @@ public abstract class Operator<Type> {
 
   public static final class LabelMarkers<In, L> extends Operator<L> {
     public final Class<L> lClass;
+    @org.jetbrains.annotations.NotNull
+    public final LabelSpawn<?, L> labelSpawn;
     public final Operator<In> source;
 
-    public LabelMarkers(Class<L> lClass, Operator<In> source) {
-      super(lClass, Collections.singleton(lClass));
-      this.lClass = lClass;
+    public LabelMarkers(LabelSpawn<?, L> labelSpawn, Operator<In> source) {
+      super(labelSpawn.lClass, Collections.singleton(labelSpawn));
+      this.lClass = labelSpawn.lClass;
+      this.labelSpawn = labelSpawn;
       this.source = source;
     }
   }

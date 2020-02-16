@@ -1,50 +1,39 @@
 package com.spbsu.flamestream.example.labels;
 
 import com.spbsu.flamestream.core.TrackingComponent;
-import com.spbsu.flamestream.example.bl.topwordcount.TopWordCountGraph;
-import com.spbsu.flamestream.example.bl.topwordcount.model.WordsTop;
 import com.spbsu.flamestream.runtime.FlameRuntime;
 import com.spbsu.flamestream.runtime.LocalRuntime;
 import com.spbsu.flamestream.runtime.acceptance.FlameAkkaSuite;
-import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFront;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitResultConsumer;
-import org.testng.Assert;
 import org.testng.annotations.Test;
 import scala.util.Either;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
-import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.joining;
-import static java.util.stream.Collectors.toMap;
-import static org.testng.Assert.*;
+import static org.testng.Assert.assertEquals;
 
 public class MaterializerTest extends FlameAkkaSuite {
   @Test
   public void testForkAndJoinWithLabels() {
     final Operator.Input<Integer> input = new Operator.Input<>(Integer.class);
-    final Operator<Integer> labeled = input.spawnLabel(Integer.class, i -> i);
-    final Operator.Input<Integer> union = new Operator.Input<>(Integer.class, Collections.singleton(Integer.class));
-    union.link(labeled.map(Integer.class, i -> i));
-    union.link(labeled.map(Integer.class, i -> i));
-    final Flow<Integer, Integer> flow = new Flow<>(input, union.labelMarkers(Integer.class));
+    final Operator.LabelSpawn<Integer, Integer> label = input.spawnLabel(Integer.class, i -> i);
+    final Operator.Input<Integer> union = new Operator.Input<>(Integer.class, Collections.singleton(label));
+    union.link(label.map(Integer.class, i -> i));
+    union.link(label.map(Integer.class, i -> i));
+    final Flow<Integer, Integer> flow = new Flow<>(input, union.labelMarkers(label));
 
     final Map<Operator<?>, Materializer.StronglyConnectedComponent> stronglyConnectedComponents =
             Materializer.buildStronglyConnectedComponents(flow);
@@ -87,8 +76,13 @@ public class MaterializerTest extends FlameAkkaSuite {
 
         final AwaitResultConsumer<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>> awaitConsumer =
                 new AwaitResultConsumer<>(1);
-        flame.attachRear("wordCountRear", new AkkaRearType<>(runtime.system(), ((Class<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>>) (Class<?>) Either.class)))
-                .forEach(r -> r.addListener(awaitConsumer));
+        flame.attachRear(
+                "wordCountRear",
+                new AkkaRearType<>(
+                        runtime.system(),
+                        (Class<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>>) (Class<?>) Either.class
+                )
+        ).forEach(r -> r.addListener(awaitConsumer));
         final List<AkkaFront.FrontHandle<BreadthSearchGraph.Request>> handles = flame
                 .attachFront("wordCountFront", new AkkaFrontType<BreadthSearchGraph.Request>(runtime.system()))
                 .collect(Collectors.toList());
@@ -96,7 +90,6 @@ public class MaterializerTest extends FlameAkkaSuite {
         awaitConsumer.await(200, TimeUnit.SECONDS);
 
         final BreadthSearchGraph.RequestOutput actualWordsTop = awaitConsumer.result().findFirst().get().left().get();
-        System.out.println(actualWordsTop);
       }
     }
   }
