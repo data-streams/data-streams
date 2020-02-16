@@ -22,11 +22,13 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 public class Materializer {
   private final Map<Operator<?>, TrackingComponent> operatorTrackingComponent;
   private final Map<Graph.Vertex, TrackingComponent> vertexTrackingComponent = new HashMap<>();
+  private final List<Graph.Vertex> labelSpawns = new ArrayList<>();
 
   public static Graph materialize(Flow<?, ?> flow) {
     return new Materializer(flow).graph;
@@ -114,19 +116,24 @@ public class Materializer {
   }
 
   <In, Key, S, Out> Graph.Vertex processStatefulMap(Operator.StatefulMap<In, Key, S, Out> statefulMap) {
-    @SuppressWarnings("unchecked") final Class<In> inClass = statefulMap.source.source.typeClass;
-    @SuppressWarnings("unchecked") final Class<Grouped<In, S>> groupedClass =
-            (Class<Grouped<In, S>>) (Class<?>) Grouped.class;
     @SuppressWarnings("unchecked") final Class<Tuple2<Grouped<In, S>, Stream<Out>>> tupleClass =
             (Class<Tuple2<Grouped<In, S>, Stream<Out>>>) (Class<?>) Tuple2.class;
+    final Class<In> inClass = statefulMap.source.source.typeClass;
+    @SuppressWarnings("unchecked") final Class<Grouped<In, S>> groupedClass =
+            (Class<Grouped<In, S>>) (Class<?>) Grouped.class;
+    final FlameMap<Tuple2<Grouped<In, S>, Stream<Out>>, Out> sink =
+            new FlameMap.Builder<>((Tuple2<Grouped<In, S>, Stream<Out>> item) -> item._2, tupleClass).build();
+    cachedOperatorVertex.put(statefulMap, sink);
+    final int[] keyLabelIndices = statefulMap.source.keyLabels.stream()
+            .mapToInt(labelSpawn -> labelSpawns.indexOf(operatorVertex(labelSpawn)))
+            .toArray();
     final FlameMap<In, Grouped<In, S>> source = new FlameMap.Builder<>((In input) -> Stream
             .of(new Grouped<>(input, (S) null, false)), inClass).build();
     final Function<DataItem, Tuple2<Key, List<?>>> dataItemKey =
             dataItem -> new Tuple2<>(
                     statefulMap.source.keyFunction.apply(dataItem.payload(groupedClass).item),
-                    statefulMap.source.keyLabels
-                            .stream()
-                            .map(__ -> dataItem.labels().get(0))
+                    IntStream.of(keyLabelIndices)
+                            .mapToObj(dataItem.labels()::get)
                             .collect(Collectors.toList())
             );
     final Grouping<Grouped<In, S>> grouping = new Grouping<>(
@@ -139,34 +146,32 @@ public class Materializer {
       final Tuple2<S, Stream<Out>> result = statefulMap.reducer.apply(in, state);
       return new Tuple2<>(new Grouped<>(in, result._1, true), result._2);
     };
-    final FlameMap<List<Grouped<In, S>>, Tuple2<Grouped<In, S>, Stream<Out>>> reducer = new FlameMap.Builder<>((List<Grouped<In, S>> items) -> {
-      switch (items.size()) {
-        case 1: {
-          final Grouped<In, S> in = items.get(0);
-          if (!in.isState) {
-            return Stream.of(reduce.apply(null, in.item));
-          }
-          return Stream.empty();
-        }
-        case 2: {
-          final Grouped<In, S> state = items.get(0), in = items.get(1);
-          if (state.isState && !in.isState) {
-            return Stream.of(reduce.apply(state.state, in.item));
-          }
-          return Stream.empty();
-        }
-        default:
-          throw new IllegalStateException("Group size should be 1 or 2");
-      }
-    }, List.class).build();
+    final FlameMap<List<Grouped<In, S>>, Tuple2<Grouped<In, S>, Stream<Out>>> reducer =
+            new FlameMap.Builder<>((List<Grouped<In, S>> items) -> {
+              switch (items.size()) {
+                case 1: {
+                  final Grouped<In, S> in = items.get(0);
+                  if (!in.isState) {
+                    return Stream.of(reduce.apply(null, in.item));
+                  }
+                  return Stream.empty();
+                }
+                case 2: {
+                  final Grouped<In, S> state = items.get(0), in = items.get(1);
+                  if (state.isState && !in.isState) {
+                    return Stream.of(reduce.apply(state.state, in.item));
+                  }
+                  return Stream.empty();
+                }
+                default:
+                  throw new IllegalStateException("Group size should be 1 or 2");
+              }
+            }, List.class).build();
     final FlameMap<Tuple2<Grouped<In, S>, Stream<Out>>, Grouped<In, S>> regrouper =
             new FlameMap.Builder<>(
                     (Tuple2<Grouped<In, S>, Stream<Out>> item1) -> Stream.of(item1._1),
                     tupleClass
             ).build();
-    final FlameMap<Tuple2<Grouped<In, S>, Stream<Out>>, Out> sink =
-            new FlameMap.Builder<>((Tuple2<Grouped<In, S>, Stream<Out>> item) -> item._2, tupleClass).build();
-    cachedOperatorVertex.put(statefulMap, sink);
     final TrackingComponent trackingComponent = operatorTrackingComponent.get(statefulMap);
     vertexTrackingComponent.put(source, trackingComponent);
     vertexTrackingComponent.put(grouping, trackingComponent);
@@ -185,6 +190,7 @@ public class Materializer {
 
   <Value, L> Graph.Vertex processLabelSpawn(Operator.LabelSpawn<Value, L> labelSpawn) {
     final LabelSpawn<Value, L> vertex = new LabelSpawn<>(labelSpawn.typeClass, 0, labelSpawn.mapper::apply);
+    labelSpawns.add(vertex);
     cachedOperatorVertex.put(labelSpawn, vertex);
     final TrackingComponent trackingComponent = operatorTrackingComponent.get(labelSpawn);
     vertexTrackingComponent.put(vertex, trackingComponent);

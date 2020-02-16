@@ -3,8 +3,6 @@ package com.spbsu.flamestream.core.data.meta;
 import java.util.Arrays;
 
 public class Labels {
-  public static final Labels EMPTY = new Labels(0);
-
   private final Label<?>[] all;
 
   public Labels(int size) {
@@ -26,17 +24,17 @@ public class Labels {
   }
 
   public Labels added(Label<?> label) {
+    final Label<?>[] all = Arrays.copyOf(this.all, label.index + 1);
     assert all[label.index] == null;
-    final Label<?>[] byType = this.all.clone();
-    byType[label.index] = label;
-    return new Labels(byType);
+    all[label.index] = label;
+    return new Labels(all);
   }
 
   public Label<?> get(int index) {
-    return all[index];
+    return index < all.length ? all[index] : null;
   }
 
   public boolean hasAll(LabelsPresence presence) {
-    return presence.stream().allMatch(index -> all[index] != null);
+    return presence.stream().allMatch(index -> get(index) != null);
   }
 }

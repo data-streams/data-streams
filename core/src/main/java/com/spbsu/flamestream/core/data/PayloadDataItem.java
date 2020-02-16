@@ -16,7 +16,7 @@ public class PayloadDataItem implements DataItem {
   public PayloadDataItem(Meta meta, Object payload) {
     this.payload = payload;
     this.meta = meta;
-    labels = new Labels(1);
+    labels = new Labels(0);
     this.xor = ThreadLocalRandom.current().nextLong();
   }
 
