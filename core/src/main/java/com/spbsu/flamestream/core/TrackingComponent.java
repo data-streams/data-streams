@@ -4,6 +4,7 @@ package com.spbsu.flamestream.core;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
 public class TrackingComponent implements Comparable<TrackingComponent> {
@@ -20,7 +21,7 @@ public class TrackingComponent implements Comparable<TrackingComponent> {
         throw new IllegalArgumentException(trackingComponent.toString());
       }
     }
-    this.inbound = Collections.unmodifiableSet(inbound);
+    this.inbound = new HashSet<>(inbound);
     this.index = index;
   }
 
