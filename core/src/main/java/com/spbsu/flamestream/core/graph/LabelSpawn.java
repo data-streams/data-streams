@@ -8,18 +8,32 @@ import com.spbsu.flamestream.core.data.meta.Meta;
 
 import java.util.BitSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
   private final Class<T> tClass;
   private final int index;
   private final FlameMap.SerializableFunction<T, L> mapper;
+  private final List<? extends LabelMarkers<?>> labelMarkers;
 
-  public LabelSpawn(Class<T> tClass, int index, FlameMap.SerializableFunction<T, L> mapper) {
+  public LabelSpawn(
+          Class<T> tClass,
+          int index,
+          FlameMap.SerializableFunction<T, L> mapper,
+          List<? extends LabelMarkers<?>> labelMarkers
+  ) {
     this.tClass = tClass;
     this.index = index;
     this.mapper = mapper;
+    this.labelMarkers = labelMarkers;
+  }
+
+  public Stream<? extends LabelMarkers<?>> labelMarkers() {
+    return labelMarkers.stream();
   }
 
   private class LabelsInUse {
@@ -41,15 +55,25 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
     }
   }
 
-  public Function<DataItem, DataItem> operation(long physicalId, String nodeId) {
+  public Function<DataItem, DataItem> operation(long physicalId, String nodeId, Iterable<Consumer<DataItem>> markers) {
     final LabelsInUse labelsInUse = new LabelsInUse(nodeId);
     return in -> {
       final T payload = in.payload(tClass);
-      return new PayloadDataItem(
-              new Meta(in.meta(), physicalId, 0),
+      int childId = 0;
+      final Label<L> label = labelsInUse.lock(payload);
+      final PayloadDataItem dataItem = new PayloadDataItem(
+              new Meta(in.meta(), physicalId, childId++),
               payload,
-              in.labels().added(labelsInUse.lock(payload))
+              in.labels().added(label)
       );
+      for (final Consumer<DataItem> marker : markers) {
+        marker.accept(new PayloadDataItem(
+                new Meta(in.meta(), physicalId, childId++),
+                label.value,
+                in.labels().added(label)
+        ));
+      }
+      return dataItem;
     };
   }
 }

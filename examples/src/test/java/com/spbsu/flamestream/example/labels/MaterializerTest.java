@@ -75,7 +75,7 @@ public class MaterializerTest extends FlameAkkaSuite {
         input.add(new BreadthSearchGraph.Request(requestIdentifier, vertexIdentifier, 1));
 
         final AwaitResultConsumer<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>> awaitConsumer =
-                new AwaitResultConsumer<>(1);
+                new AwaitResultConsumer<>(2);
         flame.attachRear(
                 "wordCountRear",
                 new AkkaRearType<>(

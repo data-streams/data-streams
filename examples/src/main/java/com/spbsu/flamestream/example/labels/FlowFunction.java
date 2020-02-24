@@ -189,7 +189,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
       public void handle(Record<? extends Value> in) {
         final Label<L> label = new Label<>(labelSpawn.mapper.apply(in.value));
         for (final LabelTracker<?, ?> labelTracker : labelTrackers) {
-          if (labelTracker.labelMarkers.lClass.equals(labelSpawn.lClass)) {
+          if (labelTracker.labelMarkers.labelSpawn.equals(labelSpawn)) {
             ((LabelTracker<?, L>) labelTracker).spawn(label);
           }
         }

@@ -5,6 +5,7 @@ import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.TrackingComponent;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
+import com.spbsu.flamestream.core.graph.LabelMarkers;
 import com.spbsu.flamestream.core.graph.LabelSpawn;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
@@ -29,6 +30,7 @@ public class Materializer {
   private final Map<Operator<?>, TrackingComponent> operatorTrackingComponent;
   private final Map<Graph.Vertex, TrackingComponent> vertexTrackingComponent = new HashMap<>();
   private final List<Graph.Vertex> labelSpawns = new ArrayList<>();
+  private final Map<Operator.LabelSpawn<?, ?>, List<LabelMarkers<?>>> labelSpawnMarkers = new HashMap<>();
 
   public static Graph materialize(Flow<?, ?> flow) {
     return new Materializer(flow).graph;
@@ -189,7 +191,10 @@ public class Materializer {
   }
 
   <Value, L> Graph.Vertex processLabelSpawn(Operator.LabelSpawn<Value, L> labelSpawn) {
-    final LabelSpawn<Value, L> vertex = new LabelSpawn<>(labelSpawn.typeClass, 0, labelSpawn.mapper::apply);
+    final List<LabelMarkers<?>> labelMarkers = new ArrayList<>();
+    labelSpawnMarkers.put(labelSpawn, labelMarkers);
+    final LabelSpawn<Value, L> vertex =
+            new LabelSpawn<>(labelSpawn.typeClass, 0, labelSpawn.mapper::apply, labelMarkers);
     labelSpawns.add(vertex);
     cachedOperatorVertex.put(labelSpawn, vertex);
     final TrackingComponent trackingComponent = operatorTrackingComponent.get(labelSpawn);
@@ -199,9 +204,12 @@ public class Materializer {
   }
 
   <L> Graph.Vertex processLabelMarkers(Operator.LabelMarkers<?, L> labelMarkers) {
-    final FlameMap<Void, L> vertex = new FlameMap.Builder<Void, L>((Void __) -> {
-      throw new RuntimeException();
-    }, Void.class).build();
+    final LabelMarkers<L> vertex = new LabelMarkers<>(
+            (LabelSpawn<?, L>) operatorVertex(labelMarkers.labelSpawn),
+            operatorTrackingComponent.get(labelMarkers)
+    );
+    operatorVertex(labelMarkers.source);
+    labelSpawnMarkers.get(labelMarkers.labelSpawn).add(vertex);
     vertexTrackingComponent.put(vertex, operatorTrackingComponent.get(labelMarkers));
     cachedOperatorVertex.put(labelMarkers, vertex);
     return vertex;
@@ -261,7 +269,10 @@ public class Materializer {
                     }
                   }
                 }
-                final TrackingComponent trackingComponent = new TrackingComponent(trackingComponents.size(), allInbound);
+                final TrackingComponent trackingComponent = new TrackingComponent(
+                        trackingComponents.size(),
+                        allInbound
+                );
                 trackingComponents.put(labelMarkers, trackingComponent);
                 return trackingComponent;
               }

@@ -11,9 +11,9 @@ import java.util.function.Function;
 public class LabelSpawnJoba extends Joba {
   private final Function<DataItem, DataItem> operation;
 
-  public LabelSpawnJoba(Id id, LabelSpawn<?, ?> flameMap) {
+  public LabelSpawnJoba(Id id, LabelSpawn<?, ?> flameMap, Iterable<Consumer<DataItem>> markers) {
     super(id);
-    this.operation = flameMap.operation(ThreadLocalRandom.current().nextLong(), id.nodeId);
+    this.operation = flameMap.operation(ThreadLocalRandom.current().nextLong(), id.nodeId, markers);
   }
 
   @Override

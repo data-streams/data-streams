@@ -1,6 +1,5 @@
 package com.spbsu.flamestream.example.labels;
 
-import org.jetbrains.annotations.Nullable;
 import scala.Tuple2;
 
 import java.io.Serializable;
@@ -22,15 +21,15 @@ public abstract class Operator<Type> {
 
   interface SerializableBiFunction<T, U, R> extends Serializable, BiFunction<T, U, R> {}
 
-  static Set<LabelSpawn<?, ?>> addLabel(Set<LabelSpawn<?, ?>> labels, LabelSpawn<?, ?> label) {
-    final HashSet<LabelSpawn<?, ?>> added = new HashSet<>(labels);
-    added.add(label);
-    return added;
-  }
-
   private Operator(Class<Type> typeClass, Set<LabelSpawn<?, ?>> labels) {
     this.typeClass = typeClass;
-    this.labels = this instanceof LabelSpawn ? addLabel(labels, (LabelSpawn<?, ?>) this) : labels;
+    if (this instanceof LabelSpawn) {
+      final HashSet<LabelSpawn<?, ?>> added = new HashSet<>(labels);
+      added.add((LabelSpawn<?, ?>) this);
+      this.labels = added;
+    } else {
+      this.labels = labels;
+    }
   }
 
   public <L> LabelSpawn<Type, L> spawnLabel(Class<L> label, SerializableFunction<Type, L> mapper) {
@@ -185,14 +184,12 @@ public abstract class Operator<Type> {
   }
 
   public static final class LabelMarkers<In, L> extends Operator<L> {
-    public final Class<L> lClass;
     @org.jetbrains.annotations.NotNull
     public final LabelSpawn<?, L> labelSpawn;
     public final Operator<In> source;
 
     public LabelMarkers(LabelSpawn<?, L> labelSpawn, Operator<In> source) {
       super(labelSpawn.lClass, Collections.singleton(labelSpawn));
-      this.lClass = labelSpawn.lClass;
       this.labelSpawn = labelSpawn;
       this.source = source;
     }

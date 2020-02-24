@@ -11,7 +11,7 @@ public class TrackingComponent implements Comparable<TrackingComponent> {
   public static final TrackingComponent DEFAULT = new TrackingComponent(0, Collections.emptySet());
 
   public final int index;
-  public final Set<TrackingComponent> inbound;
+  public final Set<TrackingComponent> inbound, outbound = new HashSet<>();
 
   public TrackingComponent(int index, Set<TrackingComponent> inbound) {
     if (index < 0)
@@ -20,6 +20,9 @@ public class TrackingComponent implements Comparable<TrackingComponent> {
       if (index <= trackingComponent.index) {
         throw new IllegalArgumentException(trackingComponent.toString());
       }
+    }
+    for (final TrackingComponent trackingComponent : inbound) {
+      trackingComponent.outbound.add(this);
     }
     this.inbound = new HashSet<>(inbound);
     this.index = index;

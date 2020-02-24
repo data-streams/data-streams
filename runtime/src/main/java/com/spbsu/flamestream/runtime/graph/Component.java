@@ -12,6 +12,7 @@ import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
 import com.spbsu.flamestream.core.graph.HashingVertexStub;
+import com.spbsu.flamestream.core.graph.LabelMarkers;
 import com.spbsu.flamestream.core.graph.LabelSpawn;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
@@ -38,7 +39,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Component extends LoggingActor {
   @org.jetbrains.annotations.NotNull
@@ -85,11 +88,77 @@ public class Component extends LoggingActor {
             vertex -> GraphManager.Destination.fromVertexId(vertex.id()),
             vertex -> {
               final Joba.Id jobaId = new Joba.Id(nodeId, vertex.id());
+              final Function<Graph.Vertex, Consumer<DataItem>> vertexDownstream = to -> {
+                final GraphManager.Destination toDest = GraphManager.Destination.fromVertexId(to.id());
+
+                final Consumer<DataItem> sink;
+                if (componentVertices.contains(to)) {
+                  sink = item -> localCall(item, toDest);
+                } else if (to instanceof HashingVertexStub && ((HashingVertexStub) to).hash() != null) {
+                  sink = item -> {
+                    groupingSendTracer.log(item.xor());
+                    final HashFunction hash = ((HashingVertexStub) to).hash();
+                    if (hash == HashFunction.Broadcast.INSTANCE) {
+                      int childId = 0;
+                      for (Map.Entry<HashUnit, ActorRef> next : routes.entrySet()) {
+                        if (next.getKey().isEmpty()) {
+                          //ignore empty ranges
+                          continue;
+                        }
+
+                        final DataItem cloned = item.cloneWith(new Meta(
+                                item.meta(),
+                                0,
+                                childId++
+                        ));
+                        ack(cloned, to);
+                        next.getValue().tell(new AddressedItem(cloned, toDest), self());
+                      }
+                    } else {
+                      ack(item, to);
+                      routes.get(Objects.requireNonNull(hash).applyAsInt(item))
+                              .tell(new AddressedItem(item, toDest), self());
+                    }
+                  };
+                } else {
+                  sink = item -> {
+                    ack(item, to);
+                    localManager.tell(new AddressedItem(item, toDest), self());
+                  };
+                }
+                return sink;
+              };
+              final List<Consumer<DataItem>> sinks =
+                      graph.adjacent(vertex).map(vertexDownstream).collect(Collectors.toList());
+              final Consumer<DataItem> downstream;
+              switch (sinks.size()) {
+                case 0:
+                  downstream = item -> context().system().deadLetters().tell(item, self());
+                  break;
+                case 1:
+                  //noinspection ConstantConditions
+                  downstream = sinks.stream().findAny().get();
+                  break;
+                default:
+                  downstream = item -> {
+                    int childId = 0;
+                    for (Consumer<DataItem> sink : sinks) {
+                      sink.accept(item.cloneWith(new Meta(item.meta(), 0, childId++)));
+                    }
+                  };
+              }
               final Joba joba;
               if (vertex instanceof Sink) {
                 joba = new SinkJoba(jobaId, context(), props.barrierIsDisabled(), sinkTrackingComponent.index);
               } else if (vertex instanceof LabelSpawn) {
-                joba = new LabelSpawnJoba(jobaId, (LabelSpawn<?, ?>) vertex);
+                final LabelSpawn<?, ?> labelSpawn = (LabelSpawn<?, ?>) vertex;
+                joba = new LabelSpawnJoba(
+                        jobaId,
+                        labelSpawn,
+                        labelSpawn.labelMarkers().map(vertexDownstream).collect(Collectors.toList())
+                );
+              } else if (vertex instanceof LabelMarkers) {
+                joba = new LabelMarkersJoba(jobaId, (LabelMarkers<?>) vertex, downstream);
               } else if (vertex instanceof FlameMap) {
                 joba = new MapJoba(jobaId, (FlameMap<?, ?>) vertex);
               } else if (vertex instanceof Grouping) {
@@ -117,65 +186,6 @@ public class Component extends LoggingActor {
                 );
               } else {
                 throw new RuntimeException("Invalid vertex type");
-              }
-              final List<Consumer<DataItem>> sinks = graph.adjacent(vertex)
-                      .map(to -> {
-                        final GraphManager.Destination toDest = GraphManager.Destination.fromVertexId(to.id());
-
-                        final Consumer<DataItem> sink;
-                        if (componentVertices.contains(to)) {
-                          sink = item -> localCall(item, toDest);
-                        } else if (to instanceof HashingVertexStub && ((HashingVertexStub) to).hash() != null) {
-                          sink = item -> {
-                            groupingSendTracer.log(item.xor());
-                            final HashFunction hash = ((HashingVertexStub) to).hash();
-                            if (hash == HashFunction.Broadcast.INSTANCE) {
-                              int childId = 0;
-                              for (Map.Entry<HashUnit, ActorRef> next : routes.entrySet()) {
-                                if (next.getKey().isEmpty()) {
-                                  //ignore empty ranges
-                                  continue;
-                                }
-
-                                final DataItem cloned = item.cloneWith(new Meta(
-                                        item.meta(),
-                                        0,
-                                        childId++
-                                ));
-                                ack(cloned, to);
-                                next.getValue().tell(new AddressedItem(cloned, toDest), self());
-                              }
-                            } else {
-                              ack(item, to);
-                              routes.get(Objects.requireNonNull(hash).applyAsInt(item))
-                                      .tell(new AddressedItem(item, toDest), self());
-                            }
-                          };
-                        } else {
-                          sink = item -> {
-                            ack(item, to);
-                            localManager.tell(new AddressedItem(item, toDest), self());
-                          };
-                        }
-                        return sink;
-                      })
-                      .collect(Collectors.toList());
-              Consumer<DataItem> downstream;
-              switch (sinks.size()) {
-                case 0:
-                  downstream = item -> context().system().deadLetters().tell(item, self());
-                  break;
-                case 1:
-                  //noinspection ConstantConditions
-                  downstream = sinks.stream().findAny().get();
-                  break;
-                default:
-                  downstream = item -> {
-                    int childId = 0;
-                    for (Consumer<DataItem> sink : sinks) {
-                      sink.accept(item.cloneWith(new Meta(item.meta(), 0, childId++)));
-                    }
-                  };
               }
               if (joba instanceof SinkJoba) {
                 return wrappedSinkJoba = new JobaWrapper<>((SinkJoba) joba, downstream, vertex);
