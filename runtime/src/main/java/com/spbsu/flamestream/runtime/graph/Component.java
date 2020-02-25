@@ -255,8 +255,9 @@ public class Component extends LoggingActor {
   private void inject(AddressedItem addressedItem) {
     final DataItem item = addressedItem.item();
     injectInTracer.log(item.xor());
-    localCall(item, addressedItem.destination());
-    ack(item, wrappedJobas.get(addressedItem.destination()).vertex);
+    if (localCall(item, addressedItem.destination())) {
+      ack(item, wrappedJobas.get(addressedItem.destination()).vertex);
+    }
     injectOutTracer.log(item.xor());
   }
 
@@ -271,12 +272,14 @@ public class Component extends LoggingActor {
     }
   }
 
-  private void localCall(DataItem item, GraphManager.Destination destination) {
-    wrappedJobas.get(destination).joba.accept(item, wrappedJobas.get(destination).downstream);
+  private boolean localCall(DataItem item, GraphManager.Destination destination) {
+    return wrappedJobas.get(destination).joba.accept(item, wrappedJobas.get(destination).downstream);
   }
 
   private void onMinTime(MinTimeUpdate minTime) {
-    wrappedJobas.values().forEach(jobaWrapper -> jobaWrapper.joba.onMinTime(minTime));
+    wrappedJobas.values().forEach(jobaWrapper ->
+            jobaWrapper.joba.onMinTime(minTime).forEach(dataItem -> ack(dataItem, jobaWrapper.vertex))
+    );
   }
 
   private void accept(DataItem item) {

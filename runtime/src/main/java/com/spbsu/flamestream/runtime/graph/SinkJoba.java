@@ -45,7 +45,7 @@ public class SinkJoba extends Joba {
   }
 
   @Override
-  public void accept(DataItem item, Consumer<DataItem> sink) {
+  public boolean accept(DataItem item, Consumer<DataItem> sink) {
     barrierReceiveTracer.log(item.xor());
     if (barrierDisabled) {
       rears.forEach((rear, lastEmmit) -> emmitRearBatch(
@@ -55,6 +55,7 @@ public class SinkJoba extends Joba {
     } else {
       invalidatingBucket.insert(item);
     }
+    return true;
   }
 
   public void attachRear(ActorRef rear) {
@@ -72,12 +73,12 @@ public class SinkJoba extends Joba {
   }
 
   @Override
-  public void onMinTime(MinTimeUpdate minTime) {
-    if (minTime.trackingComponent() != sinkTrackingComponent) {
-      return;
+  public List<DataItem> onMinTime(MinTimeUpdate minTime) {
+    if (minTime.trackingComponent() == sinkTrackingComponent) {
+      this.minTime = minTime.minTime();
+      tryEmmit(minTime.minTime());
     }
-    this.minTime = minTime.minTime();
-    tryEmmit(minTime.minTime());
+    return Collections.emptyList();
   }
 
   private void tryEmmit(GlobalTime upTo) {

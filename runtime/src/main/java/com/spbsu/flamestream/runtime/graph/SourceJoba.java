@@ -11,7 +11,9 @@ import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -41,7 +43,7 @@ public class SourceJoba extends Joba {
   }
 
   @Override
-  public void accept(DataItem item, Consumer<DataItem> sink) {
+  public boolean accept(DataItem item, Consumer<DataItem> sink) {
     sink.accept(item);
     unutilizedRequests--;
     final GlobalTime globalTime = item.meta().globalTime();
@@ -49,15 +51,16 @@ public class SourceJoba extends Joba {
       inFlight.add(globalTime);
     }
     requestNext();
+    return true;
   }
 
   @Override
-  public void onMinTime(MinTimeUpdate minTime) {
-    if (minTime.trackingComponent() != sinkTrackingComponent) {
-      return;
+  public List<DataItem> onMinTime(MinTimeUpdate minTime) {
+    if (minTime.trackingComponent() == sinkTrackingComponent) {
+      inFlight.removeIf(nextTime -> nextTime.compareTo(minTime.minTime()) < 0);
+      requestNext();
     }
-    inFlight.removeIf(nextTime -> nextTime.compareTo(minTime.minTime()) < 0);
-    requestNext();
+    return Collections.emptyList();
   }
 
   public void addFront(EdgeId front, ActorRef actorRef) {

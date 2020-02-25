@@ -17,7 +17,8 @@ public class LabelSpawnJoba extends Joba {
   }
 
   @Override
-  public void accept(DataItem item, Consumer<DataItem> sink) {
+  public boolean accept(DataItem item, Consumer<DataItem> sink) {
     sink.accept(operation.apply(item));
+    return true;
   }
 }

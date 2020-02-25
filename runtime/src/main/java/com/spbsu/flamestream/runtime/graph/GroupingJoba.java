@@ -28,7 +28,7 @@ public class GroupingJoba extends Joba {
   }
 
   @Override
-  public void accept(DataItem item, Consumer<DataItem> sink) {
+  public boolean accept(DataItem item, Consumer<DataItem> sink) {
     tracer.log(item.xor());
 
     final InvalidatingBucket bucket = state.bucketFor(item);
@@ -37,6 +37,7 @@ public class GroupingJoba extends Joba {
       final int position = Math.max(bucket.lowerBound(currentMinTime) - grouping.window() + 1, 0);
       bucket.clearRange(0, position);
     }
+    return true;
   }
 
   @Override
