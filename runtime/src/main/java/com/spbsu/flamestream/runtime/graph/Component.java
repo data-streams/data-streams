@@ -41,7 +41,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class Component extends LoggingActor {
   @org.jetbrains.annotations.NotNull
@@ -155,7 +154,8 @@ public class Component extends LoggingActor {
                 joba = new LabelSpawnJoba(
                         jobaId,
                         labelSpawn,
-                        labelSpawn.labelMarkers().map(vertexDownstream).collect(Collectors.toList())
+                        labelSpawn.labelMarkers().map(vertexDownstream).collect(Collectors.toList()),
+                        sinkTrackingComponent.index
                 );
               } else if (vertex instanceof LabelMarkers) {
                 joba = new LabelMarkersJoba(jobaId, (LabelMarkers<?>) vertex, downstream);

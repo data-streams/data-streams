@@ -5,6 +5,7 @@ import com.spbsu.flamestream.core.TrackingComponent;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.core.graph.LabelMarkers;
 import com.spbsu.flamestream.runtime.master.acker.api.Ack;
+import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,7 +16,7 @@ import java.util.function.Consumer;
 
 public class LabelMarkersJoba extends Joba {
   private interface InboundMinTime {
-    long accept(GlobalTime globalTime);
+    long accept(MinTimeUpdate globalTime);
 
     long get();
 
@@ -37,16 +38,16 @@ public class LabelMarkersJoba extends Joba {
       }
 
       @Override
-      public long accept(GlobalTime globalTime) {
+      public long accept(MinTimeUpdate globalTime) {
         final int i = Arrays.binarySearch(sortedTrackingComponent, globalTime.trackingComponent());
         if (i < 0 || sortedTrackingComponent[i] != globalTime.trackingComponent()) {
           return Long.MIN_VALUE;
         }
         final int index = sortedTrackingComponent[i];
-        if (globalTime.time() <= inboundMinTime[index]) {
+        if (globalTime.minTime().time() <= inboundMinTime[index]) {
           throw new IllegalArgumentException();
         }
-        inboundMinTime[index] = globalTime.time();
+        inboundMinTime[index] = globalTime.minTime().time();
         return minMinTime = Arrays.stream(inboundMinTime).min().getAsLong();
       }
 
@@ -72,7 +73,7 @@ public class LabelMarkersJoba extends Joba {
   }
 
   @Override
-  List<DataItem> onMinTime(GlobalTime componentTime) {
+  List<DataItem> onMinTime(MinTimeUpdate componentTime) {
     final List<DataItem> accepted = new ArrayList<>();
     final long inboundTime = inboundMinTime.accept(componentTime);
     while (!scheduled.isEmpty()) {
