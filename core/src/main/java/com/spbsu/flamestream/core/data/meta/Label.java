@@ -7,12 +7,14 @@ public final class Label<L> {
   public final L value;
   public final String nodeId;
   public final int uniqueness;
+  public final long time;
 
-  public Label(int index, L value, String nodeId, int uniqueness) {
+  public Label(int index, L value, String nodeId, int uniqueness, long time) {
     this.index = index;
     this.value = value;
     this.nodeId = nodeId;
     this.uniqueness = uniqueness;
+    this.time = time;
   }
 
   @Override

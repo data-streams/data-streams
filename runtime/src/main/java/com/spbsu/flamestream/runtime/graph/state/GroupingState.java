@@ -6,6 +6,11 @@ import com.spbsu.flamestream.core.data.invalidation.SynchronizedInvalidatingBuck
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.core.graph.Grouping;
 
+import java.util.HashSet;
+import java.util.Map;
+import java.util.OptionalLong;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -18,7 +23,10 @@ public class GroupingState {
     Key(Grouping<?> grouping, DataItem dataItem) {
       this.grouping = grouping;
       this.dataItem = dataItem;
-      hashCode = grouping.hash().applyAsInt(this.dataItem);
+      hashCode = grouping.equalz().labels().stream().reduce(
+              grouping.hash().applyAsInt(this.dataItem),
+              (hashCode, label) -> 31 * hashCode + dataItem.labels().get(label).hashCode()
+      );
     }
 
     @Override
@@ -44,6 +52,8 @@ public class GroupingState {
 
   public final Grouping<?> grouping;
   private final ConcurrentMap<Key, InvalidatingBucket> buffers;
+  private TreeMap<Long, Set<Key>> timeKeys = new TreeMap<>();
+  private long minTime = Long.MIN_VALUE;
 
   public GroupingState(Grouping<?> grouping) {
     this.grouping = grouping;
@@ -56,10 +66,31 @@ public class GroupingState {
   }
 
   public InvalidatingBucket bucketFor(DataItem item) {
-    return buffers.computeIfAbsent(
-            new Key(grouping, item),
-            __ -> new SynchronizedInvalidatingBucket(grouping.order())
-    );
+    final Key key = new Key(grouping, item);
+    final OptionalLong keyMinTime =
+            grouping.equalz().labels().stream().mapToLong(label -> item.labels().get(label).time).min();
+    if (keyMinTime.isPresent()) {
+      if (keyMinTime.getAsLong() < minTime) {
+        throw new IllegalArgumentException();
+      }
+      timeKeys.computeIfAbsent(keyMinTime.getAsLong(), __ -> new HashSet<>()).add(key);
+    }
+    return buffers.computeIfAbsent(key, __ -> new SynchronizedInvalidatingBucket(grouping.order()));
+  }
+
+  public void onMinTime(long minTime) {
+    if (minTime <= this.minTime) {
+      throw new IllegalArgumentException();
+    }
+    this.minTime = minTime;
+    while (!timeKeys.isEmpty()) {
+      final Map.Entry<Long, Set<Key>> minTimeKeys = timeKeys.firstEntry();
+      if (minTime <= minTimeKeys.getKey()) {
+        break;
+      }
+      minTimeKeys.getValue().forEach(buffers::remove);
+      timeKeys.pollFirstEntry();
+    }
   }
 
   public GroupingState subState(GlobalTime ceil, int window) {

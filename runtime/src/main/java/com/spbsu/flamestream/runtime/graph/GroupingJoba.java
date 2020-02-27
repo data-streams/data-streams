@@ -9,6 +9,7 @@ import com.spbsu.flamestream.runtime.graph.state.GroupGroupingState;
 import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
 import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
 
+import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Consumer;
 
@@ -17,15 +18,17 @@ public class GroupingJoba extends Joba {
 
   private final Grouping<?> grouping;
   private final GroupGroupingState state;
+  private final int sinkTrackingComponent;
   private final Grouping<?>.GroupingOperation instance;
 
   private GlobalTime currentMinTime = GlobalTime.MIN;
 
-  public GroupingJoba(Joba.Id id, Grouping<?> grouping, GroupGroupingState state) {
+  public GroupingJoba(Id id, Grouping<?> grouping, GroupGroupingState state, int sinkTrackingComponent) {
     super(id);
     this.instance = grouping.operation(ThreadLocalRandom.current().nextLong());
     this.grouping = grouping;
     this.state = state;
+    this.sinkTrackingComponent = sinkTrackingComponent;
   }
 
   @Override
@@ -39,6 +42,13 @@ public class GroupingJoba extends Joba {
       bucket.clearRange(0, position);
     }
     return true;
+  }
+
+  @Override
+  List<DataItem> onMinTime(MinTimeUpdate time) {
+    if (time.trackingComponent() == sinkTrackingComponent)
+      state.onMinTime(time.minTime().time());
+    return super.onMinTime(time);
   }
 
   @Override

@@ -3,7 +3,6 @@ package com.spbsu.flamestream.core.graph;
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.data.PayloadDataItem;
-import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.core.data.meta.Label;
 import com.spbsu.flamestream.core.data.meta.Meta;
 
@@ -56,7 +55,7 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
     public DataItem apply(DataItem in) {
       final T payload = in.payload(tClass);
       int childId = 0;
-      final Label<L> label = lock(payload);
+      final Label<L> label = lock(payload, in.meta().globalTime().time());
       timeLabels.computeIfAbsent(in.meta().globalTime().time(), __ -> new ArrayList<>()).add(label);
       final PayloadDataItem dataItem = new PayloadDataItem(
               new Meta(in.meta(), physicalId, childId++),
@@ -81,12 +80,12 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
       }
     }
 
-    private Label<L> lock(T payload) {
+    private Label<L> lock(T payload, long time) {
       final L label = mapper.apply(payload);
       final BitSet locked = valueUniqueness.computeIfAbsent(label, __ -> new BitSet());
       final int uniqueness = locked.nextClearBit(0);
       locked.set(uniqueness);
-      return new Label<>(index, label, nodeId, uniqueness);
+      return new Label<>(index, label, nodeId, uniqueness, time);
     }
 
     private void unlock(Label<L> label) {

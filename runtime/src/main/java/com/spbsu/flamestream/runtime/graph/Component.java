@@ -174,7 +174,8 @@ public class Component extends LoggingActor {
                 joba = new GroupingJoba(
                         jobaId,
                         grouping,
-                        stateByVertex.computeIfAbsent(vertex.id(), __ -> new GroupGroupingState(grouping, values))
+                        stateByVertex.computeIfAbsent(vertex.id(), __ -> new GroupGroupingState(grouping, values)),
+                        sinkTrackingComponent.index
                 );
               } else if (vertex instanceof Source) {
                 joba = new SourceJoba(

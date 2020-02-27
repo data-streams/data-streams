@@ -1,8 +1,10 @@
 package com.spbsu.flamestream.example.labels;
 
 import com.spbsu.flamestream.core.DataItem;
+import com.spbsu.flamestream.core.Equalz;
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.TrackingComponent;
+import com.spbsu.flamestream.core.data.meta.LabelsPresence;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
 import com.spbsu.flamestream.core.graph.LabelMarkers;
@@ -129,18 +131,24 @@ public class Materializer {
     final int[] keyLabelIndices = statefulMap.source.keyLabels.stream()
             .mapToInt(labelSpawn -> labelSpawns.indexOf(operatorVertex(labelSpawn)))
             .toArray();
+    final LabelsPresence labelsPresence = new LabelsPresence(keyLabelIndices);
     final FlameMap<In, Grouped<In, S>> source = new FlameMap.Builder<>((In input) -> Stream
             .of(new Grouped<>(input, (S) null, false)), inClass).build();
-    final Function<DataItem, Tuple2<Key, List<?>>> dataItemKey =
-            dataItem -> new Tuple2<>(
-                    statefulMap.source.keyFunction.apply(dataItem.payload(groupedClass).item),
-                    IntStream.of(keyLabelIndices)
-                            .mapToObj(dataItem.labels()::get)
-                            .collect(Collectors.toList())
-            );
+    final Function<DataItem, Key> dataItemKey =
+            dataItem -> statefulMap.source.keyFunction.apply(dataItem.payload(groupedClass).item);
     final Grouping<Grouped<In, S>> grouping = new Grouping<>(
             dataItem -> dataItemKey.apply(dataItem).hashCode(),
-            (o1, o2) -> dataItemKey.apply(o1).equals(dataItemKey.apply(o2)),
+            new Equalz() {
+              @Override
+              public LabelsPresence labels() {
+                return labelsPresence;
+              }
+
+              @Override
+              public boolean testPayloads(DataItem o1, DataItem o2) {
+                return dataItemKey.apply(o1).equals(dataItemKey.apply(o2));
+              }
+            },
             2,
             groupedClass
     );

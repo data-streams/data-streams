@@ -37,4 +37,8 @@ public class GroupGroupingState {
     }
     return groupingState.bucketFor(item);
   }
+
+  public void onMinTime(long time) {
+    unitStates.entrySet().forEach(entry -> entry.getValue().onMinTime(time));
+  }
 }

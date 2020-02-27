@@ -49,7 +49,7 @@ public class PayloadDataItem implements DataItem {
 
   @Override
   public DataItem cloneWith(Meta newMeta) {
-    return new PayloadDataItem(newMeta, this.payload);
+    return new PayloadDataItem(newMeta, payload, labels);
   }
 
   @Override

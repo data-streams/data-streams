@@ -99,7 +99,7 @@ public class FlameMap<T, R> extends HashingVertexStub {
         if (!hasLabels) {
           throw new IllegalArgumentException();
         }
-        return new PayloadDataItem(new Meta(dataItem.meta(), physicalId, childId[0]++), r);
+        return new PayloadDataItem(new Meta(dataItem.meta(), physicalId, childId[0]++), r, dataItem.labels());
       });
     }
   }
