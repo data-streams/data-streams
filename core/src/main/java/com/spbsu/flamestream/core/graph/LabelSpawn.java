@@ -74,7 +74,7 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
 
     public void onMinTime(long time) {
       while (!timeLabels.isEmpty()) {
-        if (time < timeLabels.firstKey())
+        if (time <= timeLabels.firstKey())
           break;
         timeLabels.pollFirstEntry().getValue().forEach(this::unlock);
       }
