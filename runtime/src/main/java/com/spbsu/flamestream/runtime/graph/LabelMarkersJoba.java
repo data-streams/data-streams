@@ -78,7 +78,7 @@ public class LabelMarkersJoba extends Joba {
     final long inboundTime = inboundMinTime.accept(componentTime);
     while (!scheduled.isEmpty()) {
       final DataItem dataItem = scheduled.peek();
-      if (inboundTime < dataItem.meta().globalTime().time()) {
+      if (inboundTime <= dataItem.meta().globalTime().time()) {
         break;
       }
       accepted.add(dataItem);
@@ -90,7 +90,7 @@ public class LabelMarkersJoba extends Joba {
 
   @Override
   public boolean accept(DataItem item, Consumer<DataItem> sink) {
-    if (inboundMinTime.get() < item.meta().globalTime().time()) {
+    if (inboundMinTime.get() <= item.meta().globalTime().time()) {
       scheduled.add(item);
       return false;
     } else {
