@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -132,12 +133,16 @@ public class Materializer {
             .mapToInt(labelSpawn -> labelSpawns.indexOf(operatorVertex(labelSpawn)))
             .toArray();
     final LabelsPresence labelsPresence = new LabelsPresence(keyLabelIndices);
-    final FlameMap<In, Grouped<In, S>> source = new FlameMap.Builder<>((In input) -> Stream
-            .of(new Grouped<>(input, (S) null, false)), inClass).build();
+    final FlameMap<In, Grouped<In, S>> source =
+            new FlameMap.Builder<>((In input) -> Stream.of(new Grouped<>(input, (S) null, false)), inClass)
+                    .hashFunction(dataItem -> labelsPresence.hash(
+                            Objects.hashCode(statefulMap.source.keyFunction.apply(dataItem.payload(inClass))),
+                            dataItem.labels()
+                    )).build();
     final Function<DataItem, Key> dataItemKey =
             dataItem -> statefulMap.source.keyFunction.apply(dataItem.payload(groupedClass).item);
     final Grouping<Grouped<In, S>> grouping = new Grouping<>(
-            dataItem -> dataItemKey.apply(dataItem).hashCode(),
+            dataItem -> labelsPresence.hash(Objects.hashCode(dataItemKey.apply(dataItem)), dataItem.labels()),
             new Equalz() {
               @Override
               public LabelsPresence labels() {
@@ -195,6 +200,7 @@ public class Materializer {
             .link(reducer, regrouper)
             .link(regrouper, grouping)
             .link(reducer, sink);
+    graphBuilder.colocate(source, grouping, reducer, regrouper, sink);
     return sink;
   }
 

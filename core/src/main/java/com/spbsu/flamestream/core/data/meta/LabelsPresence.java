@@ -18,4 +18,8 @@ public class LabelsPresence {
   public IntStream stream() {
     return IntStream.of(all);
   }
+
+  public int hash(int init, Labels labels) {
+    return stream().reduce(init, (hashCode, label) -> 31 * hashCode + labels.get(label).hashCode());
+  }
 }

@@ -23,10 +23,7 @@ public class GroupingState {
     Key(Grouping<?> grouping, DataItem dataItem) {
       this.grouping = grouping;
       this.dataItem = dataItem;
-      hashCode = grouping.equalz().labels().stream().reduce(
-              grouping.hash().applyAsInt(this.dataItem),
-              (hashCode, label) -> 31 * hashCode + dataItem.labels().get(label).hashCode()
-      );
+      hashCode = grouping.hash().applyAsInt(this.dataItem);
     }
 
     @Override
