@@ -218,10 +218,7 @@ public class Materializer {
   }
 
   <L> Graph.Vertex processLabelMarkers(Operator.LabelMarkers<?, L> labelMarkers) {
-    final LabelMarkers<L> vertex = new LabelMarkers<>(
-            (LabelSpawn<?, L>) operatorVertex(labelMarkers.labelSpawn),
-            operatorTrackingComponent.get(labelMarkers)
-    );
+    final LabelMarkers<L> vertex = new LabelMarkers<>(operatorTrackingComponent.get(labelMarkers));
     operatorVertex(labelMarkers.source);
     labelSpawnMarkers.get(labelMarkers.labelSpawn).add(vertex);
     vertexTrackingComponent.put(vertex, operatorTrackingComponent.get(labelMarkers));
