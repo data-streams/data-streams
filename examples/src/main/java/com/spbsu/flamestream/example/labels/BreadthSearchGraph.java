@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 public class BreadthSearchGraph {
@@ -168,10 +169,7 @@ public class BreadthSearchGraph {
               if (either.isLeft()) {
                 final Agent agent = either.left().get();
                 if (edges == null) {
-                  edges = vertexEdges.getOrDefault(
-                          agent.vertexIdentifier,
-                          Collections.emptyList()
-                  );
+                  edges = vertexEdges.get(agent.vertexIdentifier);
                 }
                 return new Tuple2<>(edges, edges.stream().map(vertexIdentifier -> new Agent(
                         agent.requestIdentifier,
@@ -191,7 +189,10 @@ public class BreadthSearchGraph {
   ) {
     return agentInput
             .filter(agent -> agent.remainingPathLength > 0)
-            .keyedBy(Collections.singleton(requestLabel), agent -> agent.vertexIdentifier)
+            .keyedBy(
+                    new Operator.Key<>(Collections.singleton(requestLabel), agent -> agent.vertexIdentifier),
+                    new Operator.Key<>(Collections.emptySet(), Object::hashCode)
+            )
             .statefulMap(AGENT_WITH_ACTION_AFTER_VISIT_CLASS, (Agent agent, Integer remainingPathLength) -> {
               final Agent.ActionAfterVisit actionAfterVisit;
               if (remainingPathLength == null) {

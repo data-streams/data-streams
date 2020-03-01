@@ -165,7 +165,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
   private <In, Key, S, Out> Materialized<?, Out> materializeReduce(Operator.StatefulMap<In, Key, S, Out> statefulMap) {
     final Map<Tuple2<Key, Labels>, S> keyState = new HashMap<>();
     final Function<In, Key> keyFunction =
-            statefulMap.source.keyFunction == null ? ignored -> null : statefulMap.source.keyFunction;
+            statefulMap.keyed.key.function == null ? ignored -> null : statefulMap.keyed.key.function;
     final Materialized<In, Out> materialized = new Materialized<In, Out>() {
       @Override
       public void handle(Record<? extends In> in) {
@@ -179,7 +179,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
       }
     };
     materializedOperator.put(statefulMap, materialized);
-    materialize(statefulMap.source.source).listen(materialized);
+    materialize(statefulMap.keyed.source).listen(materialized);
     return materialized;
   }
 
@@ -226,7 +226,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
       } else if (operator instanceof Operator.Map) {
         trackLabels(labelTracker, ((Operator.Map<?, Value>) operator).source);
       } else if (operator instanceof Operator.StatefulMap) {
-        trackLabels(labelTracker, ((Operator.StatefulMap<?, ?, ?, Value>) operator).source.source);
+        trackLabels(labelTracker, ((Operator.StatefulMap<?, ?, ?, Value>) operator).keyed.source);
       } else if (operator instanceof Operator.LabelSpawn) {
         trackLabels(labelTracker, ((Operator.LabelSpawn<Value, ?>) operator).source);
       } else if (operator instanceof Operator.LabelMarkers) {

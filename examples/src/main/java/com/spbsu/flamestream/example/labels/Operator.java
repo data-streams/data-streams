@@ -7,10 +7,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.ToIntFunction;
 import java.util.stream.Stream;
 
 public abstract class Operator<Type> {
@@ -18,6 +20,8 @@ public abstract class Operator<Type> {
   public final Set<LabelSpawn<?, ?>> labels;
 
   interface SerializableFunction<T, R> extends Serializable, Function<T, R> {}
+
+  interface SerializableToIntFunction<T> extends Serializable, ToIntFunction<T> {}
 
   interface SerializableBiFunction<T, U, R> extends Serializable, BiFunction<T, U, R> {}
 
@@ -36,19 +40,30 @@ public abstract class Operator<Type> {
     return new LabelSpawn<>(this, label, mapper);
   }
 
-  public <Key> KeyedOperator<Type, Key> keyedBy(
-          Set<LabelSpawn<?, ?>> keyLabels,
-          SerializableFunction<Type, Key> keyFunction
+  public <K> Keyed<Type, K> keyedBy(
+          Key<SerializableFunction<Type, K>> key,
+          Key<SerializableToIntFunction<K>> hash
   ) {
-    return new KeyedOperator<>(this, keyLabels, keyFunction);
+    return new Keyed<>(this, key, hash);
   }
 
-  public <Key> KeyedOperator<Type, Void> keyedBy(Set<LabelSpawn<?, ?>> keyLabels) {
-    return new KeyedOperator<>(this, keyLabels, __ -> null);
+  public <K> Keyed<Type, K> keyedBy(
+          Set<LabelSpawn<?, ?>> keyLabels,
+          SerializableFunction<Type, K> keyFunction
+  ) {
+    return new Keyed<>(
+            this,
+            new Key<>(keyLabels, keyFunction),
+            new Key<>(keyLabels, Objects::hashCode)
+    );
   }
 
-  public <Key> KeyedOperator<Type, Key> keyedBy(SerializableFunction<Type, Key> keyFunction) {
-    return new KeyedOperator<>(this, Collections.emptySet(), keyFunction);
+  public <K> Keyed<Type, Void> keyedBy(Set<LabelSpawn<?, ?>> keyLabels) {
+    return new Keyed<>(this, new Key<>(keyLabels, __ -> null), new Key<>(keyLabels, Objects::hashCode));
+  }
+
+  public <K> Keyed<Type, K> keyedBy(SerializableFunction<Type, K> keyFunction) {
+    return new Keyed<>(this, new Key<>(Collections.emptySet(), keyFunction), new Key<>(Collections.emptySet(), Objects::hashCode));
   }
 
   public <Output> Operator<Output> map(Class<Output> outputClass, SerializableFunction<Type, Output> mapper) {
@@ -70,24 +85,44 @@ public abstract class Operator<Type> {
     return new LabelMarkers<>(lClass, this);
   }
 
-  public static final class KeyedOperator<Source, Key> {
-    public final Operator<Source> source;
-    final Set<LabelSpawn<?, ?>> keyLabels;
-    final Function<Source, Key> keyFunction;
+  public static class Key<K> {
+    public final Set<LabelSpawn<?, ?>> labels;
+    public final K function;
 
-    public KeyedOperator(
+    public Key(Set<LabelSpawn<?, ?>> labels, K function) {
+      this.labels = labels;
+      this.function = function;
+    }
+
+    public Key(K function) {
+      this.labels = Collections.emptySet();
+      this.function = function;
+    }
+  }
+
+  public static final class Keyed<Source, K> {
+    public final Operator<Source> source;
+    public final Key<SerializableFunction<Source, K>> key;
+    public final Key<SerializableToIntFunction<K>> hash;
+
+    public Keyed(
             Operator<Source> source,
-            Set<LabelSpawn<?, ?>> keyLabels,
-            SerializableFunction<Source, Key> keyFunction
+            final Key<SerializableFunction<Source, K>> key,
+            final Key<SerializableToIntFunction<K>> hash
     ) {
-      for (final LabelSpawn<?, ?> keyLabel : keyLabels) {
-        if (!source.labels.contains(keyLabel)) {
-          throw new IllegalArgumentException(keyLabel.toString());
+      this.key = key;
+      this.hash = hash;
+      for (final LabelSpawn<?, ?> label : key.labels) {
+        if (!source.labels.contains(label)) {
+          throw new IllegalArgumentException(label.toString());
+        }
+      }
+      for (final LabelSpawn<?, ?> label : hash.labels) {
+        if (!key.labels.contains(label)) {
+          throw new IllegalArgumentException(label.toString());
         }
       }
       this.source = source;
-      this.keyLabels = keyLabels;
-      this.keyFunction = keyFunction;
     }
 
     public <S, Output> Operator<Output> statefulMap(
@@ -168,18 +203,18 @@ public abstract class Operator<Type> {
   }
 
   public static final class StatefulMap<In, Key, S, Out> extends Operator<Out> {
-    public final KeyedOperator<In, Key> source;
+    public final Keyed<In, Key> keyed;
     public final SerializableBiFunction<In, S, Tuple2<S, Stream<Out>>> reducer;
 
     public StatefulMap(
-            KeyedOperator<In, Key> source,
+            Keyed<In, Key> keyed,
             Set<LabelSpawn<?, ?>> labels,
             Class<Out> outClass,
             SerializableBiFunction<In, S, Tuple2<S, Stream<Out>>> reducer
     ) {
       super(outClass, labels);
+      this.keyed = keyed;
       this.reducer = reducer;
-      this.source = source;
     }
   }
 
