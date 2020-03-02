@@ -1,6 +1,9 @@
 package com.spbsu.flamestream.example.labels;
 
 import scala.Tuple2;
+import scala.collection.JavaConverters;
+import scala.collection.immutable.Vector;
+import scala.collection.immutable.Vector$;
 import scala.util.Either;
 import scala.util.Left;
 import scala.util.Right;
@@ -9,8 +12,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class BreadthSearchGraph {
   static class VertexIdentifier {
@@ -208,12 +211,12 @@ public class BreadthSearchGraph {
             }, Collections.singleton(requestLabel));
   }
 
-  private static Operator.Input<Either<RequestOutput, RequestKey>> output(
+  private static Operator<Either<RequestOutput, RequestKey>> output(
           Operator<Tuple2<Agent, Agent.ActionAfterVisit>> agentAndActionAfterVisit,
           Operator.LabelSpawn<Request, RequestKey> requestLabel
   ) {
     final Operator.Input<Either<RequestOutput, RequestKey>> output =
-            new Operator.Input<>(EITHER_REQUEST_OUTPUT_OR_REQUEST_KEY_CLASS);
+            new Operator.Input<>(EITHER_REQUEST_OUTPUT_OR_REQUEST_KEY_CLASS, Collections.singleton(requestLabel));
     output.link(agentAndActionAfterVisit.flatMap(EITHER_REQUEST_OUTPUT_OR_REQUEST_KEY_CLASS, agent -> {
       if (agent._2 == Agent.ActionAfterVisit.VisitFirstTime) {
         return Stream.of(new Left<>(new RequestOutput(agent._1.requestIdentifier, agent._1.vertexIdentifier)));
@@ -225,6 +228,26 @@ public class BreadthSearchGraph {
                     .labelMarkers(requestLabel)
                     .map(EITHER_REQUEST_OUTPUT_OR_REQUEST_KEY_CLASS, Right::apply)
     );
-    return output;
+    return output.keyedBy(Collections.singleton(requestLabel)).statefulFlatMap(
+            EITHER_REQUEST_OUTPUT_OR_REQUEST_KEY_CLASS,
+            (Either<RequestOutput, RequestKey> in, Vector<Either<RequestOutput, RequestKey>> state) -> {
+              if (state == null) {
+                state = Vector$.MODULE$.empty();
+              }
+              if (in.isLeft()) {
+                return new Tuple2<>(state.appendBack(in), Stream.empty());
+              } else {
+                return new Tuple2<>(state, Stream.concat(scalaStreamToJava(state.toStream()), Stream.of(in)));
+              }
+            },
+            Collections.singleton(requestLabel)
+    );
+  }
+
+  private static <T> Stream<T> scalaStreamToJava(scala.collection.immutable.Stream<T> scalaStream) {
+    return StreamSupport.stream(
+            JavaConverters.asJavaIterableConverter(scalaStream.toIterable()).asJava().spliterator(),
+            false
+    );
   }
 }

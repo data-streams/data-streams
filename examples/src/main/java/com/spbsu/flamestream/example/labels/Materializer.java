@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -154,7 +155,7 @@ public class Materializer {
 
               @Override
               public boolean testPayloads(DataItem o1, DataItem o2) {
-                return dataItemKey.apply(o1).equals(dataItemKey.apply(o2));
+                return Objects.equals(dataItemKey.apply(o1), dataItemKey.apply(o2));
               }
             },
             2,
