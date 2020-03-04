@@ -25,11 +25,17 @@
     src: zoo.cfg.j2
     dest: "{{ zookeeper_dir }}/conf/zoo.cfg"
 
-- name: Restart zk
-  shell: "{{ zookeeper_dir }}/bin/zkServer.sh restart"
+- name: Stop zk
+  shell: "{{ zookeeper_dir }}/bin/zkServer.sh stop"
 
-- name: Clean graphs
-  shell: "{{ zookeeper_cli }} rmr /graph"
+- file:
+    state: absent
+    path: "{{ zookeeper_dir }}/data/"
 
-- name: Clean configs
-  shell: "{{ zookeeper_cli }} rmr /config"
+- name: Start zk
+  shell: "{{ zookeeper_dir }}/bin/zkServer.sh start"
+
+- command: "{{ zookeeper_dir }}/bin/zkServer.sh status"
+  retries: 5
+  register: result
+  until: result is not failed

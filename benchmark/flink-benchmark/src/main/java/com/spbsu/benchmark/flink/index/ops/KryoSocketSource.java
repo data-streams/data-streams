@@ -75,6 +75,7 @@ public class KryoSocketSource extends RichParallelSourceFunction<WikipediaPage> 
     LOG.info("Connecting to {}:{}", hostname, port);
     client.start();
     client.connect(CONNECTION_AWAIT_TIMEOUT, hostname, port);
+    client.sendTCP("");
     LOG.info("CONNECTED");
     client.run();
 

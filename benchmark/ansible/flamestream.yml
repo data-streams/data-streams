@@ -1,43 +1,31 @@
 ---
-- name: Install Python
-  hosts: all
-  gather_facts: false
-  tasks:
-    - name: Install Python 2.x
-      raw: test -e /usr/bin/python || (apt update && apt install -y python-simplejson)
-      register: test
-      changed_when: test.stdout
-
-- name: Prepare cluster
+- name: Deliver flamestream artifacts
   hosts: all
   roles:
-    - { role: common-packages }
+    - { role: flamestream-common  }
+
+- name: Stop workers
+  hosts: workers
+  tasks:
+    - shell: "cd {{ flamestream_dir }} && bash entrypoint.sh stop"
 
 - name: Setup zookeeper
   hosts: manager
   roles:
     - { role: zookeeper  }
 
-- name: Deliver flamestream artifacts
-  hosts: all
-  roles:
-    - { role: flamestream-common  }
-
-- hosts: workers
+- hosts: all
   tasks:
-    - file:
-        state: absent
-        path: /tmp/flame_stream
+  - file:
+      state: absent
+      path: /tmp/acker.txt
 
 - name: Init workers
-  hosts: workers
+  hosts: "workers[0:{{ parallelism|int - 1 }}]"
   roles:
     - { role: flamestream-worker }
-
-- hosts: workers
-  tasks:
-    - wait_for:
-        path: /tmp/flame_stream
+  environment:
+    PATH: "/usr/lib/jvm/java-8-oracle/jre/bin/:{{ ansible_env.PATH }}"
 
 #- name: Pause
 #  hosts: bench
@@ -47,10 +35,12 @@
 - name: Run the benchmark
   hosts: bench
   roles:
-    - { role: flamestream-bench , bench_class: com.spbsu.flamestream.example.benchmark.BenchStand }
+    - { role: flamestream-acker-bench , bench_class: com.spbsu.flamestream.example.benchmark.WatermarksVsAckerBenchStand }
+  environment:
+    PATH: "/usr/lib/jvm/java-8-oracle/jre/bin/:{{ ansible_env.PATH }}"
 
 - name: Destroy flamestream
-  hosts: workers
+  hosts: "workers[0:{{ parallelism|int - 1 }}]"
   roles:
     - { role: flamestream-destroy }
 
@@ -66,5 +56,18 @@
         src: /tmp/trace.csv
         dest: "{{ results_dir }}/flamestream/traces/{{ inventory_hostname }}.csv"
         flat: true
+        fail_on_missing: false
+    - name: Fetch acker
+      fetch:
+        src: /tmp/acker.txt
+        dest: "{{ results_dir }}/flamestream/acker/{{ inventory_hostname }}.txt"
+        flat: true
+        fail_on_missing: false
+    - name: Fetch class addressed items number
+      fetch:
+        src: /tmp/class_addressed_items_number.csv
+        dest: "{{ results_dir }}/flamestream/class_addressed_items_number/{{ inventory_hostname }}.csv"
+        flat: true
+        fail_on_missing: false
   tags:
     - lat

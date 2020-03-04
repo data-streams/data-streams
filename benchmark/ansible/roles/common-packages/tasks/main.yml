@@ -1,16 +1,14 @@
 ---
 - name: Install common packages
   apt: 
-    name: "{{ item }}"
-    state: present
-  with_items:
-    - openjdk-8-jdk
-    - rsync
-    - vim
-    - less
-    - htop
-    - procps
-    - unzip
-    - sysstat
-    - make
-    - gcc
+    name:
+      - openjdk-8-jdk
+      - rsync
+      - vim
+      - less
+      - htop
+      - procps
+      - unzip
+      - sysstat
+      - make
+      - gcc
