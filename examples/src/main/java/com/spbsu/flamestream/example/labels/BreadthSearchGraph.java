@@ -11,7 +11,7 @@ import scala.util.Right;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -158,11 +158,12 @@ public class BreadthSearchGraph {
           (Class<Either<Agent, VertexEdgesUpdate>>) (Class<?>) Either.class;
 
   public static void main(String[] args) {
-    mutableFlow(new HashMap<>());
+    final HashMap<VertexIdentifier, List<VertexIdentifier>> vertexEdges = new HashMap<>();
+    mutableFlow(vertexEdges::get);
   }
 
   public static Flow<Request, Either<RequestOutput, RequestKey>> immutableFlow(
-          Map<VertexIdentifier, List<VertexIdentifier>> vertexEdges
+          Function<VertexIdentifier, List<VertexIdentifier>> vertexEdges
   ) {
     final Operator.Input<Request> requestInput = new Operator.Input<>(Request.class);
     final Operator.LabelSpawn<Request, RequestKey> requestLabel = requestInput
@@ -177,7 +178,7 @@ public class BreadthSearchGraph {
       if (agent._2 == Agent.ActionAfterVisit.Stop) {
         return Stream.empty();
       }
-      return vertexEdges.getOrDefault(agent._1.vertexIdentifier, Collections.emptyList())
+      return vertexEdges.apply(agent._1.vertexIdentifier)
               .stream()
               .map(vertexIdentifier -> new Agent(
                       agent._1.requestIdentifier,
@@ -189,7 +190,7 @@ public class BreadthSearchGraph {
   }
 
   public static Flow<Input, Either<RequestOutput, RequestKey>> mutableFlow(
-          Map<VertexIdentifier, List<VertexIdentifier>> vertexEdges
+          Function<VertexIdentifier, List<VertexIdentifier>> vertexEdges
   ) {
     final Operator.Input<Input> requestInput = new Operator.Input<>(Input.class);
     final Operator.LabelSpawn<Request, RequestKey> requestLabel = requestInput.flatMap(
@@ -210,7 +211,7 @@ public class BreadthSearchGraph {
               if (either.isLeft()) {
                 final Agent agent = either.left().get();
                 if (edges == null) {
-                  edges = vertexEdges.get(agent.vertexIdentifier);
+                  edges = vertexEdges.apply(agent.vertexIdentifier);
                 }
                 return new Tuple2<>(edges, edges.stream().map(vertexIdentifier -> new Agent(
                         agent.requestIdentifier,
