@@ -16,21 +16,21 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class BreadthSearchGraph {
-  static class VertexIdentifier {
+  public static class VertexIdentifier {
   }
 
-  static abstract class Input {
+  public static abstract class Input {
   }
 
-  static class Request extends Input {
-    static class Identifier {
+  public static class Request extends Input {
+    public static class Identifier {
     }
 
     final Identifier identifier;
     final VertexIdentifier vertexIdentifier;
     final int pathLength;
 
-    Request(
+    public Request(
             Identifier identifier,
             VertexIdentifier vertexIdentifier,
             int pathLength
@@ -51,7 +51,7 @@ public class BreadthSearchGraph {
     }
   }
 
-  static class RequestKey {
+  public static class RequestKey {
     final Request.Identifier identifier;
 
     RequestKey(Request.Identifier identifier) {this.identifier = identifier;}
@@ -112,7 +112,7 @@ public class BreadthSearchGraph {
     }
   }
 
-  private static final Class<Either<RequestOutput, RequestKey>> EITHER_REQUEST_OUTPUT_OR_REQUEST_KEY_CLASS =
+  public static final Class<Either<RequestOutput, RequestKey>> OUTPUT_CLASS =
           (Class<Either<RequestOutput, RequestKey>>) (Class<?>) Either.class;
   private static final Class<Tuple2<Agent, Agent.ActionAfterVisit>> AGENT_WITH_ACTION_AFTER_VISIT_CLASS =
           (Class<Tuple2<Agent, Agent.ActionAfterVisit>>) (Class<?>) Tuple2.class;
@@ -216,8 +216,8 @@ public class BreadthSearchGraph {
           Operator.LabelSpawn<Request, RequestKey> requestLabel
   ) {
     final Operator.Input<Either<RequestOutput, RequestKey>> output =
-            new Operator.Input<>(EITHER_REQUEST_OUTPUT_OR_REQUEST_KEY_CLASS, Collections.singleton(requestLabel));
-    output.link(agentAndActionAfterVisit.flatMap(EITHER_REQUEST_OUTPUT_OR_REQUEST_KEY_CLASS, agent -> {
+            new Operator.Input<>(OUTPUT_CLASS, Collections.singleton(requestLabel));
+    output.link(agentAndActionAfterVisit.flatMap(OUTPUT_CLASS, agent -> {
       if (agent._2 == Agent.ActionAfterVisit.VisitFirstTime) {
         return Stream.of(new Left<>(new RequestOutput(agent._1.requestIdentifier, agent._1.vertexIdentifier)));
       }
@@ -226,10 +226,10 @@ public class BreadthSearchGraph {
     output.link(
             agentAndActionAfterVisit
                     .labelMarkers(requestLabel)
-                    .map(EITHER_REQUEST_OUTPUT_OR_REQUEST_KEY_CLASS, Right::apply)
+                    .map(OUTPUT_CLASS, Right::apply)
     );
     return output.keyedBy(Collections.singleton(requestLabel)).statefulFlatMap(
-            EITHER_REQUEST_OUTPUT_OR_REQUEST_KEY_CLASS,
+            OUTPUT_CLASS,
             (Either<RequestOutput, RequestKey> in, Vector<Either<RequestOutput, RequestKey>> state) -> {
               if (state == null) {
                 state = Vector$.MODULE$.empty();

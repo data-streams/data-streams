@@ -6,6 +6,7 @@ import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.HashFunction;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
+import com.spbsu.flamestream.core.graph.SerializableFunction;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import com.spbsu.flamestream.example.bl.text_classifier.model.IdfObject;
@@ -76,8 +77,8 @@ public class TextClassifierGraph implements Supplier<Graph> {
             new Grouping<>(docHash, equalzDoc, 2, DocContainer.class);
 
 
-    final FlameMap<TfObject, WordEntry> splitterWord = new FlameMap.Builder<TfObject, WordEntry>(
-            tfObject ->
+    final FlameMap<TfObject, WordEntry> splitterWord = new FlameMap.Builder<>(
+            (TfObject tfObject) ->
                     tfObject.counts().entrySet().stream()
                             .map(word -> new WordEntry(
                                     word.getKey(),

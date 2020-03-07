@@ -1,29 +1,22 @@
 package com.spbsu.flamestream.example.labels;
 
+import com.spbsu.flamestream.core.graph.SerializableBiFunction;
+import com.spbsu.flamestream.core.graph.SerializableFunction;
+import com.spbsu.flamestream.core.graph.SerializablePredicate;
+import com.spbsu.flamestream.core.graph.SerializableToIntFunction;
 import scala.Tuple2;
 
-import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.ToIntFunction;
 import java.util.stream.Stream;
 
 public abstract class Operator<Type> {
   public final Class<Type> typeClass;
   public final Set<LabelSpawn<?, ?>> labels;
-
-  interface SerializableFunction<T, R> extends Serializable, Function<T, R> {}
-
-  interface SerializableToIntFunction<T> extends Serializable, ToIntFunction<T> {}
-
-  interface SerializableBiFunction<T, U, R> extends Serializable, BiFunction<T, U, R> {}
 
   private Operator(Class<Type> typeClass, Set<LabelSpawn<?, ?>> labels) {
     this.typeClass = typeClass;
@@ -77,7 +70,7 @@ public abstract class Operator<Type> {
     return new Map<>(labels, this, outputClass, mapper);
   }
 
-  public Operator<Type> filter(Predicate<Type> predicate) {
+  public Operator<Type> filter(SerializablePredicate<Type> predicate) {
     return new Map<>(labels, this, this.typeClass, in -> predicate.test(in) ? Stream.of(in) : Stream.empty());
   }
 

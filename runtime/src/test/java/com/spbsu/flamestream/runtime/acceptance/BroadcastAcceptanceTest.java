@@ -4,6 +4,7 @@ import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.HashFunction;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
+import com.spbsu.flamestream.core.graph.SerializableFunction;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import com.spbsu.flamestream.runtime.FlameRuntime;
@@ -38,7 +39,7 @@ public class BroadcastAcceptanceTest extends FlameAkkaSuite {
             String.class
     );
     final FlameMap<List<String>, String> toString =
-            new FlameMap.Builder<List<String>, String>(strings -> Stream.of(strings.get(0)), List.class).build();
+            new FlameMap.Builder<>((List<String> strings) -> Stream.of(strings.get(0)), List.class).build();
     final FlameMap<String, String> broadcastFilterSink =
             new FlameMap.Builder<String, String>(Stream::of, String.class)
                     .hashFunction(HashFunction.Broadcast.INSTANCE)

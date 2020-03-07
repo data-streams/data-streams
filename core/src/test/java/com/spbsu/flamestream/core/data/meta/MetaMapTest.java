@@ -4,6 +4,7 @@ import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.FlameStreamSuite;
 import com.spbsu.flamestream.core.data.PayloadDataItem;
 import com.spbsu.flamestream.core.graph.FlameMap;
+import com.spbsu.flamestream.core.graph.SerializableFunction;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -20,8 +21,8 @@ public class MetaMapTest extends FlameStreamSuite {
   @Test
   public void testFlatFilterLogic() {
     final int flatNumber = 10;
-    final FlameMap<Integer, Integer> map = new FlameMap.Builder<Integer, Integer>(
-            integer -> Stream.generate(() -> integer).limit(flatNumber),
+    final FlameMap<Integer, Integer> map = new FlameMap.Builder<>(
+            (Integer integer) -> Stream.generate(() -> integer).limit(flatNumber),
             Integer.class
     ).build();
 

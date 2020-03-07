@@ -19,13 +19,13 @@ import java.util.stream.Stream;
 public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
   private final Class<T> tClass;
   private final int index;
-  private final FlameMap.SerializableFunction<T, L> mapper;
+  private final SerializableFunction<T, L> mapper;
   private final List<? extends LabelMarkers<?>> labelMarkers;
 
   public LabelSpawn(
           Class<T> tClass,
           int index,
-          FlameMap.SerializableFunction<T, L> mapper,
+          SerializableFunction<T, L> mapper,
           List<? extends LabelMarkers<?>> labelMarkers
   ) {
     this.tClass = tClass;

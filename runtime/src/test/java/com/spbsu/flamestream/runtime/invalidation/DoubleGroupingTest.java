@@ -12,6 +12,7 @@ import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
+import com.spbsu.flamestream.core.graph.SerializableFunction;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import com.spbsu.flamestream.runtime.FlameRuntime;
@@ -51,13 +52,13 @@ public class DoubleGroupingTest extends FlameStreamSuite {
   private Graph graph() {
     final Grouping<Integer> firstGroup = new Grouping<>(HASH_FUNCTION, EQUALZ, WINDOW, Integer.class);
     final FlameMap<List<Integer>, Integer> firstHash =
-            new FlameMap.Builder<List<Integer>, Integer>(longs2 -> Stream.of(longs2.hashCode()), List.class).build();
+            new FlameMap.Builder<>((List<Integer> longs2) -> Stream.of(longs2.hashCode()), List.class).build();
     final Grouping<Integer> secondGroup = new Grouping<>(HASH_FUNCTION, EQUALZ, WINDOW, Integer.class);
     final FlameMap<List<Integer>, Integer> secondHash =
-            new FlameMap.Builder<List<Integer>, Integer>(longs1 -> Stream.of(longs1.hashCode()), List.class).build();
+            new FlameMap.Builder<>((List<Integer> longs1) -> Stream.of(longs1.hashCode()), List.class).build();
     final Grouping<Integer> thirdGroup = new Grouping<>(HASH_FUNCTION, EQUALZ, WINDOW, Integer.class);
     final FlameMap<List<Integer>, Integer> thirdHash =
-            new FlameMap.Builder<List<Integer>, Integer>(longs -> Stream.of(longs.hashCode()), List.class).build();
+            new FlameMap.Builder<>((List<Integer> longs) -> Stream.of(longs.hashCode()), List.class).build();
 
 
     final Source source = new Source();

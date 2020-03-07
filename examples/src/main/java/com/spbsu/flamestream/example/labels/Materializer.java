@@ -9,6 +9,8 @@ import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
 import com.spbsu.flamestream.core.graph.LabelMarkers;
 import com.spbsu.flamestream.core.graph.LabelSpawn;
+import com.spbsu.flamestream.core.graph.SerializableBiFunction;
+import com.spbsu.flamestream.core.graph.SerializableFunction;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import org.jetbrains.annotations.NotNull;
@@ -141,7 +143,7 @@ public class Materializer {
                             )),
                             dataItem.labels()
                     )).build();
-    final Function<DataItem, Key> dataItemKey = dataItem -> dataItem.payload(groupedClass).key;
+    final SerializableFunction<DataItem, Key> dataItemKey = dataItem -> dataItem.payload(groupedClass).key;
     final Grouping<Grouped<Key, In, S>> grouping = new Grouping<>(
             dataItem -> hashLabelsPresence.hash(
                     statefulMap.keyed.hash.function.applyAsInt(dataItemKey.apply(dataItem)),
@@ -161,7 +163,7 @@ public class Materializer {
             2,
             groupedClass
     );
-    final BiFunction<S, Grouped<Key, In, S>, Tuple2<Grouped<Key, In, S>, Stream<Out>>> reduce =
+    final SerializableBiFunction<S, Grouped<Key, In, S>, Tuple2<Grouped<Key, In, S>, Stream<Out>>> reduce =
             (state, in) -> {
               final Tuple2<S, Stream<Out>> result = statefulMap.reducer.apply(in.item, state);
               return new Tuple2<>(new Grouped<>(in.key, in.item, result._1, true), result._2);
