@@ -43,8 +43,7 @@ public class BreadthSearchGraphBenchStand {
           BreadthSearchGraph.RequestKey.class,
           BreadthSearchGraph.Request.Identifier.class,
           com.spbsu.flamestream.example.labels.BreadthSearchGraph.VertexIdentifier.class,
-          Left.class,
-          Right.class,
+          scala.collection.convert.Wrappers.SeqWrapper.class,
           long[].class
   };
 
@@ -96,7 +95,7 @@ public class BreadthSearchGraphBenchStand {
   public void run(GraphDeployer graphDeployer, String inputHostId) throws Exception {
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
 
-    final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(2);
+    final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(1);
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
     try (
             AutoCloseable ignored = benchStandComponentFactory.producer(
@@ -111,11 +110,11 @@ public class BreadthSearchGraphBenchStand {
             )::stop;
             AutoCloseable ignored1 = benchStandComponentFactory.consumer(
                     object -> {
-                      final Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey> output;
+                      final BreadthSearchGraph.RequestOutput output;
                       if (object instanceof DataItem) {
                         output = ((DataItem) object).payload(BreadthSearchGraph.OUTPUT_CLASS);
-                      } else if (object instanceof Either) {
-                        output = (Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>) object;
+                      } else if (object instanceof BreadthSearchGraph.RequestOutput) {
+                        output = (BreadthSearchGraph.RequestOutput) object;
                       } else {
                         return;
                       }

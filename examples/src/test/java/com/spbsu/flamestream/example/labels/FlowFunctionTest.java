@@ -7,6 +7,7 @@ import scala.util.Right;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 
 import static org.testng.Assert.*;
@@ -15,36 +16,34 @@ public class FlowFunctionTest {
   @Test
   public void testImmutable() {
     final BreadthSearchGraph.VertexIdentifier vertexIdentifier = new BreadthSearchGraph.VertexIdentifier(0);
-    final ArrayList<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>> output = new ArrayList<>();
+    final ArrayList<BreadthSearchGraph.RequestOutput> output = new ArrayList<>();
     final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier(0);
     new FlowFunction<>(
-            BreadthSearchGraph.immutableFlow(Collections.singletonMap(
+            BreadthSearchGraph.immutableFlow(vertexIdentifier11 -> Collections.singletonMap(
                     vertexIdentifier,
                     Collections.singletonList(vertexIdentifier)
-            )),
+            ).getOrDefault(vertexIdentifier11, Collections.emptyList())),
             output::add
     ).put(new BreadthSearchGraph.Request(requestIdentifier, vertexIdentifier, 1));
-    assertEquals(output, Arrays.asList(
-            new Left<>(new BreadthSearchGraph.RequestOutput(requestIdentifier, vertexIdentifier)),
-            new Right<>(new BreadthSearchGraph.RequestKey(requestIdentifier))
+    assertEquals(output, Collections.singletonList(
+            new BreadthSearchGraph.RequestOutput(requestIdentifier, Collections.singletonList(vertexIdentifier))
     ));
   }
 
   @Test
   public void testMutable() {
     final BreadthSearchGraph.VertexIdentifier vertexIdentifier = new BreadthSearchGraph.VertexIdentifier(0);
-    final ArrayList<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>> output = new ArrayList<>();
+    final ArrayList<BreadthSearchGraph.RequestOutput> output = new ArrayList<>();
     final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier(0);
     new FlowFunction<>(
             BreadthSearchGraph.mutableFlow(Collections.singletonMap(
                     vertexIdentifier,
                     Collections.singletonList(vertexIdentifier)
-            )),
+            )::get),
             output::add
     ).put(new BreadthSearchGraph.Request(requestIdentifier, vertexIdentifier, 1));
-    assertEquals(output, Arrays.asList(
-            new Left<>(new BreadthSearchGraph.RequestOutput(requestIdentifier, vertexIdentifier)),
-            new Right<>(new BreadthSearchGraph.RequestKey(requestIdentifier))
+    assertEquals(output, Collections.singletonList(
+            new BreadthSearchGraph.RequestOutput(requestIdentifier, Collections.singletonList(vertexIdentifier))
     ));
   }
 }

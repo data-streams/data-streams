@@ -56,7 +56,7 @@ public class MaterializerTest extends FlameAkkaSuite {
 
   @Test
   public void testImmutableBreadthSearch() throws InterruptedException {
-    final Flow<BreadthSearchGraph.Request, Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>> flow =
+    final Flow<BreadthSearchGraph.Request, BreadthSearchGraph.RequestOutput> flow =
             BreadthSearchGraph.immutableFlow(vertexIdentifier11 -> Collections.emptyList());
     assertEquals(Materializer.buildTrackingComponents(Materializer.buildStronglyConnectedComponents(flow)
             .get(flow.output)).entrySet().stream().collect(Collectors.groupingBy(
@@ -74,29 +74,24 @@ public class MaterializerTest extends FlameAkkaSuite {
         final Queue<BreadthSearchGraph.Request> input = new ConcurrentLinkedQueue<>();
         input.add(new BreadthSearchGraph.Request(requestIdentifier, vertexIdentifier, 1));
 
-        final AwaitResultConsumer<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>> awaitConsumer =
-                new AwaitResultConsumer<>(2);
-        flame.attachRear(
-                "wordCountRear",
-                new AkkaRearType<>(
-                        runtime.system(),
-                        (Class<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>>) (Class<?>) Either.class
-                )
-        ).forEach(r -> r.addListener(awaitConsumer));
+        final AwaitResultConsumer<BreadthSearchGraph.RequestOutput> awaitConsumer =
+                new AwaitResultConsumer<>(1);
+        flame.attachRear("wordCountRear", new AkkaRearType<>(runtime.system(), BreadthSearchGraph.OUTPUT_CLASS))
+                .forEach(r -> r.addListener(awaitConsumer));
         final List<AkkaFront.FrontHandle<BreadthSearchGraph.Request>> handles = flame
                 .attachFront("wordCountFront", new AkkaFrontType<BreadthSearchGraph.Request>(runtime.system()))
                 .collect(Collectors.toList());
         applyDataToAllHandlesAsync(input, handles);
         awaitConsumer.await(200, TimeUnit.SECONDS);
 
-        final BreadthSearchGraph.RequestOutput actualWordsTop = awaitConsumer.result().findFirst().get().left().get();
+        final BreadthSearchGraph.RequestOutput actualWordsTop = awaitConsumer.result().findFirst().get();
       }
     }
   }
 
   @Test
   public void testMutableBreadthSearch() {
-    final Flow<BreadthSearchGraph.Input, Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>> flow =
+    final Flow<BreadthSearchGraph.Input, BreadthSearchGraph.RequestOutput> flow =
             BreadthSearchGraph.mutableFlow(__ -> Collections.emptyList());
     assertEquals(
             Materializer.buildTrackingComponents(Materializer.buildStronglyConnectedComponents(flow).get(flow.output))
