@@ -14,9 +14,9 @@ import static org.testng.Assert.*;
 public class FlowFunctionTest {
   @Test
   public void testImmutable() {
-    final BreadthSearchGraph.VertexIdentifier vertexIdentifier = new BreadthSearchGraph.VertexIdentifier();
+    final BreadthSearchGraph.VertexIdentifier vertexIdentifier = new BreadthSearchGraph.VertexIdentifier(0);
     final ArrayList<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>> output = new ArrayList<>();
-    final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier();
+    final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier(0);
     new FlowFunction<>(
             BreadthSearchGraph.immutableFlow(Collections.singletonMap(
                     vertexIdentifier,
@@ -32,9 +32,9 @@ public class FlowFunctionTest {
 
   @Test
   public void testMutable() {
-    final BreadthSearchGraph.VertexIdentifier vertexIdentifier = new BreadthSearchGraph.VertexIdentifier();
+    final BreadthSearchGraph.VertexIdentifier vertexIdentifier = new BreadthSearchGraph.VertexIdentifier(0);
     final ArrayList<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>> output = new ArrayList<>();
-    final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier();
+    final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier(0);
     new FlowFunction<>(
             BreadthSearchGraph.mutableFlow(Collections.singletonMap(
                     vertexIdentifier,

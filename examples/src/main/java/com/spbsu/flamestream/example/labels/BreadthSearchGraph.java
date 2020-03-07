@@ -16,14 +16,52 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class BreadthSearchGraph {
-  public static class VertexIdentifier {
+  public static final class VertexIdentifier {
+    public final int id;
+
+    public VertexIdentifier(int id) {this.id = id;}
+
+    @Override
+    public boolean equals(Object obj) {
+      if (this == obj) {
+        return true;
+      }
+      if (obj instanceof VertexIdentifier) {
+        return id == ((VertexIdentifier) obj).id;
+      }
+      return false;
+    }
+
+    @Override
+    public int hashCode() {
+      return id;
+    }
   }
 
   public static abstract class Input {
   }
 
-  public static class Request extends Input {
-    public static class Identifier {
+  public static final class Request extends Input {
+    public static final class Identifier {
+      public final int id;
+
+      public Identifier(int id) {this.id = id;}
+
+      @Override
+      public boolean equals(Object obj) {
+        if (this == obj) {
+          return true;
+        }
+        if (obj instanceof Identifier) {
+          return id == ((Identifier) obj).id;
+        }
+        return false;
+      }
+
+      @Override
+      public int hashCode() {
+        return id;
+      }
     }
 
     final Identifier identifier;
@@ -64,7 +102,7 @@ public class BreadthSearchGraph {
       if (obj instanceof RequestKey) {
         return identifier.equals(((RequestKey) obj).identifier);
       }
-      return super.equals(obj);
+      return false;
     }
   }
 
