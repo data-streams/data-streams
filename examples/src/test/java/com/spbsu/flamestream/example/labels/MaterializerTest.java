@@ -69,7 +69,6 @@ public class MaterializerTest extends FlameAkkaSuite {
             .build()) {
       try (final FlameRuntime.Flame flame = runtime.run(Materializer.materialize(flow))) {
         final BreadthSearchGraph.VertexIdentifier vertexIdentifier = new BreadthSearchGraph.VertexIdentifier(0);
-        final ArrayList<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.RequestKey>> output = new ArrayList<>();
         final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier(0);
         final Queue<BreadthSearchGraph.Request> input = new ConcurrentLinkedQueue<>();
         input.add(new BreadthSearchGraph.Request(requestIdentifier, vertexIdentifier, 1));

@@ -40,7 +40,6 @@ public class BreadthSearchGraphBenchStand {
           com.spbsu.flamestream.example.labels.BreadthSearchGraph.VertexIdentifier.class
   }, REAR_CLASSES_TO_REGISTER = {
           BreadthSearchGraph.RequestOutput.class,
-          BreadthSearchGraph.RequestKey.class,
           BreadthSearchGraph.Request.Identifier.class,
           com.spbsu.flamestream.example.labels.BreadthSearchGraph.VertexIdentifier.class,
           scala.collection.convert.Wrappers.SeqWrapper.class,
