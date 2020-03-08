@@ -12,13 +12,11 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import scala.util.Either;
-import scala.util.Left;
-import scala.util.Right;
 
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -42,7 +40,7 @@ public class BreadthSearchGraphBenchStand {
           BreadthSearchGraph.RequestOutput.class,
           BreadthSearchGraph.Request.Identifier.class,
           com.spbsu.flamestream.example.labels.BreadthSearchGraph.VertexIdentifier.class,
-          scala.collection.convert.Wrappers.SeqWrapper.class,
+          ArrayList.class,
           long[].class
   };
 

@@ -8,6 +8,7 @@ import scala.util.Either;
 import scala.util.Left;
 import scala.util.Right;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -260,7 +261,7 @@ public class BreadthSearchGraph {
               if (in.isLeft()) {
                 return new Tuple2<>(state.appendBack(in.left().get()), Stream.empty());
               } else {
-                return new Tuple2<>(state, Stream.of(new RequestOutput(in.right().get(), scalaStreamToJava(state))));
+                return new Tuple2<>(null, Stream.of(new RequestOutput(in.right().get(), scalaStreamToJava(state))));
               }
             },
             Collections.singleton(requestLabel)
@@ -268,6 +269,6 @@ public class BreadthSearchGraph {
   }
 
   private static <T> List<T> scalaStreamToJava(scala.collection.immutable.Vector<T> scalaStream) {
-    return JavaConverters.seqAsJavaListConverter(scalaStream).asJava();
+    return new ArrayList<>(JavaConverters.seqAsJavaListConverter(scalaStream).asJava());
   }
 }
