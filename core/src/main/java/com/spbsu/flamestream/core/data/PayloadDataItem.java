@@ -54,7 +54,7 @@ public class PayloadDataItem implements DataItem {
 
   @Override
   public String toString() {
-    return '{' + "meta=" + meta + ", payload=" + payload + '}';
+    return '{' + "meta=" + meta + ", labels=" + labels + ", xor=" + xor + ", payload=" + payload + '}';
   }
 
   @Override

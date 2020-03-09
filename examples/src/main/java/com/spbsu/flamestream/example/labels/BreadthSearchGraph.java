@@ -1,5 +1,6 @@
 package com.spbsu.flamestream.example.labels;
 
+import com.spbsu.flamestream.core.graph.SerializableFunction;
 import scala.Tuple2;
 import scala.collection.JavaConverters;
 import scala.collection.immutable.Vector;
@@ -9,13 +10,10 @@ import scala.util.Left;
 import scala.util.Right;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 public class BreadthSearchGraph {
   public static final class VertexIdentifier {
@@ -66,9 +64,9 @@ public class BreadthSearchGraph {
       }
     }
 
-    final Identifier identifier;
-    final VertexIdentifier vertexIdentifier;
-    final int pathLength;
+    public final Identifier identifier;
+    public final VertexIdentifier vertexIdentifier;
+    public final int pathLength;
 
     public Request(
             Identifier identifier,
@@ -81,7 +79,7 @@ public class BreadthSearchGraph {
     }
   }
 
-  static class VertexEdgesUpdate extends Input {
+  static final class VertexEdgesUpdate extends Input {
     final VertexIdentifier source;
     final List<VertexIdentifier> targets;
 
@@ -91,9 +89,9 @@ public class BreadthSearchGraph {
     }
   }
 
-  public static class RequestOutput {
-    final Request.Identifier requestIdentifier;
-    final List<VertexIdentifier> vertexIdentifier;
+  public static final class RequestOutput {
+    public final Request.Identifier requestIdentifier;
+    public final List<VertexIdentifier> vertexIdentifier;
 
     public RequestOutput(Request.Identifier requestIdentifier, List<VertexIdentifier> vertexIdentifier) {
       this.requestIdentifier = requestIdentifier;
@@ -113,7 +111,7 @@ public class BreadthSearchGraph {
     }
   }
 
-  private static class Agent {
+  private static final class Agent {
     final Request.Identifier requestIdentifier;
     final VertexIdentifier vertexIdentifier;
     final int remainingPathLength;
@@ -136,7 +134,7 @@ public class BreadthSearchGraph {
   }
 
   public static final Class<RequestOutput> OUTPUT_CLASS = RequestOutput.class;
-  private static final Class<Either<VertexIdentifier, Request.Identifier>> PROGRESS_CLASS =
+  public static final Class<Either<VertexIdentifier, Request.Identifier>> PROGRESS_CLASS =
           (Class<Either<VertexIdentifier, Request.Identifier>>) (Class<?>) Either.class;
   private static final Class<Tuple2<Agent, Agent.ActionAfterVisit>> AGENT_WITH_ACTION_AFTER_VISIT_CLASS =
           (Class<Tuple2<Agent, Agent.ActionAfterVisit>>) (Class<?>) Tuple2.class;
@@ -148,7 +146,7 @@ public class BreadthSearchGraph {
   }
 
   public static Flow<Request, RequestOutput> immutableFlow(
-          Function<VertexIdentifier, List<VertexIdentifier>> vertexEdges
+          SerializableFunction<VertexIdentifier, List<VertexIdentifier>> vertexEdges
   ) {
     final Operator.Input<Request> requestInput = new Operator.Input<>(Request.class);
     final Operator.LabelSpawn<Request, Request.Identifier> requestLabel = requestInput
@@ -163,13 +161,15 @@ public class BreadthSearchGraph {
       if (agent._2 == Agent.ActionAfterVisit.Stop) {
         return Stream.empty();
       }
-      return vertexEdges.apply(agent._1.vertexIdentifier)
-              .stream()
-              .map(vertexIdentifier -> new Agent(
-                      agent._1.requestIdentifier,
-                      vertexIdentifier,
-                      agent._1.remainingPathLength - 1
-              ));
+      final int remainingPathLength = agent._1.remainingPathLength - 1;
+      if (remainingPathLength < 0) {
+        return Stream.empty();
+      }
+      return vertexEdges.apply(agent._1.vertexIdentifier).stream().map(vertexIdentifier -> new Agent(
+              agent._1.requestIdentifier,
+              vertexIdentifier,
+              remainingPathLength
+      ));
     }));
     return new Flow<>(requestInput, output(agentAndActionAfterVisit, requestLabel));
   }
@@ -198,10 +198,14 @@ public class BreadthSearchGraph {
                 if (edges == null) {
                   edges = vertexEdges.apply(agent.vertexIdentifier);
                 }
+                final int remainingPathLength = agent.remainingPathLength - 1;
+                if (remainingPathLength < 0) {
+                  return new Tuple2<>(edges, Stream.empty());
+                }
                 return new Tuple2<>(edges, edges.stream().map(vertexIdentifier -> new Agent(
                         agent.requestIdentifier,
                         vertexIdentifier,
-                        agent.remainingPathLength - 1
+                        remainingPathLength
                 )));
               } else {
                 return new Tuple2<>(either.right().get().targets, Stream.empty());
@@ -215,7 +219,6 @@ public class BreadthSearchGraph {
           Operator.LabelSpawn<Request, Request.Identifier> requestLabel
   ) {
     return agentInput
-            .filter(agent -> agent.remainingPathLength > 0)
             .keyedBy(
                     new Operator.Key<>(Collections.singleton(requestLabel), agent -> agent.vertexIdentifier),
                     new Operator.Key<>(Collections.emptySet(), Object::hashCode)

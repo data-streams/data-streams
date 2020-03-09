@@ -1,5 +1,7 @@
 package com.spbsu.flamestream.example.labels;
 
+import com.spbsu.flamestream.core.graph.SerializableFunction;
+
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -7,10 +9,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 
 public enum SqliteOutboundEdges
-        implements Function<BreadthSearchGraph.VertexIdentifier, List<BreadthSearchGraph.VertexIdentifier>> {
+        implements SerializableFunction<BreadthSearchGraph.VertexIdentifier, List<BreadthSearchGraph.VertexIdentifier>> {
   INSTANCE;
   final Connection connection;
 

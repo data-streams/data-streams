@@ -57,7 +57,9 @@ public class MaterializerTest extends FlameAkkaSuite {
   @Test
   public void testImmutableBreadthSearch() throws InterruptedException {
     final Flow<BreadthSearchGraph.Request, BreadthSearchGraph.RequestOutput> flow =
-            BreadthSearchGraph.immutableFlow(vertexIdentifier11 -> Collections.emptyList());
+            BreadthSearchGraph.immutableFlow(vertexIdentifier11 ->
+                    Collections.singletonList(new BreadthSearchGraph.VertexIdentifier(1))
+            );
     assertEquals(Materializer.buildTrackingComponents(Materializer.buildStronglyConnectedComponents(flow)
             .get(flow.output)).entrySet().stream().collect(Collectors.groupingBy(
             Map.Entry::getValue,
@@ -71,7 +73,7 @@ public class MaterializerTest extends FlameAkkaSuite {
         final BreadthSearchGraph.VertexIdentifier vertexIdentifier = new BreadthSearchGraph.VertexIdentifier(0);
         final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier(0);
         final Queue<BreadthSearchGraph.Request> input = new ConcurrentLinkedQueue<>();
-        input.add(new BreadthSearchGraph.Request(requestIdentifier, vertexIdentifier, 1));
+        input.add(new BreadthSearchGraph.Request(requestIdentifier, vertexIdentifier, 2));
 
         final AwaitResultConsumer<BreadthSearchGraph.RequestOutput> awaitConsumer =
                 new AwaitResultConsumer<>(1);

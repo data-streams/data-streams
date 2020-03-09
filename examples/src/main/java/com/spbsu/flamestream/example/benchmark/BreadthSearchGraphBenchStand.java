@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -98,9 +99,12 @@ public class BreadthSearchGraphBenchStand {
             AutoCloseable ignored = benchStandComponentFactory.producer(
                     Stream.of(new BreadthSearchGraph.Request(
                             new BreadthSearchGraph.Request.Identifier(0),
-                            new BreadthSearchGraph.VertexIdentifier(0),
-                            1
-                    ))::iterator,
+                            new BreadthSearchGraph.VertexIdentifier(51),
+                            2
+                    )).peek(request -> {
+                      LockSupport.parkNanos((long) (nextExp(1.0 / sleepBetweenDocs) * 1.0e6));
+                      latencies.put(request.identifier.id, new LatencyMeasurer());
+                    })::iterator,
                     frontPort,
                     Stream.of(inputHostId),
                     FRONT_CLASSES_TO_REGISTER
@@ -115,7 +119,7 @@ public class BreadthSearchGraphBenchStand {
                       } else {
                         return;
                       }
-                      System.out.println(output);
+                      latencies.get(output.requestIdentifier.id).finish();
                       awaitConsumer.accept(output);
                       if (awaitConsumer.got() % 10000 == 0) {
                         LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
@@ -139,7 +143,6 @@ public class BreadthSearchGraphBenchStand {
     LOG.info("Result: {}", latenciesString);
     final long[] skipped = latencies.values()
             .stream()
-            .skip(200)
             .mapToLong(l -> l.statistics().getMax())
             .toArray();
     LOG.info("Median: {}", (long) percentiles().index(50).compute(skipped));

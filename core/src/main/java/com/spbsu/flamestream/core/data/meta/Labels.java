@@ -31,10 +31,13 @@ public class Labels {
   }
 
   public Label<?> get(int index) {
-    return index < all.length ? all[index] : null;
+    if (index < all.length && all[index] != null) {
+      return all[index];
+    }
+    throw new IllegalArgumentException();
   }
 
   public boolean hasAll(LabelsPresence presence) {
-    return presence.stream().allMatch(index -> get(index) != null);
+    return presence.stream().allMatch(index -> index < all.length && all[index] != null);
   }
 }
