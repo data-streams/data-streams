@@ -9,16 +9,19 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 
-public enum SqliteOutboundEdges
-        implements SerializableFunction<BreadthSearchGraph.VertexIdentifier, List<BreadthSearchGraph.VertexIdentifier>> {
+public enum SqliteOutboundEdges implements SerializableFunction<
+        BreadthSearchGraph.VertexIdentifier,
+        Stream<BreadthSearchGraph.VertexIdentifier>
+        > {
   INSTANCE;
   final Connection connection;
 
   SqliteOutboundEdges() {
     try {
       // create a database connection
-      connection = DriverManager.getConnection("jdbc:sqlite:twitter.sqlite");
+      connection = DriverManager.getConnection("jdbc:sqlite:/Users/faucct/Code/flamestream/twitter.sqlite");
       Runtime.getRuntime().addShutdownHook(new Thread(() -> {
         try {
           connection.close();
@@ -32,7 +35,7 @@ public enum SqliteOutboundEdges
   }
 
   @Override
-  public List<BreadthSearchGraph.VertexIdentifier> apply(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
+  public Stream<BreadthSearchGraph.VertexIdentifier> apply(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
     try {
       final Statement statement = connection.createStatement();
       statement.setQueryTimeout(30);  // set timeout to 30 sec.
@@ -42,7 +45,7 @@ public enum SqliteOutboundEdges
         // read the result set
         outbound.add(new BreadthSearchGraph.VertexIdentifier(rs.getInt("head")));
       }
-      return outbound;
+      return outbound.stream();
     } catch (SQLException e) {
       throw new RuntimeException(e);
     }
