@@ -22,6 +22,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.testng.Assert.assertEquals;
 
@@ -58,7 +59,7 @@ public class MaterializerTest extends FlameAkkaSuite {
   public void testImmutableBreadthSearch() throws InterruptedException {
     final Flow<BreadthSearchGraph.Request, BreadthSearchGraph.RequestOutput> flow =
             BreadthSearchGraph.immutableFlow(vertexIdentifier11 ->
-                    Collections.singletonList(new BreadthSearchGraph.VertexIdentifier(1))
+                    Stream.of(new BreadthSearchGraph.VertexIdentifier(1))
             );
     assertEquals(Materializer.buildTrackingComponents(Materializer.buildStronglyConnectedComponents(flow)
             .get(flow.output)).entrySet().stream().collect(Collectors.groupingBy(

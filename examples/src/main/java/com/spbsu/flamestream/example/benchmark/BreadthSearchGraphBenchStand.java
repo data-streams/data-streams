@@ -1,9 +1,9 @@
 package com.spbsu.flamestream.example.benchmark;
 
 import com.spbsu.flamestream.core.DataItem;
+import com.spbsu.flamestream.example.labels.BinaryOutboundEdges;
 import com.spbsu.flamestream.example.labels.BreadthSearchGraph;
 import com.spbsu.flamestream.example.labels.Materializer;
-import com.spbsu.flamestream.example.labels.SqliteOutboundEdges;
 import com.spbsu.flamestream.runtime.edge.socket.SocketFrontType;
 import com.spbsu.flamestream.runtime.edge.socket.SocketRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitCountConsumer;
@@ -60,7 +60,7 @@ public class BreadthSearchGraphBenchStand {
     try (
             GraphDeployer graphDeployer = new FlameGraphDeployer(
                     benchStandComponentFactory.runtime(deployerConfig),
-                    Materializer.materialize(BreadthSearchGraph.immutableFlow(SqliteOutboundEdges.INSTANCE)),
+                    Materializer.materialize(BreadthSearchGraph.immutableFlow(BinaryOutboundEdges.Env.INSTANCE)),
                     new SocketFrontType(wikiBenchStand.benchHost, wikiBenchStand.frontPort, FRONT_CLASSES_TO_REGISTER),
                     new SocketRearType(wikiBenchStand.benchHost, wikiBenchStand.rearPort, REAR_CLASSES_TO_REGISTER)
             )

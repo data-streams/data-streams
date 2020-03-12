@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Stream;
 
 import static org.testng.Assert.*;
 
@@ -19,10 +20,7 @@ public class FlowFunctionTest {
     final ArrayList<BreadthSearchGraph.RequestOutput> output = new ArrayList<>();
     final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier(0);
     new FlowFunction<>(
-            BreadthSearchGraph.immutableFlow(vertexIdentifier11 -> Collections.singletonMap(
-                    vertexIdentifier,
-                    Collections.singletonList(vertexIdentifier)
-            ).getOrDefault(vertexIdentifier11, Collections.emptyList())),
+            BreadthSearchGraph.immutableFlow(vertexIdentifier11 -> Stream.empty()),
             output::add
     ).put(new BreadthSearchGraph.Request(requestIdentifier, vertexIdentifier, 1));
     assertEquals(output, Collections.singletonList(

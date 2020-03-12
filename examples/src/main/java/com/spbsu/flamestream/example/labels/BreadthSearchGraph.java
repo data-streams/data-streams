@@ -146,7 +146,7 @@ public class BreadthSearchGraph {
   }
 
   public static Flow<Request, RequestOutput> immutableFlow(
-          SerializableFunction<VertexIdentifier, List<VertexIdentifier>> vertexEdges
+          SerializableFunction<VertexIdentifier, Stream<VertexIdentifier>> vertexEdges
   ) {
     final Operator.Input<Request> requestInput = new Operator.Input<>(Request.class);
     final Operator.LabelSpawn<Request, Request.Identifier> requestLabel = requestInput
@@ -165,7 +165,7 @@ public class BreadthSearchGraph {
       if (remainingPathLength < 0) {
         return Stream.empty();
       }
-      return vertexEdges.apply(agent._1.vertexIdentifier).stream().map(vertexIdentifier -> new Agent(
+      return vertexEdges.apply(agent._1.vertexIdentifier).map(vertexIdentifier -> new Agent(
               agent._1.requestIdentifier,
               vertexIdentifier,
               remainingPathLength

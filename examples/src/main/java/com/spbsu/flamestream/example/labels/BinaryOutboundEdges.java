@@ -16,6 +16,37 @@ public final class BinaryOutboundEdges implements SerializableFunction<
         BreadthSearchGraph.VertexIdentifier,
         Stream<BreadthSearchGraph.VertexIdentifier>
         > {
+  public enum Env implements SerializableFunction<
+          BreadthSearchGraph.VertexIdentifier,
+          Stream<BreadthSearchGraph.VertexIdentifier>
+          > {
+    INSTANCE;
+
+    final BinaryOutboundEdges binaryOutboundEdges;
+
+    Env() {
+      if (System.getenv().containsKey("EDGES_REMAINDER")) {
+        try {
+          binaryOutboundEdges = new BinaryOutboundEdges(
+                  new File(System.getenv("EDGES_TAIL_FILE")),
+                  new File(System.getenv("EDGES_HEAD_FILE")),
+                  Integer.parseInt(System.getenv("EDGES_REMAINDER")),
+                  Integer.parseInt(System.getenv("EDGES_DIVISOR"))
+          );
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      } else {
+        binaryOutboundEdges = null;
+      }
+    }
+
+    @Override
+    public Stream<BreadthSearchGraph.VertexIdentifier> apply(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
+      return binaryOutboundEdges.apply(vertexIdentifier);
+    }
+  }
+
   final int[] tails, tailHeadOffsets, heads;
   private int remainder;
   private final int divisor;
