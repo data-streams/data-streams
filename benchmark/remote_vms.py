@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.7
+#!/usr/bin/env python3
 from inspect import cleandoc
 
 if __name__ == "__main__":

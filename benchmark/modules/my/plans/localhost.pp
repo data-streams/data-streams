@@ -10,7 +10,7 @@ plan my::localhost(
 
   'localhost'.apply_prep
   apply('localhost') {
-    ::ssh::client::config::user { 'nikitasokolov':
+    ::ssh::client::config::user { system::env('USER'):
       target => "${facts['home']}/.ssh/flamestream-benchmarks.config",
       ensure => present,
       options => $worker_host_private_ip.keys().map |String $host| {

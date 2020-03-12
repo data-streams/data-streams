@@ -15,8 +15,8 @@ resource "yandex_compute_instance" "manager" {
   boot_disk {
     initialize_params {
 //      image_id = "fd87va5cc00gaq2f5qfb"
-      snapshot_id = "fd8cnnga96pnrkv2kou8"
-      size = 5
+      snapshot_id = var.snapshot_id
+      size = 15
     }
   }
 
@@ -37,12 +37,12 @@ resource "yandex_compute_instance" "manager" {
 }
 
 resource "yandex_compute_instance" "worker" {
-  count = 5
+  count = 6
   boot_disk {
     initialize_params {
 //      image_id = "fd87va5cc00gaq2f5qfb"
       snapshot_id = var.snapshot_id
-      size = 5
+      size = 15
     }
   }
 
@@ -68,5 +68,5 @@ output "manager_private_ip" {
   value = yandex_compute_instance.manager.network_interface[0].ip_address
 }
 output "worker_private_ips" {
-  value = yandex_compute_instance.worker.*.network_interface[0].ip_address
+  value = yandex_compute_instance.worker.*.network_interface.0.ip_address
 }
