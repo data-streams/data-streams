@@ -37,7 +37,7 @@ resource "yandex_compute_instance" "manager" {
 }
 
 resource "yandex_compute_instance" "worker" {
-  count = 6
+  count = 5
   boot_disk {
     initialize_params {
 //      image_id = "fd87va5cc00gaq2f5qfb"

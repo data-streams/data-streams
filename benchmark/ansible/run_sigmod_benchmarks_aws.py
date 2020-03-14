@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.6
+#!/usr/bin/env python3.9
 import itertools
 import json
 import os
@@ -7,7 +7,7 @@ import os
 def run_benchmarks(rate=2., iterations=100, results_name="", bench_environment={}, worker_environment={}, **kwargs):
     extra_vars = {
         **dict(
-            parallelism=7, iterations=iterations, stream_length=50400, local_acker_flush_delay_in_millis=5,
+            parallelism=5, iterations=iterations, stream_length=50400, local_acker_flush_delay_in_millis=5,
             rate=rate,
             bench_environment={**dict(WARM_UP_STREAM_LENGTH="10080", WARM_UP_DELAY_MS="10"), **bench_environment},
             worker_environment={**dict(BARRIER_DISABLED="TRUE"), **worker_environment},
@@ -25,7 +25,7 @@ for rate in [3]:
     # run_benchmarks(results_name="tracking_frequency=0", tracking_frequency=0, tracking="disabled", rate=rate,
     #                bench_environment=dict(warm_up_stream_length=20000))
     for tracking_frequency in [1]:
-        for distributed in [False, True]:
+        for distributed in [False]:
             run_benchmarks(
                 results_name=f"tracking_frequency={tracking_frequency}/tracking=acking/distributed={distributed}",
                 tracking_frequency=tracking_frequency,
