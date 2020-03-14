@@ -1,101 +1,138 @@
 package com.spbsu.flamestream.example.labels;
 
-import com.spbsu.flamestream.core.graph.SerializableFunction;
+import com.spbsu.flamestream.core.graph.HashGroup;
+import com.spbsu.flamestream.core.graph.HashUnit;
 
 import java.io.BufferedInputStream;
+import java.io.Closeable;
 import java.io.DataInputStream;
 import java.io.EOFException;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.util.AbstractList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.RandomAccess;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-public final class BinaryOutboundEdges implements SerializableFunction<
-        BreadthSearchGraph.VertexIdentifier,
-        Stream<BreadthSearchGraph.VertexIdentifier>
-        > {
-  public enum Env implements SerializableFunction<
-          BreadthSearchGraph.VertexIdentifier,
-          Stream<BreadthSearchGraph.VertexIdentifier>
-          > {
-    INSTANCE;
+public final class BinaryOutboundEdges implements BreadthSearchGraph.HashedVertexEdges {
+  private static final int TAIL_BYTES = Integer.BYTES + Long.BYTES;
 
-    final BinaryOutboundEdges binaryOutboundEdges;
+  final int[] tails, tailHeadOffsets, heads;
+  final int minTail, maxTail;
 
-    Env() {
-      if (System.getenv().containsKey("EDGES_REMAINDER")) {
-        try {
-          binaryOutboundEdges = new BinaryOutboundEdges(
-                  new File(System.getenv("EDGES_TAIL_FILE")),
-                  new File(System.getenv("EDGES_HEAD_FILE")),
-                  Integer.parseInt(System.getenv("EDGES_REMAINDER")),
-                  Integer.parseInt(System.getenv("EDGES_DIVISOR"))
-          );
-        } catch (IOException e) {
-          throw new RuntimeException(e);
-        }
-      } else {
-        binaryOutboundEdges = null;
+  private class TailHashesList extends AbstractList<Integer> implements RandomAccess {
+    final RandomAccessFile file;
+    final int size;
+
+    private TailHashesList(File file) throws FileNotFoundException {
+      this.file = new RandomAccessFile(file, "r");
+      size = (int) (file.length() / TAIL_BYTES);
+    }
+
+    @Override
+    public Integer get(int i) {
+      try {
+        file.seek(i * TAIL_BYTES);
+        return hash(file.readInt());
+      } catch (IOException e) {
+        throw new RuntimeException(e);
       }
     }
 
     @Override
-    public Stream<BreadthSearchGraph.VertexIdentifier> apply(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
-      return binaryOutboundEdges.apply(vertexIdentifier);
+    public int size() {
+      return size;
     }
   }
 
-  final int[] tails, tailHeadOffsets, heads;
-  private int remainder;
-  private final int divisor;
+  private final class CloseableTailsIterator implements Closeable {
+    final DataInputStream input;
+    File headFile;
+    HashUnit hashUnit;
 
-  public BinaryOutboundEdges(File tailFile, File headFile, int remainder, int divisor) throws IOException {
-    this.remainder = remainder;
-    this.divisor = divisor;
-    int totalTails = 0, totalHeads = 0;
-    try (final DataInputStream tailInput = newFileDataInputStream(tailFile)) {
-      while (true) {
-        final int tail;
-        try {
-          tail = tailInput.readInt();
-        } catch (EOFException ignored) {
-          break;
-        }
-        final int tailEdges = tailInput.readInt();
-        if (tail % divisor == remainder) {
+    CloseableTailsIterator(File tailFile, File headFile, HashUnit hashUnit) throws IOException {
+      this.headFile = headFile;
+      this.hashUnit = hashUnit;
+      final int from = Collections.binarySearch(new TailHashesList(tailFile), hashUnit.from());
+      input = newBufferedFileDataInputStream(tailFile, (from < 0 ? -from + 1 : from) * TAIL_BYTES);
+    }
+
+    boolean next() throws IOException {
+      try {
+        tail = input.readInt();
+      } catch (EOFException ignored) {
+        headsOffset = headFile.length() / Integer.BYTES;
+        return false;
+      }
+      headsOffset = input.readLong();
+      return hashUnit.covers(hash(tail));
+    }
+
+    int tail;
+    long headsOffset;
+
+    @Override
+    public void close() throws IOException {
+      input.close();
+    }
+  }
+
+  public BinaryOutboundEdges(File tailFile, File headFile, HashGroup hashGroup) throws IOException {
+    try (
+            final FileInputStream tailInputFile = new FileInputStream(tailFile);
+            final DataInputStream tailInput = new DataInputStream(tailInputFile)
+    ) {
+      minTail = tailInput.readInt();
+      final int toSkip = tailInputFile.available() - TAIL_BYTES;
+      assert tailInputFile.skip(toSkip) == toSkip;
+      maxTail = tailInput.readInt();
+    }
+    int totalTails = 0;
+    int totalHeads = 0;
+    for (final HashUnit unit : hashGroup.units()) {
+      try (final CloseableTailsIterator tailIterator = new CloseableTailsIterator(tailFile, headFile, unit)) {
+        if (tailIterator.next()) {
           totalTails++;
-          totalHeads += tailEdges;
+          final long fromHeadsOffset = tailIterator.headsOffset;
+          while (tailIterator.next()) {
+            totalTails++;
+          }
+          totalHeads += tailIterator.headsOffset - fromHeadsOffset;
         }
       }
     }
-    System.out.println(totalTails);
-    System.out.println(totalHeads);
     tails = new int[totalTails];
     tailHeadOffsets = new int[totalTails];
     heads = new int[totalHeads];
-    try (
-            final DataInputStream tailInput = newFileDataInputStream(tailFile);
-            final DataInputStream headInput = newFileDataInputStream(headFile)
-    ) {
-      int tailOffset = 0;
-      int edgeOffset = 0;
-      while (true) {
-        final int tail;
-        try {
-          tail = tailInput.readInt();
-        } catch (EOFException ignored) {
-          break;
-        }
-        final int tailEdges = tailInput.readInt();
-        if (tail % divisor == remainder) {
-          tails[tailOffset] = tail;
-          tailHeadOffsets[tailOffset] = edgeOffset;
-          tailOffset++;
-          edgeOffset += tailEdges;
-        } else {
-          headInput.skipBytes(tailEdges * Integer.BYTES);
+    totalTails = totalHeads = 0;
+    for (final HashUnit unit : hashGroup.units()) {
+      try (final CloseableTailsIterator tailIterator = new CloseableTailsIterator(tailFile, headFile, unit)) {
+        if (tailIterator.next()) {
+          try (final DataInputStream headsInput = newBufferedFileDataInputStream(
+                  headFile,
+                  (long) tailIterator.headsOffset * Integer.BYTES
+          )) {
+            while (true) {
+              final long headsOffset = tailIterator.headsOffset;
+              tails[totalTails] = tailIterator.tail;
+              tailHeadOffsets[totalTails] = totalHeads;
+              totalTails++;
+              final boolean next = tailIterator.next();
+              final int tailHeads = (int) (tailIterator.headsOffset - headsOffset);
+              for (int i = 0; i < tailHeads; i++) {
+                heads[totalHeads++] = headsInput.readInt();
+              }
+              if (!next) {
+                break;
+              }
+            }
+            ;
+          }
         }
       }
     }
@@ -103,21 +140,26 @@ public final class BinaryOutboundEdges implements SerializableFunction<
 
   @Override
   public Stream<BreadthSearchGraph.VertexIdentifier> apply(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
-    assert vertexIdentifier.id % divisor == remainder;
-    final int tailOffset = Arrays.binarySearch(tails, vertexIdentifier.id);
-    if (tailOffset < 0) {
+    final int i = Arrays.binarySearch(tails, vertexIdentifier.id);
+    if (i < 0) {
       return Stream.empty();
     }
-    return IntStream.range(
-            tailHeadOffsets[tailOffset],
-            tailOffset + 1 < tailHeadOffsets.length
-                    ? tailHeadOffsets[tailOffset + 1]
-                    : tailHeadOffsets[tailHeadOffsets.length - 1]
-    ).mapToObj(index -> new BreadthSearchGraph.VertexIdentifier(heads[index]));
+    final int from = tailHeadOffsets[i], to = i + 1 < tailHeadOffsets.length ? tailHeadOffsets[i + 1] : heads.length;
+    return IntStream.range(from, to).mapToObj(index -> new BreadthSearchGraph.VertexIdentifier(heads[index]));
   }
 
-  private static DataInputStream newFileDataInputStream(File file) throws IOException {
+  @Override
+  public int hash(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
+    return hash(vertexIdentifier.id);
+  }
+
+  private int hash(int tail) {
+    return HashUnit.scale(tail, minTail, maxTail);
+  }
+
+  private static DataInputStream newBufferedFileDataInputStream(File file, long from) throws IOException {
     final FileInputStream in = new FileInputStream(file);
+    in.getChannel().position(from);
     try {
       return new DataInputStream(new BufferedInputStream(in, 1 << 20));
     } catch (Throwable throwable) {

@@ -20,7 +20,17 @@ public class FlowFunctionTest {
     final ArrayList<BreadthSearchGraph.RequestOutput> output = new ArrayList<>();
     final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier(0);
     new FlowFunction<>(
-            BreadthSearchGraph.immutableFlow(vertexIdentifier11 -> Stream.empty()),
+            BreadthSearchGraph.immutableFlow(__ -> new BreadthSearchGraph.HashedVertexEdges() {
+              @Override
+              public Stream<BreadthSearchGraph.VertexIdentifier> apply(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
+                return Stream.empty();
+              }
+
+              @Override
+              public int hash(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
+                return 0;
+              }
+            }),
             output::add
     ).put(new BreadthSearchGraph.Request(requestIdentifier, vertexIdentifier, 1));
     assertEquals(output, Collections.singletonList(
@@ -34,10 +44,20 @@ public class FlowFunctionTest {
     final ArrayList<BreadthSearchGraph.RequestOutput> output = new ArrayList<>();
     final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier(0);
     new FlowFunction<>(
-            BreadthSearchGraph.mutableFlow(Collections.singletonMap(
-                    vertexIdentifier,
-                    Collections.singletonList(vertexIdentifier)
-            )::get),
+            BreadthSearchGraph.mutableFlow(__ -> new BreadthSearchGraph.HashedVertexEdges() {
+              @Override
+              public Stream<BreadthSearchGraph.VertexIdentifier> apply(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
+                if (vertexIdentifier.id == 0) {
+                  return Stream.of(vertexIdentifier);
+                }
+                return Stream.empty();
+              }
+
+              @Override
+              public int hash(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
+                return 0;
+              }
+            }),
             output::add
     ).put(new BreadthSearchGraph.Request(requestIdentifier, vertexIdentifier, 1));
     assertEquals(output, Collections.singletonList(

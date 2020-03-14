@@ -13,6 +13,8 @@ import com.typesafe.config.ConfigFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -60,7 +62,18 @@ public class BreadthSearchGraphBenchStand {
     try (
             GraphDeployer graphDeployer = new FlameGraphDeployer(
                     benchStandComponentFactory.runtime(deployerConfig),
-                    Materializer.materialize(BreadthSearchGraph.immutableFlow(BinaryOutboundEdges.Env.INSTANCE)),
+                    Materializer.materialize(BreadthSearchGraph.immutableFlow(hashGroup ->
+                    {
+                      try {
+                        return new BinaryOutboundEdges(
+                                new File(System.getenv("EDGES_TAIL_FILE")),
+                                new File(System.getenv("EDGES_HEAD_FILE")),
+                                hashGroup
+                        );
+                      } catch (IOException e) {
+                        throw new RuntimeException(e);
+                      }
+                    })),
                     new SocketFrontType(wikiBenchStand.benchHost, wikiBenchStand.frontPort, FRONT_CLASSES_TO_REGISTER),
                     new SocketRearType(wikiBenchStand.benchHost, wikiBenchStand.rearPort, REAR_CLASSES_TO_REGISTER)
             )

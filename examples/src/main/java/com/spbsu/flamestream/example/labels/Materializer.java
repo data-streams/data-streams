@@ -58,8 +58,10 @@ public class Materializer {
     vertexTrackingComponent.put(sink, operatorTrackingComponent.get(flow.output));
     graphBuilder
             .link(source, operatorVertex(flow.input))
-            .link(operatorVertex(flow.output), sink);
-    graph = graphBuilder.build(source, sink, vertexTrackingComponent::get);
+            .link(operatorVertex(flow.output), sink)
+            .vertexTrackingComponent(vertexTrackingComponent::get)
+            .init(flow.init);
+    graph = graphBuilder.build(source, sink);
   }
 
   public static class StronglyConnectedComponent {

@@ -56,7 +56,11 @@ public abstract class Operator<Type> {
   }
 
   public <K> Keyed<Type, K> keyedBy(SerializableFunction<Type, K> keyFunction) {
-    return new Keyed<>(this, new Key<>(Collections.emptySet(), keyFunction), new Key<>(Collections.emptySet(), Objects::hashCode));
+    return new Keyed<>(
+            this,
+            new Key<>(Collections.emptySet(), keyFunction),
+            new Key<>(Collections.emptySet(), Objects::hashCode)
+    );
   }
 
   public <Output> Operator<Output> map(Class<Output> outputClass, SerializableFunction<Type, Output> mapper) {

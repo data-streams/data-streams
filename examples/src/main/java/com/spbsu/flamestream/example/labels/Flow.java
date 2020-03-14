@@ -1,11 +1,20 @@
 package com.spbsu.flamestream.example.labels;
 
-class Flow<In, Out> {
-  final Operator.Input<In> input;
-  final Operator<Out> output;
+import com.spbsu.flamestream.core.graph.HashGroup;
+import com.spbsu.flamestream.core.graph.SerializableConsumer;
 
-  Flow(Operator.Input<In> input, Operator<Out> output) {
+class Flow<In, Out> {
+  public final Operator.Input<In> input;
+  public final Operator<Out> output;
+  public final SerializableConsumer<HashGroup> init;
+
+  public Flow(Operator.Input<In> input, Operator<Out> output) {
+    this(input, output, __ -> {});
+  }
+
+  public Flow(Operator.Input<In> input, Operator<Out> output, SerializableConsumer<HashGroup> init) {
     this.input = input;
     this.output = output;
+    this.init = init;
   }
 }

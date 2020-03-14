@@ -1,5 +1,7 @@
 package com.spbsu.flamestream.example.labels;
 
+import com.spbsu.flamestream.core.graph.HashGroup;
+import com.spbsu.flamestream.core.graph.SerializableConsumer;
 import com.spbsu.flamestream.core.graph.SerializableFunction;
 import scala.Tuple2;
 import scala.collection.JavaConverters;
@@ -13,6 +15,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class BreadthSearchGraph {
@@ -141,13 +144,36 @@ public class BreadthSearchGraph {
   private static final Class<Either<Agent, VertexEdgesUpdate>> EITHER_AGENT_OR_VERTEX_EDGES_UPDATE_CLASS =
           (Class<Either<Agent, VertexEdgesUpdate>>) (Class<?>) Either.class;
 
-  public static void main(String[] args) {
-    mutableFlow(ignored -> Collections.emptyList());
+  public interface HashedVertexEdges {
+    Stream<VertexIdentifier> apply(VertexIdentifier vertexIdentifier);
+
+    int hash(VertexIdentifier vertexIdentifier);
+  }
+
+  private static final class VertexEdges
+          implements SerializableConsumer<HashGroup>, Function<VertexIdentifier, Stream<VertexIdentifier>> {
+    final SerializableFunction<HashGroup, HashedVertexEdges> initializer;
+    transient HashedVertexEdges initialized;
+
+    private VertexEdges(SerializableFunction<HashGroup, HashedVertexEdges> initializer) {
+      this.initializer = initializer;
+    }
+
+    @Override
+    public void accept(HashGroup hashGroup) {
+      initialized = initializer.apply(hashGroup);
+    }
+
+    @Override
+    public Stream<VertexIdentifier> apply(VertexIdentifier vertexIdentifier) {
+      return initialized.apply(vertexIdentifier);
+    }
   }
 
   public static Flow<Request, RequestOutput> immutableFlow(
-          SerializableFunction<VertexIdentifier, Stream<VertexIdentifier>> vertexEdges
+          SerializableFunction<HashGroup, HashedVertexEdges> vertexEdgesSupplier
   ) {
+    final VertexEdges vertexEdges = new VertexEdges(vertexEdgesSupplier);
     final Operator.Input<Request> requestInput = new Operator.Input<>(Request.class);
     final Operator.LabelSpawn<Request, Request.Identifier> requestLabel = requestInput
             .spawnLabel(Request.Identifier.class, request -> request.identifier);
@@ -175,8 +201,9 @@ public class BreadthSearchGraph {
   }
 
   public static Flow<Input, RequestOutput> mutableFlow(
-          Function<VertexIdentifier, List<VertexIdentifier>> vertexEdges
+          SerializableFunction<HashGroup, HashedVertexEdges> vertexEdgesSupplier
   ) {
+    final VertexEdges vertexEdges = new VertexEdges(vertexEdgesSupplier);
     final Operator.Input<Input> requestInput = new Operator.Input<>(Input.class);
     final Operator.LabelSpawn<Request, Request.Identifier> requestLabel = requestInput.flatMap(
             Request.class,
@@ -196,7 +223,7 @@ public class BreadthSearchGraph {
               if (either.isLeft()) {
                 final Agent agent = either.left().get();
                 if (edges == null) {
-                  edges = vertexEdges.apply(agent.vertexIdentifier);
+                  edges = vertexEdges.apply(agent.vertexIdentifier).collect(Collectors.toList());
                 }
                 final int remainingPathLength = agent.remainingPathLength - 1;
                 if (remainingPathLength < 0) {
@@ -211,7 +238,7 @@ public class BreadthSearchGraph {
                 return new Tuple2<>(either.right().get().targets, Stream.empty());
               }
             }, Collections.singleton(requestLabel)));
-    return new Flow<>(requestInput, output(agentAndActionAfterVisit, requestLabel));
+    return new Flow<>(requestInput, output(agentAndActionAfterVisit, requestLabel), vertexEdges);
   }
 
   private static Operator<Tuple2<Agent, Agent.ActionAfterVisit>> agentAndActionAfterVisit(

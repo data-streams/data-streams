@@ -9,11 +9,8 @@ import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitResultConsumer;
 import org.testng.annotations.Test;
-import scala.util.Either;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -58,9 +55,17 @@ public class MaterializerTest extends FlameAkkaSuite {
   @Test
   public void testImmutableBreadthSearch() throws InterruptedException {
     final Flow<BreadthSearchGraph.Request, BreadthSearchGraph.RequestOutput> flow =
-            BreadthSearchGraph.immutableFlow(vertexIdentifier11 ->
-                    Stream.of(new BreadthSearchGraph.VertexIdentifier(1))
-            );
+            BreadthSearchGraph.immutableFlow(__ -> new BreadthSearchGraph.HashedVertexEdges() {
+              @Override
+              public Stream<BreadthSearchGraph.VertexIdentifier> apply(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
+                return Stream.of(new BreadthSearchGraph.VertexIdentifier(1));
+              }
+
+              @Override
+              public int hash(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
+                return 0;
+              }
+            });
     assertEquals(Materializer.buildTrackingComponents(Materializer.buildStronglyConnectedComponents(flow)
             .get(flow.output)).entrySet().stream().collect(Collectors.groupingBy(
             Map.Entry::getValue,
@@ -94,7 +99,17 @@ public class MaterializerTest extends FlameAkkaSuite {
   @Test
   public void testMutableBreadthSearch() {
     final Flow<BreadthSearchGraph.Input, BreadthSearchGraph.RequestOutput> flow =
-            BreadthSearchGraph.mutableFlow(__ -> Collections.emptyList());
+            BreadthSearchGraph.mutableFlow(__ -> new BreadthSearchGraph.HashedVertexEdges() {
+              @Override
+              public Stream<BreadthSearchGraph.VertexIdentifier> apply(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
+                return Stream.empty();
+              }
+
+              @Override
+              public int hash(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
+                return 0;
+              }
+            });
     assertEquals(
             Materializer.buildTrackingComponents(Materializer.buildStronglyConnectedComponents(flow).get(flow.output))
                     .entrySet().stream().collect(Collectors.groupingBy(
