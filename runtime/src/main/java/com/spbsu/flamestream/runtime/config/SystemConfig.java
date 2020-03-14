@@ -52,7 +52,7 @@ public class SystemConfig {
       public Enumerated(String prefix, int ackersNumber) {
         this.prefix = prefix;
         master = prefix + 0;
-        ackers = IntStream.range(1, ackersNumber + 1).mapToObj(index -> prefix + index).collect(Collectors.toList());
+        ackers = IntStream.range(0, ackersNumber + 1).mapToObj(index -> prefix + index).collect(Collectors.toList());
       }
 
       @Override
