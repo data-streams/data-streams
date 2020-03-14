@@ -255,6 +255,7 @@ public class ProcessingWatcher extends LoggingActor {
     public Receive createReceive() {
       return ReceiveBuilder.create()
               .match(Graph.class, graph -> {
+                graph.init(hashGroup);
                 graph.components().forEach(vertexStream -> vertexStream.forEach(vertex -> {
                   if (vertex instanceof FlameMap) {
                     ((FlameMap) vertex).init(hashGroup);
