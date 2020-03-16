@@ -3,6 +3,7 @@ package com.spbsu.flamestream.example.labels;
 import com.spbsu.flamestream.core.graph.HashGroup;
 import com.spbsu.flamestream.core.graph.SerializableConsumer;
 import com.spbsu.flamestream.core.graph.SerializableFunction;
+import com.spbsu.flamestream.core.graph.SerializableToIntFunction;
 import scala.Tuple2;
 import scala.collection.JavaConverters;
 import scala.collection.immutable.Vector;
@@ -168,6 +169,10 @@ public class BreadthSearchGraph {
     public Stream<VertexIdentifier> apply(VertexIdentifier vertexIdentifier) {
       return initialized.apply(vertexIdentifier);
     }
+
+    int hash(VertexIdentifier vertexIdentifier) {
+      return initialized.hash(vertexIdentifier);
+    }
   }
 
   public static Flow<Request, RequestOutput> immutableFlow(
@@ -182,7 +187,7 @@ public class BreadthSearchGraph {
             new Agent(request.identifier, request.vertexIdentifier, request.pathLength)
     ));
     final Operator<Tuple2<Agent, Agent.ActionAfterVisit>> agentAndActionAfterVisit =
-            agentAndActionAfterVisit(agentInput, requestLabel);
+            agentAndActionAfterVisit(agentInput, requestLabel, vertexEdges);
     agentInput.link(agentAndActionAfterVisit.flatMap(Agent.class, agent -> {
       if (agent._2 == Agent.ActionAfterVisit.Stop) {
         return Stream.empty();
@@ -216,7 +221,7 @@ public class BreadthSearchGraph {
     final Operator.Input<Either<Agent, VertexEdgesUpdate>> vertexEdgesInput =
             new Operator.Input<>(EITHER_AGENT_OR_VERTEX_EDGES_UPDATE_CLASS);
     final Operator<Tuple2<Agent, Agent.ActionAfterVisit>> agentAndActionAfterVisit =
-            agentAndActionAfterVisit(agentInput, requestLabel);
+            agentAndActionAfterVisit(agentInput, requestLabel, vertexEdges);
     agentInput.link(vertexEdgesInput
             .keyedBy(either -> either.isLeft() ? either.left().get().vertexIdentifier : either.right().get().source)
             .statefulFlatMap(Agent.class, (Either<Agent, VertexEdgesUpdate> either, List<VertexIdentifier> edges) -> {
@@ -243,12 +248,16 @@ public class BreadthSearchGraph {
 
   private static Operator<Tuple2<Agent, Agent.ActionAfterVisit>> agentAndActionAfterVisit(
           Operator.Input<Agent> agentInput,
-          Operator.LabelSpawn<Request, Request.Identifier> requestLabel
+          Operator.LabelSpawn<Request, Request.Identifier> requestLabel,
+          VertexEdges vertexEdges
   ) {
     return agentInput
             .keyedBy(
                     new Operator.Key<>(Collections.singleton(requestLabel), agent -> agent.vertexIdentifier),
-                    new Operator.Key<>(Collections.emptySet(), Object::hashCode)
+                    new Operator.Key<SerializableToIntFunction<VertexIdentifier>>(
+                            Collections.emptySet(),
+                            vertexEdges::hash
+                    )
             )
             .statefulMap(AGENT_WITH_ACTION_AFTER_VISIT_CLASS, (Agent agent, Integer remainingPathLength) -> {
               final Agent.ActionAfterVisit actionAfterVisit;

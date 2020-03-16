@@ -7,6 +7,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class HashGroup {
   public static HashGroup EMPTY = new HashGroup(Collections.emptySet());
@@ -43,6 +44,11 @@ public class HashGroup {
     }
     final HashGroup hashGroup = (HashGroup) o;
     return Objects.equals(units, hashGroup.units);
+  }
+
+  @Override
+  public String toString() {
+    return "{" + units.stream().map(Objects::toString).collect(Collectors.joining(", ")) + "}";
   }
 
   @Override

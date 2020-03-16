@@ -24,6 +24,7 @@ public final class BinaryOutboundEdges implements BreadthSearchGraph.HashedVerte
 
   final int[] tails, tailHeadOffsets, heads;
   final int minTail, maxTail;
+  private final HashGroup hashGroup;
 
   private class TailHashesList extends AbstractList<Integer> implements RandomAccess {
     final RandomAccessFile file;
@@ -83,6 +84,7 @@ public final class BinaryOutboundEdges implements BreadthSearchGraph.HashedVerte
   }
 
   public BinaryOutboundEdges(File tailFile, File headFile, HashGroup hashGroup) throws IOException {
+    this.hashGroup = hashGroup;
     try (
             final FileInputStream tailInputFile = new FileInputStream(tailFile);
             final DataInputStream tailInput = new DataInputStream(tailInputFile)
@@ -141,6 +143,8 @@ public final class BinaryOutboundEdges implements BreadthSearchGraph.HashedVerte
 
   @Override
   public Stream<BreadthSearchGraph.VertexIdentifier> apply(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
+    if (!hashGroup.covers(hash(vertexIdentifier)))
+      throw new IllegalArgumentException(hashGroup + " " + vertexIdentifier.id);
     final int i = Arrays.binarySearch(tails, vertexIdentifier.id);
     if (i < 0) {
       return Stream.empty();
