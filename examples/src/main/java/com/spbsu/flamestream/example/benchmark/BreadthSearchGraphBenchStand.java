@@ -129,7 +129,7 @@ public class BreadthSearchGraphBenchStand {
                             new BreadthSearchGraph.VertexIdentifier(allTails[random.nextInt(allTails.length)]),
                             2
                     )).peek(request -> {
-                      System.out.println("produced " + request.identifier.id);
+                      System.out.println("produced " + request.identifier.id + " " + request.vertexIdentifier.id);
                       LockSupport.parkNanos((long) (nextExp(1.0 / sleepBetweenDocs) * 1.0e6));
                       latencies.put(request.identifier.id, new LatencyMeasurer());
                     })::iterator,
