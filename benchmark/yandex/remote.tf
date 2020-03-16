@@ -17,12 +17,13 @@ resource "yandex_compute_instance" "manager" {
 //      image_id = "fd87va5cc00gaq2f5qfb"
       snapshot_id = var.snapshot_id
       size = 15
+      type = "network-nvme"
     }
   }
 
   resources {
     cores  = 1
-    memory = 2
+    memory = 4
   }
   metadata = {
     ssh-keys = "ubuntu:${file("~/.ssh/id_rsa.pub")}"
@@ -43,12 +44,13 @@ resource "yandex_compute_instance" "worker" {
 //      image_id = "fd87va5cc00gaq2f5qfb"
       snapshot_id = var.snapshot_id
       size = 15
+      type = "network-nvme"
     }
   }
 
   resources {
     cores  = 1
-    memory = 2
+    memory = 4
   }
   metadata = {
     ssh-keys = "ubuntu:${file("~/.ssh/id_rsa.pub")}"
