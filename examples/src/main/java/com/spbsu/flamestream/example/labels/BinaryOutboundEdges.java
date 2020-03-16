@@ -88,8 +88,7 @@ public final class BinaryOutboundEdges implements BreadthSearchGraph.HashedVerte
             final DataInputStream tailInput = new DataInputStream(tailInputFile)
     ) {
       minTail = tailInput.readInt();
-      final int toSkip = tailInputFile.available() - TAIL_BYTES;
-      assert tailInputFile.skip(toSkip) == toSkip;
+      tailInputFile.getChannel().position(tailInputFile.getChannel().size() - TAIL_BYTES);
       maxTail = tailInput.readInt();
     }
     System.out.println("minTail " + minTail + ", maxTail " + maxTail);
