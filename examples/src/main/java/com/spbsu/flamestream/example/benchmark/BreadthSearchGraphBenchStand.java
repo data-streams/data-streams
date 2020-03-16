@@ -86,19 +86,13 @@ public class BreadthSearchGraphBenchStand {
   private static final Logger LOG = LoggerFactory.getLogger(BreadthSearchGraphBenchStand.class);
 
   private final int sleepBetweenDocs;
-  private final String wikiDumpPath;
-  private final String validatorClass;
   public final String benchHost;
-  private final String inputHost;
   public final int frontPort;
   public final int rearPort;
 
   public BreadthSearchGraphBenchStand(Config benchConfig) {
     sleepBetweenDocs = benchConfig.getInt("sleep-between-docs-ms");
-    wikiDumpPath = benchConfig.getString("wiki-dump-path");
-    validatorClass = benchConfig.getString("validator");
     benchHost = benchConfig.getString("bench-host");
-    inputHost = benchConfig.getString("input-host");
     frontPort = benchConfig.getInt("bench-source-port");
     rearPort = benchConfig.getInt("bench-sink-port");
   }
