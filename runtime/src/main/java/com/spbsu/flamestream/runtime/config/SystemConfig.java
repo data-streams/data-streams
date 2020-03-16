@@ -33,13 +33,13 @@ public class SystemConfig {
 
     List<String> ackers(List<String> ids);
 
-    default Map<String, HashGroup> hashGroups(Collection<String> ids) {
-      final List<HashGroup> covering = HashUnit.covering((int) ids.stream().count())
+    default Map<String, HashGroup> hashGroups(List<String> ids) {
+      final List<HashGroup> covering = HashUnit.covering(ids.size() - 1)
               .map(Collections::singleton)
               .map(HashGroup::new)
               .collect(Collectors.toList());
       final Map<String, HashGroup> ranges = new HashMap<>();
-      ids.forEach(s -> ranges.put(s, covering.remove(0)));
+      ids.forEach(s -> ranges.put(s, s.equals(master(ids)) ? HashGroup.EMPTY : covering.remove(0)));
       assert covering.isEmpty();
       return ranges;
     }
@@ -66,7 +66,7 @@ public class SystemConfig {
       }
 
       @Override
-      public Map<String, HashGroup> hashGroups(Collection<String> ids) {
+      public Map<String, HashGroup> hashGroups(List<String> ids) {
         final HashGroup empty = new HashGroup(Collections.emptySet());
         final HashMap<String, HashGroup> all = new HashMap<>();
         final int skip = 1 + ackers.size();
