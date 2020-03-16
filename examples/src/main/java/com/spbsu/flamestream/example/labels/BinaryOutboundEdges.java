@@ -106,6 +106,7 @@ public final class BinaryOutboundEdges implements BreadthSearchGraph.HashedVerte
         }
       }
     }
+    System.out.println("totalTails " + totalTails + ", totalHeads " + totalHeads);
     tails = new int[totalTails];
     tailHeadOffsets = new int[totalTails];
     heads = new int[totalHeads];
