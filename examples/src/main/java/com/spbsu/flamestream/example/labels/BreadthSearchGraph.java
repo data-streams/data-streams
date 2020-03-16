@@ -197,7 +197,7 @@ public class BreadthSearchGraph {
               remainingPathLength
       ));
     }));
-    return new Flow<>(requestInput, output(agentAndActionAfterVisit, requestLabel));
+    return new Flow<>(requestInput, output(agentAndActionAfterVisit, requestLabel), vertexEdges);
   }
 
   public static Flow<Input, RequestOutput> mutableFlow(
