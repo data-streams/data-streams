@@ -1,7 +1,7 @@
 package com.spbsu.flamestream.example.benchmark;
 
 import com.spbsu.flamestream.core.DataItem;
-import com.spbsu.flamestream.example.labels.BinaryOutboundEdges;
+import com.spbsu.flamestream.example.labels.BinarySocialGraph;
 import com.spbsu.flamestream.example.labels.BreadthSearchGraph;
 import com.spbsu.flamestream.example.labels.Materializer;
 import com.spbsu.flamestream.runtime.edge.socket.SocketFrontType;
@@ -26,6 +26,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static com.google.common.math.Quantiles.percentiles;
@@ -35,6 +36,19 @@ import static com.google.common.math.Quantiles.percentiles;
  * Date: 28.12.2017
  */
 public class BreadthSearchGraphBenchStand {
+  private static final BinarySocialGraph binarySocialGraph;
+
+  static {
+    try {
+      binarySocialGraph = new BinarySocialGraph(
+              new File(System.getenv("EDGES_TAIL_FILE")),
+              new File(System.getenv("EDGES_HEAD_FILE"))
+      );
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+  }
+
   public static final Class<?>[] FRONT_CLASSES_TO_REGISTER = {
           com.spbsu.flamestream.example.labels.BreadthSearchGraph.Request.class,
           com.spbsu.flamestream.example.labels.BreadthSearchGraph.Request.Identifier.class,
@@ -65,11 +79,7 @@ public class BreadthSearchGraphBenchStand {
                     Materializer.materialize(BreadthSearchGraph.immutableFlow(hashGroup ->
                     {
                       try {
-                        return new BinaryOutboundEdges(
-                                new File(System.getenv("EDGES_TAIL_FILE")),
-                                new File(System.getenv("EDGES_HEAD_FILE")),
-                                hashGroup
-                        );
+                        return binarySocialGraph.new BinaryOutboundEdges(hashGroup);
                       } catch (IOException e) {
                         throw new RuntimeException(e);
                       }
@@ -99,14 +109,22 @@ public class BreadthSearchGraphBenchStand {
 
   public void run(GraphDeployer graphDeployer, String inputHostId) throws Exception {
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
-
-    final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(1);
+    final int requestsNumber = 1000;
+    final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(requestsNumber);
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
+    final int[] allTails = new int[binarySocialGraph.size()];
+    try (final BinarySocialGraph.CloseableTailsIterator tails = binarySocialGraph.new CloseableTailsIterator()) {
+      int i = 0;
+      while (tails.next()) {
+        allTails[i++] = tails.vertex();
+      }
+    }
+    final Random random = new Random(0);
     try (
             AutoCloseable ignored = benchStandComponentFactory.producer(
-                    Stream.of(new BreadthSearchGraph.Request(
-                            new BreadthSearchGraph.Request.Identifier(0),
-                            new BreadthSearchGraph.VertexIdentifier(51),
+                    IntStream.range(0, requestsNumber).mapToObj(requestId -> new BreadthSearchGraph.Request(
+                            new BreadthSearchGraph.Request.Identifier(requestId),
+                            new BreadthSearchGraph.VertexIdentifier(allTails[random.nextInt(allTails.length)]),
                             2
                     )).peek(request -> {
                       LockSupport.parkNanos((long) (nextExp(1.0 / sleepBetweenDocs) * 1.0e6));

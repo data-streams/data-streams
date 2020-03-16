@@ -9,7 +9,12 @@ def run_benchmarks(rate=2., iterations=100, results_name="", bench_environment={
         **dict(
             parallelism=5, iterations=iterations, stream_length=50400, local_acker_flush_delay_in_millis=5,
             rate=rate,
-            bench_environment={**dict(WARM_UP_STREAM_LENGTH="10080", WARM_UP_DELAY_MS="10"), **bench_environment},
+            bench_environment={**dict(
+                EDGES_TAIL_FILE='/home/ubuntu/tail_head_offset.bin',
+                EDGES_HEAD_FILE='/home/ubuntu/edge_head.bin',
+                WARM_UP_STREAM_LENGTH="10080",
+                WARM_UP_DELAY_MS="10",
+            ), **bench_environment},
             worker_environment={**dict(), **worker_environment},
         ),
         **kwargs
