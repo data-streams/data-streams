@@ -1,4 +1,9 @@
 ---
+- name: Run the benchmark
+  hosts: bench
+  roles:
+    - { role: flamestream-acker-bench-post }
+
 - name: Destroy flamestream
   hosts: "workers[0:{{ parallelism|int - 1 }}]"
   roles:

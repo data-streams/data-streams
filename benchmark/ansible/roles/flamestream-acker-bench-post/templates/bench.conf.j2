@@ -1,0 +1,23 @@
+benchmark {
+  bench-host = "{{ groups['bench'][0] }}"
+  input-host = "{{ groups['workers'][0] }}"
+  bench-source-port = 4567
+  bench-sink-port = 5678
+
+  sleep-between-docs-ms = {{ rate }}
+  stream-length = {{ stream_length }}
+  parallelism = {{ parallelism }}
+  worker-id-prefix = "flamestream-benchmarks-worker-"
+  tracking {
+    {% if tracking == "acking" %}
+    class = "com.spbsu.flamestream.example.benchmark.WatermarksVsAckerBenchStand$TrackingFactory$Acking"
+    ackersNumber = {{ ackers_number }}
+    {% elif tracking == "watermarking" %}
+    class = "com.spbsu.flamestream.example.benchmark.WatermarksVsAckerBenchStand$TrackingFactory$Watermarking"
+    frequency = {{ tracking_frequency }}
+    {% elif tracking == "disabled" %}
+    class = "com.spbsu.flamestream.example.benchmark.WatermarksVsAckerBenchStand$TrackingFactory$Disabled"
+    {% endif %}
+  }
+  iterations = {{ iterations }}
+}

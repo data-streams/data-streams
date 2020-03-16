@@ -26,3 +26,8 @@
     - { role: flamestream-worker }
   environment:
     PATH: "/usr/lib/jvm/java-8-oracle/jre/bin/:{{ ansible_env.PATH }}"
+
+- name: Run the benchmark
+  hosts: bench
+  roles:
+    - { role: flamestream-acker-bench-pre }

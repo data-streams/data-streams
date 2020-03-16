@@ -60,6 +60,7 @@ public class BreadthSearchGraphBenchStand {
           ArrayList.class,
           long[].class
   };
+  private final int streamLength;
 
   public static void main(String[] args) throws Exception {
     final Config benchConfig;
@@ -101,6 +102,7 @@ public class BreadthSearchGraphBenchStand {
   public final int rearPort;
 
   public BreadthSearchGraphBenchStand(Config benchConfig) {
+    streamLength = benchConfig.getInt("stream-length");
     sleepBetweenDocs = benchConfig.getInt("sleep-between-docs-ms");
     benchHost = benchConfig.getString("bench-host");
     frontPort = benchConfig.getInt("bench-source-port");
@@ -109,7 +111,7 @@ public class BreadthSearchGraphBenchStand {
 
   public void run(GraphDeployer graphDeployer, String inputHostId) throws Exception {
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
-    final int requestsNumber = 1000;
+    final int requestsNumber = streamLength;
     final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(requestsNumber);
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
     final int[] allTails = new int[binarySocialGraph.size()];

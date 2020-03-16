@@ -7,7 +7,7 @@ import os
 def run_benchmarks(rate=2., iterations=100, results_name="", bench_environment={}, worker_environment={}, **kwargs):
     extra_vars = {
         **dict(
-            parallelism=5, iterations=iterations, stream_length=50400, local_acker_flush_delay_in_millis=5,
+            parallelism=5, iterations=iterations, stream_length=1, local_acker_flush_delay_in_millis=5,
             rate=rate,
             bench_environment={**dict(
                 EDGES_TAIL_FILE='/home/ubuntu/tail_head_offset.bin',
@@ -27,8 +27,7 @@ def run_benchmarks(rate=2., iterations=100, results_name="", bench_environment={
     flamestream_dir = "/home/ubuntu/flamestream"
     os.system(
       "ssh flamestream-benchmarks-manager 'PATH=/usr/lib/jvm/java-8-oracle/jre/bin/:$PATH' " \
-      'EDGES_TAIL_FILE=/home/ubuntu/tail_head_offset.bin ' \
-      'EDGES_HEAD_FILE=/home/ubuntu/edge_head.bin ' \
+      'EDGES_TAIL_FILE=/home/ubuntu/tail_head_offset.bin EDGES_HEAD_FILE=/home/ubuntu/edge_head.bin ' \
       "java -Daeron.term.buffer.length=4194304 -Daeron.mtu.length=16384 " \
       "-Xms500m -Xmx500m -XX:+PrintGC -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps " \
       "-XX:+HeapDumpOnOutOfMemoryError -cp \\'flamestream/lib/*\\' " \
