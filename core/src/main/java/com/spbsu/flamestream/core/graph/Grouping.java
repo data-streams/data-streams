@@ -11,9 +11,18 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 
 public class Grouping<T> extends HashingVertexStub {
+  private static final LongAdder tombstonesNumber = new LongAdder();
+
+  static {
+    Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+      System.out.println("tombstonesNumber " + tombstonesNumber.intValue());
+    }));
+  }
+
   private final HashFunction hash;
   private final Equalz equalz;
   private final int window;
@@ -148,6 +157,9 @@ public class Grouping<T> extends HashingVertexStub {
     }
 
     private PayloadDataItem bucketWindow(InvalidatingBucket bucket, int left, int right, boolean areTombs) {
+      if (areTombs) {
+        tombstonesNumber.increment();
+      }
       final List<T> groupingResult = new ArrayList<>();
       //noinspection unchecked
       bucket.forRange(left, right, dataItem -> groupingResult.add(dataItem.payload((Class<T>) clazz)));
