@@ -92,9 +92,11 @@ public final class BinaryOutboundEdges implements BreadthSearchGraph.HashedVerte
       assert tailInputFile.skip(toSkip) == toSkip;
       maxTail = tailInput.readInt();
     }
+    System.out.println("minTail " + minTail + ", maxTail " + maxTail);
     int totalTails = 0;
     int totalHeads = 0;
     for (final HashUnit unit : hashGroup.units()) {
+      System.out.println(unit);
       try (final CloseableTailsIterator tailIterator = new CloseableTailsIterator(tailFile, headFile, unit)) {
         if (tailIterator.next()) {
           totalTails++;
