@@ -1,0 +1,28 @@
+---
+- name: Deliver flamestream artifacts
+  hosts: all
+  roles:
+    - { role: flamestream-common  }
+
+- name: Stop workers
+  hosts: workers
+  tasks:
+    - shell: "cd {{ flamestream_dir }} && bash entrypoint.sh stop"
+
+- name: Setup zookeeper
+  hosts: manager
+  roles:
+    - { role: zookeeper  }
+
+- hosts: all
+  tasks:
+  - file:
+      state: absent
+      path: /tmp/acker.txt
+
+- name: Init workers
+  hosts: "workers[0:{{ parallelism|int - 1 }}]"
+  roles:
+    - { role: flamestream-worker }
+  environment:
+    PATH: "/usr/lib/jvm/java-8-oracle/jre/bin/:{{ ansible_env.PATH }}"

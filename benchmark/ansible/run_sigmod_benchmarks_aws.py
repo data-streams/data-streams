@@ -21,8 +21,22 @@ def run_benchmarks(rate=2., iterations=100, results_name="", bench_environment={
     }
     print(extra_vars)
     results_name = f"sigmod.07.29/iterations={iterations}/rate={rate}/{results_name}"
-    return os.system(
-        f"ansible-playbook --extra-vars '{json.dumps(dict(**extra_vars, results_name=results_name))}' -i remote.yml flamestream.yml"
+    os.system(
+        f"ansible-playbook --extra-vars '{json.dumps(dict(**extra_vars, results_name=results_name))}' -i remote.yml flamestream_pre.yml"
+    )
+    flamestream_dir = "/home/ubuntu/flamestream"
+    os.system(
+      "ssh flamestream-benchmarks-manager 'PATH=/usr/lib/jvm/java-8-oracle/jre/bin/:$PATH' " \
+      'EDGES_TAIL_FILE=/home/ubuntu/tail_head_offset.bin ' \
+      'EDGES_HEAD_FILE=/home/ubuntu/edge_head.bin ' \
+      "java -Daeron.term.buffer.length=4194304 -Daeron.mtu.length=16384 " \
+      "-Xms500m -Xmx500m -XX:+PrintGC -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps " \
+      "-XX:+HeapDumpOnOutOfMemoryError -cp \\'flamestream/lib/*\\' " \
+      "com.spbsu.flamestream.example.benchmark.BreadthSearchGraphBenchStand "\
+      "flamestream/bench.conf flamestream/deployer.conf"
+    )
+    os.system(
+        f"ansible-playbook --extra-vars '{json.dumps(dict(**extra_vars, results_name=results_name))}' -i remote.yml flamestream_post.yml"
     )
 
 
