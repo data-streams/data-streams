@@ -127,6 +127,7 @@ public class BreadthSearchGraphBenchStand {
                             new BreadthSearchGraph.VertexIdentifier(allTails[random.nextInt(allTails.length)]),
                             2
                     )).peek(request -> {
+                      System.out.println("produced " + request.identifier.id);
                       LockSupport.parkNanos((long) (nextExp(1.0 / sleepBetweenDocs) * 1.0e6));
                       latencies.put(request.identifier.id, new LatencyMeasurer());
                     })::iterator,
@@ -144,6 +145,7 @@ public class BreadthSearchGraphBenchStand {
                       } else {
                         return;
                       }
+                      System.out.println("consumed " + output.requestIdentifier.id);
                       latencies.get(output.requestIdentifier.id).finish();
                       awaitConsumer.accept(output);
                       if (awaitConsumer.got() % 10000 == 0) {
