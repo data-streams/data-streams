@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -126,6 +125,26 @@ public class Materializer {
     }
   }
 
+  private static class StatefulMapGroupingEqualz<Key> implements Equalz {
+    final LabelsPresence labels;
+    final SerializableFunction<DataItem, Key> dataItemKey;
+
+    private StatefulMapGroupingEqualz(LabelsPresence labels, SerializableFunction<DataItem, Key> dataItemKey) {
+      this.labels = labels;
+      this.dataItemKey = dataItemKey;
+    }
+
+    @Override
+    public LabelsPresence labels() {
+      return labels;
+    }
+
+    @Override
+    public boolean testPayloads(DataItem o1, DataItem o2) {
+      return Objects.equals(dataItemKey.apply(o1), dataItemKey.apply(o2));
+    }
+  }
+
   <In, Key, S, Out> Graph.Vertex processStatefulMap(Operator.StatefulMap<In, Key, S, Out> statefulMap) {
     @SuppressWarnings("unchecked") final Class<Tuple2<Grouped<Key, In, S>, Stream<Out>>> tupleClass =
             (Class<Tuple2<Grouped<Key, In, S>, Stream<Out>>>) (Class<?>) Tuple2.class;
@@ -151,17 +170,7 @@ public class Materializer {
                     statefulMap.keyed.hash.function.applyAsInt(dataItemKey.apply(dataItem)),
                     dataItem.labels()
             ),
-            new Equalz() {
-              @Override
-              public LabelsPresence labels() {
-                return keyLabelsPresence;
-              }
-
-              @Override
-              public boolean testPayloads(DataItem o1, DataItem o2) {
-                return Objects.equals(dataItemKey.apply(o1), dataItemKey.apply(o2));
-              }
-            },
+            new StatefulMapGroupingEqualz<>(keyLabelsPresence, dataItemKey),
             2,
             groupedClass
     );
