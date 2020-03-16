@@ -147,7 +147,7 @@ public class BreadthSearchGraphBenchStand {
                       } else {
                         return;
                       }
-                      System.out.println("consumed " + output.requestIdentifier.id);
+                      System.out.println("consumed " + output.requestIdentifier.id + " " + output.vertexIdentifier.size());
                       latencies.get(output.requestIdentifier.id).finish();
                       awaitConsumer.accept(output);
                       if (awaitConsumer.got() % 10000 == 0) {
