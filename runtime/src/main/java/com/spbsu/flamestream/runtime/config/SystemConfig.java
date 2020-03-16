@@ -52,7 +52,7 @@ public class SystemConfig {
       public Enumerated(String prefix, int ackersNumber) {
         this.prefix = prefix;
         master = prefix + 0;
-        ackers = IntStream.range(0, ackersNumber + 1).mapToObj(index -> prefix + index).collect(Collectors.toList());
+        ackers = IntStream.range(0, ackersNumber).mapToObj(index -> prefix + index).collect(Collectors.toList());
       }
 
       @Override
@@ -69,7 +69,7 @@ public class SystemConfig {
       public Map<String, HashGroup> hashGroups(List<String> ids) {
         final HashGroup empty = new HashGroup(Collections.emptySet());
         final HashMap<String, HashGroup> all = new HashMap<>();
-        final int skip = 1 + ackers.size();
+        final int skip = ackers.size();
         final int total = ids.size();
         final List<Set<HashUnit>> collect = HashUnit.covering(total - skip)
                 .map(Collections::singleton)
