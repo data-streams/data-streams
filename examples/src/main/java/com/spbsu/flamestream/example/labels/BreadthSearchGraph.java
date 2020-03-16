@@ -161,16 +161,11 @@ public class BreadthSearchGraph {
 
     @Override
     public void accept(HashGroup hashGroup) {
-      System.out.println("initializing " + this);
       initialized = initializer.apply(hashGroup);
-      System.out.println("initialized " + this);
     }
 
     @Override
     public Stream<VertexIdentifier> apply(VertexIdentifier vertexIdentifier) {
-      if (initialized == null) {
-        System.out.println("not initialized " + this);
-      }
       return initialized.apply(vertexIdentifier);
     }
   }
