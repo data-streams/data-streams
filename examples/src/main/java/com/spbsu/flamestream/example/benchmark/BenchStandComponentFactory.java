@@ -98,6 +98,7 @@ public class BenchStandComponentFactory {
           return;
         }
         String id = (String) received;
+        System.out.println("connected " + id);
         if (remotes.contains(id) && !connections.containsKey(id)) {
           LOG.info("Accepting connection: {}", id);
           connections.put(id, connection);
