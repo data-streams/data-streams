@@ -12,6 +12,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 public abstract class Operator<Type> {
@@ -33,34 +34,59 @@ public abstract class Operator<Type> {
     return new LabelSpawn<>(this, label, mapper);
   }
 
-  public <K> Keyed<Type, K> keyedBy(
-          Key<SerializableFunction<Type, K>> key,
-          Key<SerializableToIntFunction<K>> hash
+  enum DefaultOrder {
+    Instance
+  }
+
+  <K> KeyedBuilder<K, DefaultOrder> newKeyedBuilder(SerializableFunction<Type, K> key) {
+    return new KeyedBuilder<>(key, __ -> DefaultOrder.Instance);
+  }
+
+  <K, O extends Comparable<O>> KeyedBuilder<K, O> newKeyedBuilder(
+          SerializableFunction<Type, K> key, SerializableFunction<Type, O> order
   ) {
-    return new Keyed<>(this, key, hash);
+    return new KeyedBuilder<>(key, order);
   }
 
-  public <K> Keyed<Type, K> keyedBy(
-          Set<LabelSpawn<?, ?>> keyLabels,
-          SerializableFunction<Type, K> keyFunction
-  ) {
-    return new Keyed<>(
-            this,
-            new Key<>(keyLabels, keyFunction),
-            new Key<>(keyLabels, Objects::hashCode)
-    );
-  }
+  public class KeyedBuilder<K, O extends Comparable<O>> {
+    final SerializableFunction<Type, K> keyFunction;
+    final Function<Type, O> order;
+    private SerializableToIntFunction<K> hashFunction = Objects::hashCode;
+    private Set<LabelSpawn<?, ?>> keyLabels = Collections.emptySet(), hashLabels = Collections.emptySet();
+    private boolean orderedByProcessingTime = false;
 
-  public <K> Keyed<Type, Void> keyedBy(Set<LabelSpawn<?, ?>> keyLabels) {
-    return new Keyed<>(this, new Key<>(keyLabels, __ -> null), new Key<>(keyLabels, Objects::hashCode));
-  }
+    private KeyedBuilder(SerializableFunction<Type, K> key, SerializableFunction<Type, O> order) {
+      this.keyFunction = key;
+      this.order = order;
+    }
 
-  public <K> Keyed<Type, K> keyedBy(SerializableFunction<Type, K> keyFunction) {
-    return new Keyed<>(
-            this,
-            new Key<>(Collections.emptySet(), keyFunction),
-            new Key<>(Collections.emptySet(), Objects::hashCode)
-    );
+    public KeyedBuilder<K, O> hashFunction(SerializableToIntFunction<K> hashFunction) {
+      this.hashFunction = hashFunction;
+      return this;
+    }
+
+    public KeyedBuilder<K, O> orderedByProcessingTime(boolean orderedByProcessingTime) {
+      this.orderedByProcessingTime = orderedByProcessingTime;
+      return this;
+    }
+
+    public Operator<Type> operator() {
+      return Operator.this;
+    }
+
+    public KeyedBuilder<K, O> keyLabels(Set<LabelSpawn<?, ?>> keyLabels) {
+      this.keyLabels = keyLabels;
+      return this;
+    }
+
+    public KeyedBuilder<K, O> hashLabels(Set<LabelSpawn<?, ?>> hashLabels) {
+      this.hashLabels = hashLabels;
+      return this;
+    }
+
+    Keyed<Type, K, O> build() {
+      return new Keyed<>(this);
+    }
   }
 
   public <Output> Operator<Output> map(Class<Output> outputClass, SerializableFunction<Type, Output> mapper) {
@@ -97,29 +123,19 @@ public abstract class Operator<Type> {
     }
   }
 
-  public static final class Keyed<Source, K> {
+  public static final class Keyed<Source, K, O extends Comparable<O>> {
     public final Operator<Source> source;
+    public final Function<Source, O> order;
     public final Key<SerializableFunction<Source, K>> key;
     public final Key<SerializableToIntFunction<K>> hash;
+    public final boolean orderedByProcessingTime;
 
-    public Keyed(
-            Operator<Source> source,
-            final Key<SerializableFunction<Source, K>> key,
-            final Key<SerializableToIntFunction<K>> hash
-    ) {
-      this.key = key;
-      this.hash = hash;
-      for (final LabelSpawn<?, ?> label : key.labels) {
-        if (!source.labels.contains(label)) {
-          throw new IllegalArgumentException(label.toString());
-        }
-      }
-      for (final LabelSpawn<?, ?> label : hash.labels) {
-        if (!key.labels.contains(label)) {
-          throw new IllegalArgumentException(label.toString());
-        }
-      }
-      this.source = source;
+    public Keyed(Operator<Source>.KeyedBuilder<K, O> builder) {
+      source = builder.operator();
+      order = builder.order;
+      key = new Key<>(builder.keyLabels, builder.keyFunction);
+      hash = new Key<>(builder.hashLabels, builder.hashFunction);
+      orderedByProcessingTime = builder.orderedByProcessingTime;
     }
 
     public <S, Output> Operator<Output> statefulMap(
@@ -199,12 +215,12 @@ public abstract class Operator<Type> {
     }
   }
 
-  public static final class StatefulMap<In, Key, S, Out> extends Operator<Out> {
-    public final Keyed<In, Key> keyed;
+  public static final class StatefulMap<In, Key, O extends Comparable<O>, S, Out> extends Operator<Out> {
+    public final Keyed<In, Key, O> keyed;
     public final SerializableBiFunction<In, S, Tuple2<S, Stream<Out>>> reducer;
 
     public StatefulMap(
-            Keyed<In, Key> keyed,
+            Keyed<In, Key, O> keyed,
             Set<LabelSpawn<?, ?>> labels,
             Class<Out> outClass,
             SerializableBiFunction<In, S, Tuple2<S, Stream<Out>>> reducer

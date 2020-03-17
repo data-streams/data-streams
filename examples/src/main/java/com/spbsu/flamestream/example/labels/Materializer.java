@@ -10,6 +10,7 @@ import com.spbsu.flamestream.core.graph.Grouping;
 import com.spbsu.flamestream.core.graph.LabelMarkers;
 import com.spbsu.flamestream.core.graph.LabelSpawn;
 import com.spbsu.flamestream.core.graph.SerializableBiFunction;
+import com.spbsu.flamestream.core.graph.SerializableComparator;
 import com.spbsu.flamestream.core.graph.SerializableFunction;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
@@ -83,7 +84,7 @@ public class Materializer {
     } else if (operator instanceof Operator.Map) {
       return processMap((Operator.Map<?, ?>) operator);
     } else if (operator instanceof Operator.StatefulMap) {
-      return processStatefulMap((Operator.StatefulMap<?, ?, ?, ?>) operator);
+      return processStatefulMap((Operator.StatefulMap<?, ?, ?, ?, ?>) operator);
     } else if (operator instanceof Operator.LabelSpawn) {
       return processLabelSpawn((Operator.LabelSpawn<?, ?>) operator);
     } else if (operator instanceof Operator.LabelMarkers) {
@@ -111,14 +112,16 @@ public class Materializer {
     return flameMap;
   }
 
-  private static final class Grouped<Key, Item, State> {
+  private static final class Grouped<Key, Order, Item, State> {
     final Key key;
+    final Order order;
     final Item item;
     final State state;
     final boolean isState;
 
-    private Grouped(Key key, Item item, State state, boolean isState) {
+    private Grouped(Key key, Order order, Item item, State state, boolean isState) {
       this.key = key;
+      this.order = order;
       this.item = item;
       this.state = state;
       this.isState = isState;
@@ -145,18 +148,24 @@ public class Materializer {
     }
   }
 
-  <In, Key, S, Out> Graph.Vertex processStatefulMap(Operator.StatefulMap<In, Key, S, Out> statefulMap) {
-    @SuppressWarnings("unchecked") final Class<Tuple2<Grouped<Key, In, S>, Stream<Out>>> tupleClass =
-            (Class<Tuple2<Grouped<Key, In, S>, Stream<Out>>>) (Class<?>) Tuple2.class;
+  <In, Key, O extends Comparable<O>, S, Out> Graph.Vertex processStatefulMap(Operator.StatefulMap<In, Key, O, S, Out> statefulMap) {
+    @SuppressWarnings("unchecked") final Class<Tuple2<Grouped<Key, O, In, S>, Stream<Out>>> tupleClass =
+            (Class<Tuple2<Grouped<Key, O, In, S>, Stream<Out>>>) (Class<?>) Tuple2.class;
     final Class<In> inClass = statefulMap.keyed.source.typeClass;
-    @SuppressWarnings("unchecked") final Class<Grouped<Key, In, S>> groupedClass =
-            (Class<Grouped<Key, In, S>>) (Class<?>) Grouped.class;
+    @SuppressWarnings("unchecked") final Class<Grouped<Key, O, In, S>> groupedClass =
+            (Class<Grouped<Key, O, In, S>>) (Class<?>) Grouped.class;
     final LabelsPresence
             keyLabelsPresence = labelsPresence(statefulMap.keyed.key.labels),
             hashLabelsPresence = labelsPresence(statefulMap.keyed.hash.labels);
-    final FlameMap<In, Grouped<Key, In, S>> source =
+    final FlameMap<In, Grouped<Key, O, In, S>> source =
             new FlameMap.Builder<>((In input) -> Stream.of(
-                    new Grouped<>(statefulMap.keyed.key.function.apply(input), input, (S) null, false)
+                    new Grouped<>(
+                            statefulMap.keyed.key.function.apply(input),
+                            statefulMap.keyed.order.apply(input),
+                            input,
+                            (S) null,
+                            false
+                    )
             ), inClass)
                     .hashFunction(dataItem -> hashLabelsPresence.hash(
                             statefulMap.keyed.hash.function.applyAsInt(statefulMap.keyed.key.function.apply(
@@ -165,7 +174,7 @@ public class Materializer {
                             dataItem.labels()
                     )).build();
     final SerializableFunction<DataItem, Key> dataItemKey = dataItem -> dataItem.payload(groupedClass).key;
-    final Grouping<Grouped<Key, In, S>> grouping = new Grouping<>(
+    final Grouping<Grouped<Key, O, In, S>> grouping = new Grouping<>(new Grouping.Builder(
             dataItem -> hashLabelsPresence.hash(
                     statefulMap.keyed.hash.function.applyAsInt(dataItemKey.apply(dataItem)),
                     dataItem.labels()
@@ -173,24 +182,24 @@ public class Materializer {
             new StatefulMapGroupingEqualz<>(keyLabelsPresence, dataItemKey),
             2,
             groupedClass
-    );
-    final SerializableBiFunction<S, Grouped<Key, In, S>, Tuple2<Grouped<Key, In, S>, Stream<Out>>> reduce =
+    ).order(SerializableComparator.comparing(dataItem -> dataItem.payload(groupedClass).order)));
+    final SerializableBiFunction<S, Grouped<Key, O, In, S>, Tuple2<Grouped<Key, O, In, S>, Stream<Out>>> reduce =
             (state, in) -> {
               final Tuple2<S, Stream<Out>> result = statefulMap.reducer.apply(in.item, state);
-              return new Tuple2<>(new Grouped<>(in.key, in.item, result._1, true), result._2);
+              return new Tuple2<>(new Grouped<>(in.key, in.order, in.item, result._1, true), result._2);
             };
-    final FlameMap<List<Grouped<Key, In, S>>, Tuple2<Grouped<Key, In, S>, Stream<Out>>> reducer =
-            new FlameMap.Builder<>((List<Grouped<Key, In, S>> items) -> {
+    final FlameMap<List<Grouped<Key, O, In, S>>, Tuple2<Grouped<Key, O, In, S>, Stream<Out>>> reducer =
+            new FlameMap.Builder<>((List<Grouped<Key, O, In, S>> items) -> {
               switch (items.size()) {
                 case 1: {
-                  final Grouped<Key, In, S> in = items.get(0);
+                  final Grouped<Key, O, In, S> in = items.get(0);
                   if (!in.isState) {
                     return Stream.of(reduce.apply(null, in));
                   }
                   return Stream.empty();
                 }
                 case 2: {
-                  final Grouped<Key, In, S> state = items.get(0), in = items.get(1);
+                  final Grouped<Key, O, In, S> state = items.get(0), in = items.get(1);
                   if (state.isState && !in.isState) {
                     return Stream.of(reduce.apply(state.state, in));
                   }
@@ -200,13 +209,13 @@ public class Materializer {
                   throw new IllegalStateException("Group size should be 1 or 2");
               }
             }, List.class).build();
-    final FlameMap<Tuple2<Grouped<Key, In, S>, Stream<Out>>, Grouped<Key, In, S>> regrouper =
+    final FlameMap<Tuple2<Grouped<Key, O, In, S>, Stream<Out>>, Grouped<Key, O, In, S>> regrouper =
             new FlameMap.Builder<>(
-                    (Tuple2<Grouped<Key, In, S>, Stream<Out>> item1) -> Stream.of(item1._1),
+                    (Tuple2<Grouped<Key, O, In, S>, Stream<Out>> item1) -> Stream.of(item1._1),
                     tupleClass
             ).build();
-    final FlameMap<Tuple2<Grouped<Key, In, S>, Stream<Out>>, Out> sink =
-            new FlameMap.Builder<>((Tuple2<Grouped<Key, In, S>, Stream<Out>> item) -> item._2, tupleClass).build();
+    final FlameMap<Tuple2<Grouped<Key, O, In, S>, Stream<Out>>, Out> sink =
+            new FlameMap.Builder<>((Tuple2<Grouped<Key, O, In, S>, Stream<Out>> item) -> item._2, tupleClass).build();
     cachedOperatorVertex.put(statefulMap, sink);
     final TrackingComponent trackingComponent = operatorTrackingComponent.get(statefulMap);
     vertexTrackingComponent.put(source, trackingComponent);
@@ -338,7 +347,7 @@ public class Materializer {
             } else if (operator instanceof Operator.Map) {
               inboundOperators = Collections.singleton(((Operator.Map<?, ?>) operator).source);
             } else if (operator instanceof Operator.StatefulMap) {
-              inboundOperators = Collections.singleton(((Operator.StatefulMap<?, ?, ?, ?>) operator).keyed.source);
+              inboundOperators = Collections.singleton(((Operator.StatefulMap<?, ?, ?, ?, ?>) operator).keyed.source);
             } else if (operator instanceof Operator.LabelSpawn) {
               inboundOperators = Collections.singleton(((Operator.LabelSpawn<?, ?>) operator).source);
             } else if (operator instanceof Operator.LabelMarkers) {

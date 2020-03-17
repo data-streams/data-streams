@@ -51,8 +51,9 @@ public class FlowFunction<FlowInput, FlowOutput> {
 
     private <L> void changeLabelTrackerCount(Record<?> record, int diff, LabelTracker<?, L> labelTracker) {
       final Label<L> label = record.labels.get(labelTracker.labelMarkers.labelSpawn);
-      if (label != null)
+      if (label != null) {
         labelTracker.change(label, diff);
+      }
     }
 
     abstract void handle(Record<? extends Input> record);
@@ -118,7 +119,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
       return materializeMap((Operator.Map<?, Output>) operator);
     }
     if (operator instanceof Operator.StatefulMap) {
-      return materializeReduce(((Operator.StatefulMap<?, ?, ?, Output>) operator));
+      return materializeReduce(((Operator.StatefulMap<?, ?, ?, ?, Output>) operator));
     }
     if (operator instanceof Operator.LabelSpawn) {
       return materializeLabelSpawn(((Operator.LabelSpawn<Output, ?>) operator));
@@ -151,8 +152,9 @@ public class FlowFunction<FlowInput, FlowOutput> {
         final Stream<Out> result = map.mapper.apply(in.value);
         final boolean hasLabels = in.labels.hasAll(map.labels);
         result.map(out -> {
-          if (!hasLabels)
+          if (!hasLabels) {
             throw new IllegalArgumentException();
+          }
           return new Record<>(out, in.labels);
         }).forEach(this::emit);
       }
@@ -162,7 +164,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
     return materialized;
   }
 
-  private <In, Key, S, Out> Materialized<?, Out> materializeReduce(Operator.StatefulMap<In, Key, S, Out> statefulMap) {
+  private <In, Key, O extends Comparable<O>, S, Out> Materialized<?, Out> materializeReduce(Operator.StatefulMap<In, Key, O, S, Out> statefulMap) {
     final Map<Tuple2<Key, Labels>, S> keyState = new HashMap<>();
     final Function<In, Key> keyFunction =
             statefulMap.keyed.key.function == null ? ignored -> null : statefulMap.keyed.key.function;
@@ -226,7 +228,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
       } else if (operator instanceof Operator.Map) {
         trackLabels(labelTracker, ((Operator.Map<?, Value>) operator).source);
       } else if (operator instanceof Operator.StatefulMap) {
-        trackLabels(labelTracker, ((Operator.StatefulMap<?, ?, ?, Value>) operator).keyed.source);
+        trackLabels(labelTracker, ((Operator.StatefulMap<?, ?, ?, ?, Value>) operator).keyed.source);
       } else if (operator instanceof Operator.LabelSpawn) {
         trackLabels(labelTracker, ((Operator.LabelSpawn<Value, ?>) operator).source);
       } else if (operator instanceof Operator.LabelMarkers) {
@@ -240,7 +242,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
   private static class Record<Value> {
     final Value value;
     final Labels labels;
-  
+
     public Record(Value value, Labels labels) {
       this.value = value;
       this.labels = labels;
@@ -249,16 +251,16 @@ public class FlowFunction<FlowInput, FlowOutput> {
 
   private static class Labels {
     private final Map<Operator.LabelSpawn<?, ?>, Label<?>> all;
-  
+
     public static class Entry<Value> {
       public final Operator.LabelSpawn<?, Value> aClass;
       public final Label<? extends Value> value;
-  
+
       public Entry(Operator.LabelSpawn<?, Value> aClass, Label<? extends Value> value) {
         this.aClass = aClass;
         this.value = value;
       }
-  
+
       @Override
       public boolean equals(Object obj) {
         if (obj == null) {
@@ -266,28 +268,28 @@ public class FlowFunction<FlowInput, FlowOutput> {
         }
         return obj.equals(aClass);
       }
-  
+
       @Override
       public int hashCode() {
         return aClass.hashCode();
       }
     }
-  
+
     public static final Labels EMPTY = new Labels(Collections.emptySet());
-  
+
     public Labels(Set<Entry<?>> entries) {
       all = entries.stream().collect(Collectors.toMap(entry -> entry.aClass, entry -> entry.value));
     }
-  
+
     private Labels(Map<Operator.LabelSpawn<?, ?>, Label<?>> all) {
       this.all = all;
     }
-  
+
     @Override
     public int hashCode() {
       return all.hashCode();
     }
-  
+
     @Override
     public boolean equals(Object obj) {
       if (obj == null) {
@@ -295,26 +297,28 @@ public class FlowFunction<FlowInput, FlowOutput> {
       }
       return obj.equals(all);
     }
-  
+
     public <Value> Labels added(Operator.LabelSpawn<?, Value> valueClass, Label<Value> value) {
       final HashMap<Operator.LabelSpawn<?, ?>, Label<?>> added = new HashMap<>(all);
       added.put(valueClass, value);
       return new Labels(added);
     }
-  
+
     @Nullable
     <Value> Label<Value> get(Operator.LabelSpawn<?, Value> aClass) {
       return (Label<Value>) all.get(aClass);
     }
-  
-    @Nullable <Value> Entry<Value> entry(Operator.LabelSpawn<?, Value> aClass) {
+
+    @Nullable
+    <Value> Entry<Value> entry(Operator.LabelSpawn<?, Value> aClass) {
       return new Entry<>(aClass, (Label<Value>) all.get(aClass));
     }
-  
+
     public boolean hasAll(Set<Operator.LabelSpawn<?, ?>> classes) {
       for (final Operator.LabelSpawn<?, ?> aClass : classes) {
-        if (!all.containsKey(aClass))
+        if (!all.containsKey(aClass)) {
           return false;
+        }
       }
       return true;
     }

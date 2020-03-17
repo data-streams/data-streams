@@ -3,7 +3,6 @@ package com.spbsu.flamestream.example.labels;
 import com.spbsu.flamestream.core.graph.HashGroup;
 import com.spbsu.flamestream.core.graph.SerializableConsumer;
 import com.spbsu.flamestream.core.graph.SerializableFunction;
-import com.spbsu.flamestream.core.graph.SerializableToIntFunction;
 import scala.Tuple2;
 import scala.collection.JavaConverters;
 import scala.collection.immutable.Vector;
@@ -222,8 +221,9 @@ public class BreadthSearchGraph {
             new Operator.Input<>(EITHER_AGENT_OR_VERTEX_EDGES_UPDATE_CLASS);
     final Operator<Tuple2<Agent, Agent.ActionAfterVisit>> agentAndActionAfterVisit =
             agentAndActionAfterVisit(agentInput, requestLabel, vertexEdges);
-    agentInput.link(vertexEdgesInput
-            .keyedBy(either -> either.isLeft() ? either.left().get().vertexIdentifier : either.right().get().source)
+    agentInput.link(vertexEdgesInput.newKeyedBuilder(
+            either1 -> either1.isLeft() ? either1.left().get().vertexIdentifier : either1.right().get().source
+    ).build()
             .statefulFlatMap(Agent.class, (Either<Agent, VertexEdgesUpdate> either, List<VertexIdentifier> edges) -> {
               if (either.isLeft()) {
                 final Agent agent = either.left().get();
@@ -251,14 +251,8 @@ public class BreadthSearchGraph {
           Operator.LabelSpawn<Request, Request.Identifier> requestLabel,
           VertexEdges vertexEdges
   ) {
-    return agentInput
-            .keyedBy(
-                    new Operator.Key<>(Collections.singleton(requestLabel), agent -> agent.vertexIdentifier),
-                    new Operator.Key<SerializableToIntFunction<VertexIdentifier>>(
-                            Collections.emptySet(),
-                            vertexEdges::hash
-                    )
-            )
+    return agentInput.newKeyedBuilder(agent -> agent.vertexIdentifier, agent -> -agent.remainingPathLength)
+            .keyLabels(Collections.singleton(requestLabel)).hashFunction(vertexEdges::hash).build()
             .statefulMap(AGENT_WITH_ACTION_AFTER_VISIT_CLASS, (Agent agent, Integer remainingPathLength) -> {
               final Agent.ActionAfterVisit actionAfterVisit;
               if (remainingPathLength == null) {
@@ -291,20 +285,24 @@ public class BreadthSearchGraph {
                     .labelMarkers(requestLabel)
                     .map(PROGRESS_CLASS, Right::apply)
     );
-    return output.keyedBy(Collections.singleton(requestLabel)).statefulFlatMap(
-            OUTPUT_CLASS,
-            (Either<VertexIdentifier, Request.Identifier> in, Vector<VertexIdentifier> state) -> {
-              if (state == null) {
-                state = Vector$.MODULE$.empty();
-              }
-              if (in.isLeft()) {
-                return new Tuple2<>(state.appendBack(in.left().get()), Stream.empty());
-              } else {
-                return new Tuple2<>(null, Stream.of(new RequestOutput(in.right().get(), scalaStreamToJava(state))));
-              }
-            },
-            Collections.singleton(requestLabel)
-    );
+    return output.newKeyedBuilder(__ -> null).keyLabels(Collections.singleton(requestLabel))
+            .hashLabels(Collections.singleton(requestLabel)).build().statefulFlatMap(
+                    OUTPUT_CLASS,
+                    (Either<VertexIdentifier, Request.Identifier> in, Vector<VertexIdentifier> state) -> {
+                      if (state == null) {
+                        state = Vector$.MODULE$.empty();
+                      }
+                      if (in.isLeft()) {
+                        return new Tuple2<>(state.appendBack(in.left().get()), Stream.empty());
+                      } else {
+                        return new Tuple2<>(
+                                null,
+                                Stream.of(new RequestOutput(in.right().get(), scalaStreamToJava(state)))
+                        );
+                      }
+                    },
+                    Collections.singleton(requestLabel)
+            );
   }
 
   private static <T> List<T> scalaStreamToJava(scala.collection.immutable.Vector<T> scalaStream) {
