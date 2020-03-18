@@ -3,6 +3,7 @@ package com.spbsu.flamestream.example.labels;
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.Equalz;
 import com.spbsu.flamestream.core.Graph;
+import com.spbsu.flamestream.core.HashFunction;
 import com.spbsu.flamestream.core.TrackingComponent;
 import com.spbsu.flamestream.core.data.meta.LabelsPresence;
 import com.spbsu.flamestream.core.graph.FlameMap;
@@ -12,6 +13,7 @@ import com.spbsu.flamestream.core.graph.LabelSpawn;
 import com.spbsu.flamestream.core.graph.SerializableBiFunction;
 import com.spbsu.flamestream.core.graph.SerializableComparator;
 import com.spbsu.flamestream.core.graph.SerializableFunction;
+import com.spbsu.flamestream.core.graph.SerializableToIntFunction;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import org.jetbrains.annotations.NotNull;
@@ -105,7 +107,16 @@ public class Materializer {
   }
 
   <In, Out> Graph.Vertex processMap(Operator.Map<In, Out> map) {
-    final FlameMap<In, Out> flameMap = new FlameMap.Builder<>(map.mapper::apply, map.source.typeClass).build();
+    final HashFunction hashFunction;
+    if (Operator.Broadcast.Instance == map.hash) {
+      hashFunction = HashFunction.Broadcast.INSTANCE;
+    } else if (map.hash != null) {
+      hashFunction = hashFunction(dataItem -> dataItem.payload(map.source.typeClass), map.hash);
+    } else {
+      hashFunction = null;
+    }
+    final FlameMap<In, Out> flameMap =
+            new FlameMap.Builder<>(map.mapper, map.source.typeClass).hashFunction(hashFunction).build();
     cachedOperatorVertex.put(map, flameMap);
     vertexTrackingComponent.put(flameMap, operatorTrackingComponent.get(map));
     graphBuilder.link(operatorVertex(map.source), flameMap);
@@ -148,37 +159,37 @@ public class Materializer {
     }
   }
 
+  public <K> HashFunction hashFunction(
+          SerializableFunction<DataItem, K> function, Operator.Hashing<? super K> key
+  ) {
+    final LabelsPresence labelsPresence = labelsPresence(key.labels());
+    return dataItem -> labelsPresence.hash(key.applyAsInt(function.apply(dataItem)), dataItem.labels());
+  }
+
   <In, Key, O extends Comparable<O>, S, Out> Graph.Vertex processStatefulMap(Operator.StatefulMap<In, Key, O, S, Out> statefulMap) {
     @SuppressWarnings("unchecked") final Class<Tuple2<Grouped<Key, O, In, S>, Stream<Out>>> tupleClass =
             (Class<Tuple2<Grouped<Key, O, In, S>, Stream<Out>>>) (Class<?>) Tuple2.class;
     final Class<In> inClass = statefulMap.keyed.source.typeClass;
     @SuppressWarnings("unchecked") final Class<Grouped<Key, O, In, S>> groupedClass =
             (Class<Grouped<Key, O, In, S>>) (Class<?>) Grouped.class;
-    final LabelsPresence
-            keyLabelsPresence = labelsPresence(statefulMap.keyed.key.labels),
-            hashLabelsPresence = labelsPresence(statefulMap.keyed.hash.labels);
+    final LabelsPresence keyLabelsPresence = labelsPresence(statefulMap.keyed.key.labels());
     final FlameMap<In, Grouped<Key, O, In, S>> source =
             new FlameMap.Builder<>((In input) -> Stream.of(
                     new Grouped<>(
-                            statefulMap.keyed.key.function.apply(input),
+                            statefulMap.keyed.key.function().apply(input),
                             statefulMap.keyed.order.apply(input),
                             input,
                             (S) null,
                             false
                     )
             ), inClass)
-                    .hashFunction(dataItem -> hashLabelsPresence.hash(
-                            statefulMap.keyed.hash.function.applyAsInt(statefulMap.keyed.key.function.apply(
-                                    dataItem.payload(inClass)
-                            )),
-                            dataItem.labels()
+                    .hashFunction(hashFunction(
+                            dataItem -> statefulMap.keyed.key.function().apply(dataItem.payload(inClass)),
+                            statefulMap.keyed.hash
                     )).build();
     final SerializableFunction<DataItem, Key> dataItemKey = dataItem -> dataItem.payload(groupedClass).key;
     final Grouping<Grouped<Key, O, In, S>> grouping = new Grouping<>(new Grouping.Builder(
-            dataItem -> hashLabelsPresence.hash(
-                    statefulMap.keyed.hash.function.applyAsInt(dataItemKey.apply(dataItem)),
-                    dataItem.labels()
-            ),
+            hashFunction(dataItemKey, statefulMap.keyed.hash),
             new StatefulMapGroupingEqualz<>(keyLabelsPresence, dataItemKey),
             2,
             groupedClass

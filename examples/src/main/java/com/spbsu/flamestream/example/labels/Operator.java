@@ -34,6 +34,26 @@ public abstract class Operator<Type> {
     return new LabelSpawn<>(this, label, mapper);
   }
 
+  public class MapBuilder<Output> {
+    final Class<Output> outputClass;
+    final SerializableFunction<Type, Stream<Output>> mapper;
+    Hashing<? super Type> hash;
+
+    public MapBuilder(Class<Output> outputClass, SerializableFunction<Type, Stream<Output>> mapper) {
+      this.outputClass = outputClass;
+      this.mapper = mapper;
+    }
+
+    public MapBuilder<Output> hash(Hashing<? super Type> hash) {
+      this.hash = hash;
+      return this;
+    }
+
+    public Map<Type, Output> build() {
+      return new Map<>(Operator.this, this);
+    }
+  }
+
   enum DefaultOrder {
     Instance
   }
@@ -90,14 +110,14 @@ public abstract class Operator<Type> {
   }
 
   public <Output> Operator<Output> map(Class<Output> outputClass, SerializableFunction<Type, Output> mapper) {
-    return new Map<>(labels, this, outputClass, in -> Stream.of(mapper.apply(in)));
+    return new MapBuilder<>(outputClass, in -> Stream.of(mapper.apply(in))).build();
   }
 
   public <Output> Operator<Output> flatMap(
           Class<Output> outputClass,
           SerializableFunction<Type, Stream<Output>> mapper
   ) {
-    return new Map<>(labels, this, outputClass, mapper);
+    return new MapBuilder<>(outputClass, mapper).build();
   }
 
   public Operator<Type> filter(SerializablePredicate<Type> predicate) {
@@ -108,18 +128,26 @@ public abstract class Operator<Type> {
     return new LabelMarkers<>(lClass, this);
   }
 
-  public static class Key<K> {
-    public final Set<LabelSpawn<?, ?>> labels;
-    public final K function;
-
-    public Key(Set<LabelSpawn<?, ?>> labels, K function) {
-      this.labels = labels;
-      this.function = function;
+  public interface Hashing<T> extends SerializableToIntFunction<T> {
+    default Set<LabelSpawn<?, ?>> labels() {
+      return Collections.emptySet();
     }
+  }
 
-    public Key(K function) {
-      this.labels = Collections.emptySet();
-      this.function = function;
+  public interface Key<F> {
+    F function();
+
+    default Set<LabelSpawn<?, ?>> labels() {
+      return Collections.emptySet();
+    }
+  }
+
+  public enum Broadcast implements Hashing<Object> {
+    Instance;
+
+    @Override
+    public int applyAsInt(Object o) {
+      throw new UnsupportedOperationException();
     }
   }
 
@@ -127,14 +155,34 @@ public abstract class Operator<Type> {
     public final Operator<Source> source;
     public final Function<Source, O> order;
     public final Key<SerializableFunction<Source, K>> key;
-    public final Key<SerializableToIntFunction<K>> hash;
+    public final Hashing<? super K> hash;
     public final boolean orderedByProcessingTime;
 
     public Keyed(Operator<Source>.KeyedBuilder<K, O> builder) {
       source = builder.operator();
       order = builder.order;
-      key = new Key<>(builder.keyLabels, builder.keyFunction);
-      hash = new Key<>(builder.hashLabels, builder.hashFunction);
+      key = new Key<SerializableFunction<Source, K>>() {
+        @Override
+        public Set<LabelSpawn<?, ?>> labels() {
+          return builder.keyLabels;
+        }
+
+        @Override
+        public SerializableFunction<Source, K> function() {
+          return builder.keyFunction;
+        }
+      };
+      hash = new Hashing<K>() {
+        @Override
+        public Set<LabelSpawn<?, ?>> labels() {
+          return builder.hashLabels;
+        }
+
+        @Override
+        public int applyAsInt(K key) {
+          return builder.hashFunction.applyAsInt(key);
+        }
+      };
       orderedByProcessingTime = builder.orderedByProcessingTime;
     }
 
@@ -202,6 +250,7 @@ public abstract class Operator<Type> {
   public static final class Map<In, Out> extends Operator<Out> {
     public final SerializableFunction<In, Stream<Out>> mapper;
     public final Operator<In> source;
+    public final Hashing<? super In> hash;
 
     public Map(
             Set<LabelSpawn<?, ?>> labels,
@@ -212,6 +261,14 @@ public abstract class Operator<Type> {
       super(outClass, labels);
       this.source = source;
       this.mapper = mapper;
+      hash = null;
+    }
+
+    public Map(Operator<In> source, Operator<In>.MapBuilder<Out> builder) {
+      super(builder.outputClass, source.labels);
+      this.source = source;
+      mapper = builder.mapper;
+      hash = builder.hash;
     }
   }
 

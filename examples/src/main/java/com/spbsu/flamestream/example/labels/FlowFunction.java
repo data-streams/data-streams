@@ -167,7 +167,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
   private <In, Key, O extends Comparable<O>, S, Out> Materialized<?, Out> materializeReduce(Operator.StatefulMap<In, Key, O, S, Out> statefulMap) {
     final Map<Tuple2<Key, Labels>, S> keyState = new HashMap<>();
     final Function<In, Key> keyFunction =
-            statefulMap.keyed.key.function == null ? ignored -> null : statefulMap.keyed.key.function;
+            statefulMap.keyed.key.function() == null ? ignored -> null : statefulMap.keyed.key.function();
     final Materialized<In, Out> materialized = new Materialized<In, Out>() {
       @Override
       public void handle(Record<? extends In> in) {

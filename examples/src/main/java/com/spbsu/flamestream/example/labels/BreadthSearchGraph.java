@@ -286,9 +286,11 @@ public class BreadthSearchGraph {
       return Stream.empty();
     }));
     output.link(
-            agentAndActionAfterVisit
-                    .labelMarkers(requestLabel)
-                    .map(PROGRESS_CLASS, Right::apply)
+            agentAndActionAfterVisit.labelMarkers(requestLabel)
+                    .new MapBuilder<Either<VertexIdentifier, Request.Identifier>>(
+                    PROGRESS_CLASS,
+                    b -> Stream.of(Right.apply(b))
+            ).hash(Operator.Broadcast.Instance).build()
     );
     return output.newKeyedBuilder(__ -> null).keyLabels(Collections.singleton(requestLabel))
             .hashLabels(Collections.singleton(requestLabel)).build().statefulFlatMap(
