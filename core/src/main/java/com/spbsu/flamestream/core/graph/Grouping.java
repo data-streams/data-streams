@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 
 public class Grouping<T> extends HashingVertexStub {
-  private static ConcurrentHashMap<Class<?>, LongAdder> classTombstonesNumber = new ConcurrentHashMap<>();
+  private static ConcurrentHashMap<Object, LongAdder> classTombstonesNumber = new ConcurrentHashMap<>();
 
   static {
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -159,7 +159,7 @@ public class Grouping<T> extends HashingVertexStub {
 
     private PayloadDataItem bucketWindow(InvalidatingBucket bucket, int left, int right, boolean areTombs) {
       if (areTombs) {
-        classTombstonesNumber.computeIfAbsent(clazz, __ -> new LongAdder()).increment();
+        classTombstonesNumber.computeIfAbsent(this, __ -> new LongAdder()).increment();
       }
       final List<T> groupingResult = new ArrayList<>();
       //noinspection unchecked
