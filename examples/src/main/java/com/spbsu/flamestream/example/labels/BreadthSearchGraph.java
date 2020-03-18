@@ -256,7 +256,7 @@ public class BreadthSearchGraph {
           Operator.LabelSpawn<Request, Request.Identifier> requestLabel,
           VertexEdges vertexEdges
   ) {
-    return agentInput.newKeyedBuilder(agent -> agent.vertexIdentifier, agent -> -agent.remainingPathLength)
+    return agentInput.newKeyedBuilder(agent -> agent.vertexIdentifier)
             .keyLabels(Collections.singleton(requestLabel)).hashFunction(vertexEdges::hash).build()
             .statefulMap(AGENT_WITH_ACTION_AFTER_VISIT_CLASS, (Agent agent, Integer remainingPathLength) -> {
               final Agent.ActionAfterVisit actionAfterVisit;
