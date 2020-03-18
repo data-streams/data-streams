@@ -6,8 +6,6 @@ import com.spbsu.flamestream.core.graph.SerializableConsumer;
 import com.spbsu.flamestream.core.graph.SerializableFunction;
 import scala.Tuple2;
 import scala.collection.JavaConverters;
-import scala.collection.immutable.Vector;
-import scala.collection.immutable.Vector$;
 import scala.util.Either;
 import scala.util.Left;
 import scala.util.Right;
@@ -99,9 +97,9 @@ public class BreadthSearchGraph {
 
   public static final class RequestOutput {
     public final Request.Identifier requestIdentifier;
-    public final List<VertexIdentifier> vertexIdentifier;
+    public final VertexIdentifier vertexIdentifier;
 
-    public RequestOutput(Request.Identifier requestIdentifier, List<VertexIdentifier> vertexIdentifier) {
+    public RequestOutput(Request.Identifier requestIdentifier, VertexIdentifier vertexIdentifier) {
       this.requestIdentifier = requestIdentifier;
       this.vertexIdentifier = vertexIdentifier;
     }
@@ -141,9 +139,8 @@ public class BreadthSearchGraph {
     }
   }
 
-  public static final Class<RequestOutput> OUTPUT_CLASS = RequestOutput.class;
-  public static final Class<Either<VertexIdentifier, Request.Identifier>> PROGRESS_CLASS =
-          (Class<Either<VertexIdentifier, Request.Identifier>>) (Class<?>) Either.class;
+  public static final Class<Either<RequestOutput, Request.Identifier>> OUTPUT_CLASS =
+          (Class<Either<RequestOutput, Request.Identifier>>) (Class<?>) Either.class;
   private static final Class<Tuple2<Agent, Agent.ActionAfterVisit>> AGENT_WITH_ACTION_AFTER_VISIT_CLASS =
           (Class<Tuple2<Agent, Agent.ActionAfterVisit>>) (Class<?>) Tuple2.class;
   private static final Class<Either<Agent, VertexEdgesUpdate>> EITHER_AGENT_OR_VERTEX_EDGES_UPDATE_CLASS =
@@ -179,7 +176,7 @@ public class BreadthSearchGraph {
     }
   }
 
-  public static Flow<Request, RequestOutput> immutableFlow(
+  public static Flow<Request, Either<RequestOutput, Request.Identifier>> immutableFlow(
           SerializableFunction<HashGroup, HashedVertexEdges> vertexEdgesSupplier
   ) {
     final VertexEdges vertexEdges = new VertexEdges(vertexEdgesSupplier);
@@ -209,7 +206,7 @@ public class BreadthSearchGraph {
     return new Flow<>(requestInput, output(agentAndActionAfterVisit, requestLabel), vertexEdges);
   }
 
-  public static Flow<Input, RequestOutput> mutableFlow(
+  public static Flow<Input, Either<RequestOutput, Request.Identifier>> mutableFlow(
           SerializableFunction<HashGroup, HashedVertexEdges> vertexEdgesSupplier
   ) {
     final VertexEdges vertexEdges = new VertexEdges(vertexEdgesSupplier);
@@ -273,43 +270,26 @@ public class BreadthSearchGraph {
             }, Collections.singleton(requestLabel));
   }
 
-  private static Operator<RequestOutput> output(
+  private static Operator<Either<RequestOutput, Request.Identifier>> output(
           Operator<Tuple2<Agent, Agent.ActionAfterVisit>> agentAndActionAfterVisit,
           Operator.LabelSpawn<Request, Request.Identifier> requestLabel
   ) {
-    final Operator.Input<Either<VertexIdentifier, Request.Identifier>> output =
-            new Operator.Input<>(PROGRESS_CLASS, Collections.singleton(requestLabel));
-    output.link(agentAndActionAfterVisit.flatMap(PROGRESS_CLASS, agent -> {
+    final Operator.Input<Either<RequestOutput, Request.Identifier>> output =
+            new Operator.Input<>(OUTPUT_CLASS, Collections.singleton(requestLabel));
+    output.link(agentAndActionAfterVisit.flatMap(OUTPUT_CLASS, agent -> {
       if (agent._2 == Agent.ActionAfterVisit.VisitFirstTime) {
-        return Stream.of(new Left<>(agent._1.vertexIdentifier));
+        return Stream.of(new Left<>(new RequestOutput(agent._1.requestIdentifier, agent._1.vertexIdentifier)));
       }
       return Stream.empty();
     }));
     output.link(
             agentAndActionAfterVisit.labelMarkers(requestLabel)
-                    .new MapBuilder<Either<VertexIdentifier, Request.Identifier>>(
-                    PROGRESS_CLASS,
+                    .new MapBuilder<Either<RequestOutput, Request.Identifier>>(
+                    OUTPUT_CLASS,
                     b -> Stream.of(Right.apply(b))
             ).hash(Operator.Broadcast.Instance).build()
     );
-    return output.newKeyedBuilder(__ -> null).keyLabels(Collections.singleton(requestLabel))
-            .hashLabels(Collections.singleton(requestLabel)).build().statefulFlatMap(
-                    OUTPUT_CLASS,
-                    (Either<VertexIdentifier, Request.Identifier> in, Vector<VertexIdentifier> state) -> {
-                      if (state == null) {
-                        state = Vector$.MODULE$.empty();
-                      }
-                      if (in.isLeft()) {
-                        return new Tuple2<>(state.appendBack(in.left().get()), Stream.empty());
-                      } else {
-                        return new Tuple2<>(
-                                null,
-                                Stream.of(new RequestOutput(in.right().get(), scalaStreamToJava(state)))
-                        );
-                      }
-                    },
-                    Collections.singleton(requestLabel)
-            );
+    return output;
   }
 
   private static <T> List<T> scalaStreamToJava(scala.collection.immutable.Vector<T> scalaStream) {

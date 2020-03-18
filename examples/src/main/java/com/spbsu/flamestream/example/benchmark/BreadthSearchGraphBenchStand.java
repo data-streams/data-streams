@@ -12,6 +12,7 @@ import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import scala.util.Either;
 
 import java.io.File;
 import java.io.IOException;
@@ -23,6 +24,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
@@ -61,6 +63,7 @@ public class BreadthSearchGraphBenchStand {
           long[].class
   };
   private final int streamLength;
+  private final int parallelism;
 
   public static void main(String[] args) throws Exception {
     final Config benchConfig;
@@ -107,12 +110,14 @@ public class BreadthSearchGraphBenchStand {
     benchHost = benchConfig.getString("bench-host");
     frontPort = benchConfig.getInt("bench-source-port");
     rearPort = benchConfig.getInt("bench-sink-port");
+    parallelism = benchConfig.getInt("parallelism");
   }
 
   public void run(GraphDeployer graphDeployer, String inputHostId) throws Exception {
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
     final int requestsNumber = streamLength;
     final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(requestsNumber);
+    final Map<Integer, Integer> remainingRequestResponses = new ConcurrentHashMap<>();
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
     final int[] allTails = new int[binarySocialGraph.size()];
     try (final BinarySocialGraph.CloseableTailsIterator tails = binarySocialGraph.new CloseableTailsIterator()) {
@@ -132,6 +137,7 @@ public class BreadthSearchGraphBenchStand {
                       System.out.println("produced " + request.identifier.id + " " + request.vertexIdentifier.id);
                       LockSupport.parkNanos((long) (nextExp(1.0 / sleepBetweenDocs) * 1.0e6));
                       latencies.put(request.identifier.id, new LatencyMeasurer());
+                      remainingRequestResponses.put(request.identifier.id, parallelism - 1);
                     })::iterator,
                     frontPort,
                     Stream.of(inputHostId),
@@ -139,19 +145,24 @@ public class BreadthSearchGraphBenchStand {
             )::stop;
             AutoCloseable ignored1 = benchStandComponentFactory.consumer(
                     object -> {
-                      final BreadthSearchGraph.RequestOutput output;
+                      final Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.Request.Identifier> output;
                       if (object instanceof DataItem) {
                         output = ((DataItem) object).payload(BreadthSearchGraph.OUTPUT_CLASS);
-                      } else if (object instanceof BreadthSearchGraph.RequestOutput) {
-                        output = (BreadthSearchGraph.RequestOutput) object;
+                      } else if (object instanceof Either) {
+                        output = (Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.Request.Identifier>) object;
                       } else {
                         return;
                       }
-                      System.out.println("consumed " + output.requestIdentifier.id + " " + output.vertexIdentifier.size());
-                      latencies.get(output.requestIdentifier.id).finish();
-                      awaitConsumer.accept(output);
-                      if (awaitConsumer.got() % 10000 == 0) {
-                        LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
+                      if (output.isRight()) {
+                        final BreadthSearchGraph.Request.Identifier identifier = output.right().get();
+                        if (remainingRequestResponses.compute(identifier.id, (__, value) -> value - 1) == 0) {
+                          System.out.println("consumed " + identifier.id);
+                          latencies.get(identifier.id).finish();
+                          awaitConsumer.accept(output);
+                          if (awaitConsumer.got() % 10000 == 0) {
+                            LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
+                          }
+                        }
                       }
                     },
                     rearPort,

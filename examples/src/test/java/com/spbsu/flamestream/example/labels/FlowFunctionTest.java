@@ -17,7 +17,8 @@ public class FlowFunctionTest {
   @Test
   public void testImmutable() {
     final BreadthSearchGraph.VertexIdentifier vertexIdentifier = new BreadthSearchGraph.VertexIdentifier(0);
-    final ArrayList<BreadthSearchGraph.RequestOutput> output = new ArrayList<>();
+    final ArrayList<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.Request.Identifier>> output =
+            new ArrayList<>();
     final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier(0);
     new FlowFunction<>(
             BreadthSearchGraph.immutableFlow(__ -> new BreadthSearchGraph.HashedVertexEdges() {
@@ -33,15 +34,17 @@ public class FlowFunctionTest {
             }),
             output::add
     ).put(new BreadthSearchGraph.Request(requestIdentifier, vertexIdentifier, 1));
-    assertEquals(output, Collections.singletonList(
-            new BreadthSearchGraph.RequestOutput(requestIdentifier, Collections.singletonList(vertexIdentifier))
+    assertEquals(output, Arrays.asList(
+            new Left<>(new BreadthSearchGraph.RequestOutput(requestIdentifier, vertexIdentifier)),
+            new Right<>(requestIdentifier)
     ));
   }
 
   @Test
   public void testMutable() {
     final BreadthSearchGraph.VertexIdentifier vertexIdentifier = new BreadthSearchGraph.VertexIdentifier(0);
-    final ArrayList<BreadthSearchGraph.RequestOutput> output = new ArrayList<>();
+    final ArrayList<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.Request.Identifier>> output =
+            new ArrayList<>();
     final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier(0);
     new FlowFunction<>(
             BreadthSearchGraph.mutableFlow(__ -> new BreadthSearchGraph.HashedVertexEdges() {
@@ -60,8 +63,9 @@ public class FlowFunctionTest {
             }),
             output::add
     ).put(new BreadthSearchGraph.Request(requestIdentifier, vertexIdentifier, 1));
-    assertEquals(output, Collections.singletonList(
-            new BreadthSearchGraph.RequestOutput(requestIdentifier, Collections.singletonList(vertexIdentifier))
+    assertEquals(output, Arrays.asList(
+            new Left<>(new BreadthSearchGraph.RequestOutput(requestIdentifier, vertexIdentifier)),
+            new Right<>(requestIdentifier)
     ));
   }
 }

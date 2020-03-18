@@ -9,6 +9,7 @@ import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitResultConsumer;
 import org.testng.annotations.Test;
+import scala.util.Either;
 
 import java.util.Collections;
 import java.util.HashSet;
@@ -54,7 +55,7 @@ public class MaterializerTest extends FlameAkkaSuite {
 
   @Test
   public void testImmutableBreadthSearch() throws InterruptedException {
-    final Flow<BreadthSearchGraph.Request, BreadthSearchGraph.RequestOutput> flow =
+    final Flow<BreadthSearchGraph.Request, Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.Request.Identifier>> flow =
             BreadthSearchGraph.immutableFlow(__ -> new BreadthSearchGraph.HashedVertexEdges() {
               @Override
               public Stream<BreadthSearchGraph.VertexIdentifier> apply(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
@@ -81,8 +82,8 @@ public class MaterializerTest extends FlameAkkaSuite {
         final Queue<BreadthSearchGraph.Request> input = new ConcurrentLinkedQueue<>();
         input.add(new BreadthSearchGraph.Request(requestIdentifier, vertexIdentifier, 2));
 
-        final AwaitResultConsumer<BreadthSearchGraph.RequestOutput> awaitConsumer =
-                new AwaitResultConsumer<>(1);
+        final AwaitResultConsumer<Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.Request.Identifier>> awaitConsumer =
+                new AwaitResultConsumer<>(5);
         flame.attachRear("wordCountRear", new AkkaRearType<>(runtime.system(), BreadthSearchGraph.OUTPUT_CLASS))
                 .forEach(r -> r.addListener(awaitConsumer));
         final List<AkkaFront.FrontHandle<BreadthSearchGraph.Request>> handles = flame
@@ -90,15 +91,13 @@ public class MaterializerTest extends FlameAkkaSuite {
                 .collect(Collectors.toList());
         applyDataToAllHandlesAsync(input, handles);
         awaitConsumer.await(200, TimeUnit.SECONDS);
-
-        final BreadthSearchGraph.RequestOutput actualWordsTop = awaitConsumer.result().findFirst().get();
       }
     }
   }
 
   @Test
   public void testMutableBreadthSearch() {
-    final Flow<BreadthSearchGraph.Input, BreadthSearchGraph.RequestOutput> flow =
+    final Flow<BreadthSearchGraph.Input, Either<BreadthSearchGraph.RequestOutput, BreadthSearchGraph.Request.Identifier>> flow =
             BreadthSearchGraph.mutableFlow(__ -> new BreadthSearchGraph.HashedVertexEdges() {
               @Override
               public Stream<BreadthSearchGraph.VertexIdentifier> apply(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
