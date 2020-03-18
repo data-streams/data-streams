@@ -1,5 +1,6 @@
 package com.spbsu.flamestream.example.labels;
 
+import com.google.common.hash.Hashing;
 import com.spbsu.flamestream.core.graph.HashGroup;
 import com.spbsu.flamestream.core.graph.SerializableConsumer;
 import com.spbsu.flamestream.core.graph.SerializableFunction;
@@ -47,8 +48,12 @@ public class BreadthSearchGraph {
   public static final class Request extends Input {
     public static final class Identifier {
       public final int id;
+      private final int hashCode;
 
-      public Identifier(int id) {this.id = id;}
+      public Identifier(int id) {
+        this.id = id;
+        hashCode = Hashing.murmur3_32().hashInt(id).hashCode();
+      }
 
       @Override
       public boolean equals(Object obj) {
@@ -63,7 +68,7 @@ public class BreadthSearchGraph {
 
       @Override
       public int hashCode() {
-        return id;
+        return hashCode;
       }
     }
 

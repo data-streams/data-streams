@@ -20,9 +20,9 @@ public final class Label<L> {
   @Override
   public int hashCode() {
     int hashCode = Integer.hashCode(index);
-    hashCode = 31 * hashCode + Objects.hashCode(value);
     hashCode = 31 * hashCode + Objects.hashCode(nodeId);
     hashCode = 31 * hashCode + Integer.hashCode(uniqueness);
+    hashCode = 31 * hashCode + Objects.hashCode(value);
     return hashCode;
   }
 
