@@ -11,15 +11,16 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.stream.Stream;
 
 public class Grouping<T> extends HashingVertexStub {
-  private static final LongAdder tombstonesNumber1 = new LongAdder(), tombstonesNumber2 = new LongAdder();
+  private static ConcurrentHashMap<Class<?>, LongAdder> classTombstonesNumber = new ConcurrentHashMap<>();
 
   static {
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-      System.out.println("tombstonesNumber " + tombstonesNumber1.intValue() + " " + tombstonesNumber2.intValue());
+      System.out.println("classTombstonesNumber " + classTombstonesNumber);
     }));
   }
 
@@ -29,7 +30,6 @@ public class Grouping<T> extends HashingVertexStub {
   private final Class<?> clazz;
   private final boolean undoPartialWindows;
   private final SerializableComparator<DataItem> order;
-  private final boolean type;
 
   public static class Builder {
     private final HashFunction hash;
@@ -64,7 +64,6 @@ public class Grouping<T> extends HashingVertexStub {
     this.clazz = clazz;
     undoPartialWindows = false;
     this.order = (dataItem1, dataItem2) -> 0;
-    type = false;
   }
 
   public Grouping(Builder builder) {
@@ -74,7 +73,6 @@ public class Grouping<T> extends HashingVertexStub {
     this.clazz = builder.clazz;
     this.undoPartialWindows = builder.undoPartialWindows;
     this.order = builder.order;
-    type = true;
   }
 
   public HashFunction hash() {
@@ -161,7 +159,7 @@ public class Grouping<T> extends HashingVertexStub {
 
     private PayloadDataItem bucketWindow(InvalidatingBucket bucket, int left, int right, boolean areTombs) {
       if (areTombs) {
-        (type ? tombstonesNumber1 : tombstonesNumber2).increment();
+        classTombstonesNumber.computeIfAbsent(clazz, __ -> new LongAdder()).increment();
       }
       final List<T> groupingResult = new ArrayList<>();
       //noinspection unchecked
