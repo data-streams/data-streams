@@ -29,7 +29,7 @@ def run_benchmarks(rate=2., iterations=100, results_name="", bench_environment={
       "ssh -t flamestream-benchmarks-manager 'PATH=/usr/lib/jvm/java-8-oracle/jre/bin/:$PATH' " \
       'EDGES_TAIL_FILE=/home/ubuntu/tail_head_offset.bin EDGES_HEAD_FILE=/home/ubuntu/edge_head.bin ' \
       "java -Daeron.term.buffer.length=4194304 -Daeron.mtu.length=16384 " \
-      "-Xms500m -Xmx500m -XX:+PrintGC -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps " \
+      "-Xms500m -Xmx1500m -XX:+PrintGC -XX:+PrintGCDetails -XX:+PrintGCTimeStamps -XX:+PrintGCDateStamps " \
       "-XX:+HeapDumpOnOutOfMemoryError -cp \\'flamestream/lib/*\\' " \
       "com.spbsu.flamestream.example.benchmark.BreadthSearchGraphBenchStand "\
       "flamestream/bench.conf flamestream/deployer.conf"
