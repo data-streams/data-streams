@@ -13,6 +13,8 @@ import com.typesafe.config.ConfigFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.util.Either;
+import scala.util.Left;
+import scala.util.Right;
 
 import java.io.File;
 import java.io.IOException;
@@ -60,7 +62,9 @@ public class BreadthSearchGraphBenchStand {
           BreadthSearchGraph.Request.Identifier.class,
           com.spbsu.flamestream.example.labels.BreadthSearchGraph.VertexIdentifier.class,
           ArrayList.class,
-          long[].class
+          long[].class,
+          Left.class,
+          Right.class,
   };
   private final int streamLength;
   private final int parallelism;
