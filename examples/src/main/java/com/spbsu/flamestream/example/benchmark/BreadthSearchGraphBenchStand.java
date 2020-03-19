@@ -87,7 +87,10 @@ public class BreadthSearchGraphBenchStand {
                     Materializer.materialize(BreadthSearchGraph.immutableFlow(hashGroup ->
                     {
                       try {
-                        return binarySocialGraph.new BinaryOutboundEdges(hashGroup);
+                        return binarySocialGraph.new BinaryOutboundEdges(
+                                hashGroup,
+                                Integer.parseInt(System.getenv("TAIL_EDGES_LIMIT"))
+                        );
                       } catch (IOException e) {
                         throw new RuntimeException(e);
                       }

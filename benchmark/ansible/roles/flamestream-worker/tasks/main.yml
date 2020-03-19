@@ -24,6 +24,7 @@
     'LOCAL_ACKER_FLUSH_DELAY_IN_MILLIS': local_acker_flush_delay_in_millis,
     'EDGES_TAIL_FILE': '/home/ubuntu/tail_head_offset.bin',
     'EDGES_HEAD_FILE': '/home/ubuntu/edge_head.bin',
+    'TAIL_EDGES_LIMIT': 1000,
   }) | combine(worker_environment | default({})) }}"
 
 - wait_for:

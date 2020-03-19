@@ -16,6 +16,7 @@ import java.io.RandomAccessFile;
 import java.util.AbstractList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Random;
 import java.util.RandomAccess;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -112,9 +113,11 @@ public class BinarySocialGraph {
   public final class BinaryOutboundEdges implements BreadthSearchGraph.HashedVertexEdges {
     final int[] tails, tailHeadOffsets, heads;
     private final HashGroup hashGroup;
+    private final int limit;
 
-    public BinaryOutboundEdges(HashGroup hashGroup) throws IOException {
+    public BinaryOutboundEdges(HashGroup hashGroup, int limit) throws IOException {
       this.hashGroup = hashGroup;
+      this.limit = limit;
       int totalTails = 0;
       int totalHeads = 0;
       for (final HashUnit unit : hashGroup.units()) {
@@ -146,17 +149,25 @@ public class BinarySocialGraph {
                 final long headsOffset = tailIterator.headsOffset;
                 tails[totalTails] = tailIterator.vertex;
                 tailHeadOffsets[totalTails] = totalHeads;
-                totalTails++;
                 final boolean next = tailIterator.next();
                 final int tailHeads = (int) (tailIterator.headsOffset - headsOffset);
                 for (int i = 0; i < tailHeads; i++) {
                   heads[totalHeads++] = headsInput.readInt();
                 }
+                final Random random = new Random(tailIterator.vertex);
+                for (int i = tailHeads - 1; i > 0; i--) {
+                  final int index = random.nextInt(i + 1) + tailHeadOffsets[totalTails];
+                  final int index2 = i + tailHeadOffsets[totalTails];
+                  // Simple swap
+                  final int tmp = heads[index];
+                  heads[index] = heads[index2];
+                  heads[index2] = tmp;
+                }
+                totalTails++;
                 if (!next) {
                   break;
                 }
               }
-              ;
             }
           }
         }
@@ -173,7 +184,8 @@ public class BinarySocialGraph {
         return Stream.empty();
       }
       final int from = tailHeadOffsets[i], to = i + 1 < tailHeadOffsets.length ? tailHeadOffsets[i + 1] : heads.length;
-      return IntStream.range(from, to).mapToObj(index -> new BreadthSearchGraph.VertexIdentifier(heads[index]));
+      return IntStream.range(from, from + Integer.min(to - from, limit))
+              .mapToObj(index -> new BreadthSearchGraph.VertexIdentifier(heads[index]));
     }
 
     @Override
