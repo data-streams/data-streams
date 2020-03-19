@@ -16,6 +16,7 @@ import com.spbsu.flamestream.runtime.utils.FlameConfig;
 import com.spbsu.flamestream.runtime.utils.akka.AwaitResolver;
 import com.spbsu.flamestream.runtime.utils.akka.LoggingActor;
 
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
@@ -30,12 +31,8 @@ public class AkkaRear implements Rear {
   }
 
   @Override
-  public void accept(Batch batch) {
-    try {
-      PatternsCS.ask(innerActor, batch, FlameConfig.config.smallTimeout()).toCompletableFuture().get();
-    } catch (InterruptedException | ExecutionException e) {
-      throw new RuntimeException(e);
-    }
+  public CompletionStage<?> accept(Batch batch) {
+    return PatternsCS.ask(innerActor, batch, FlameConfig.config.smallTimeout());
   }
 
   @Override

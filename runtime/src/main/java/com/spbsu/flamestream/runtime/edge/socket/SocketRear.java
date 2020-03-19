@@ -5,20 +5,24 @@ import com.esotericsoftware.kryonet.Client;
 import com.esotericsoftware.kryonet.Connection;
 import com.esotericsoftware.kryonet.Listener;
 import com.spbsu.flamestream.core.Batch;
-import com.spbsu.flamestream.core.data.meta.Label;
-import com.spbsu.flamestream.core.data.meta.Labels;
-import com.spbsu.flamestream.runtime.edge.Rear;
+import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.data.PayloadDataItem;
 import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
+import com.spbsu.flamestream.core.data.meta.Label;
+import com.spbsu.flamestream.core.data.meta.Labels;
 import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.runtime.edge.EdgeContext;
+import com.spbsu.flamestream.runtime.edge.Rear;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 
 /**
  * User: Artem
@@ -26,6 +30,7 @@ import java.util.Arrays;
  */
 public class SocketRear implements Rear {
   private static final Logger LOG = LoggerFactory.getLogger(SocketRear.class);
+  public static final int BUFFER_SIZE = 1_000_000;
 
   private final EdgeId edgeId;
   private final Client client;
@@ -34,7 +39,7 @@ public class SocketRear implements Rear {
 
   public SocketRear(EdgeContext edgeContext, String host, int port, Class[] classes) {
     edgeId = edgeContext.edgeId();
-    client = new Client(1_000_000, 1234);
+    client = new Client(BUFFER_SIZE, 1234);
     Arrays.stream(classes).forEach(clazz -> client.getKryo().register(clazz));
     { //register inners of data item
       client.getKryo().register(PayloadDataItem.class);
@@ -69,19 +74,43 @@ public class SocketRear implements Rear {
   }
 
   @Override
-  public void accept(Batch batch) {
+  public CompletionStage<?> accept(Batch batch) {
+    final CompletableFuture<Void> future = new CompletableFuture<>();
     if (client.isConnected()) {
-      batch.payload().forEach(client::sendTCP);
-      if (batch.payload().noneMatch(ignored -> true)) {
-        client.sendTCP(new MinTime(batch.time()));
+      final Iterator<DataItem> iterator = batch.payload().iterator();
+      if (writeAllUntilFull(iterator)) {
+        future.complete(null);
+      } else {
+        client.addListener(new Listener() {
+          @Override
+          public void idle(Connection connection) {
+            if (writeAllUntilFull(iterator)) {
+              future.complete(null);
+              client.removeListener(this);
+            }
+          }
+        });
       }
     } else {
       LOG.warn("{}: writing to closed log", edgeId);
+      future.complete(null);
     }
+    return future;
   }
 
   @Override
   public Batch last() {
     return Batch.Default.EMPTY;
+  }
+
+  private boolean writeAllUntilFull(Iterator<DataItem> iterator) {
+    while (iterator.hasNext()) {
+      if (client.getTcpWriteBufferSize() < BUFFER_SIZE * 0.9) {
+        client.sendTCP(iterator.next());
+      } else {
+        return false;
+      }
+    }
+    return true;
   }
 }

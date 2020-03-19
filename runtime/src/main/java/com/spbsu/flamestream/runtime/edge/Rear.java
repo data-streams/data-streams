@@ -3,6 +3,8 @@ package com.spbsu.flamestream.runtime.edge;
 import com.spbsu.flamestream.core.Batch;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
 
+import java.util.concurrent.CompletionStage;
+
 /**
  * User: Artem
  * Date: 27.11.2017
@@ -15,9 +17,9 @@ public interface Rear {
   }
 
   /**
-   * Sync call, return mean accept
+   * Sync call, completion means accept
    */
-  void accept(Batch batch);
+  CompletionStage<?> accept(Batch batch);
 
   Batch last();
 }
