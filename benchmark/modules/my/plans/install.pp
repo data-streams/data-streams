@@ -17,13 +17,14 @@ plan my::install(
     package { 'python3.9': }
     package { 'maven': }
     package { 'python3': }
+    package { 'python3-distutils': }
     class { 'python::pip::bootstrap': version => 'pip3' }
     python::pip { 'ansible': }
   }
   $all_hosts.keys().apply_prep
   apply($all_hosts.keys()) {
     include apt
-    package { 'openjdk-8-jdk': }
+    package { 'openjdk-11-jdk': }
     package { 'rsync': }
     package { 'vim': }
     package { 'less': }
@@ -33,6 +34,6 @@ plan my::install(
     package { 'sysstat': }
     package { 'make': }
     package { 'gcc': }
-    alternatives { java: path => '/usr/lib/jvm/java-8-openjdk-amd64/jre/bin/java' }
+    alternatives { java: path => '/usr/lib/jvm/java-11-openjdk-amd64/bin/java' }
   }
 }
