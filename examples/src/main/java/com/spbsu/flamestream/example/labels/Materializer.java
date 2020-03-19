@@ -63,6 +63,7 @@ public class Materializer {
             .link(operatorVertex(flow.output), sink)
             .vertexTrackingComponent(vertexTrackingComponent::get)
             .init(flow.init);
+    graphBuilder.colocate(vertexTrackingComponent.keySet().toArray(Graph.Vertex[]::new));
     graph = graphBuilder.build(source, sink);
   }
 
@@ -241,7 +242,6 @@ public class Materializer {
             .link(reducer, regrouper)
             .link(regrouper, grouping)
             .link(reducer, sink);
-    graphBuilder.colocate(source, grouping, reducer, regrouper, sink);
     return sink;
   }
 

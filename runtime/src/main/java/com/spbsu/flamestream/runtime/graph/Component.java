@@ -11,13 +11,13 @@ import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
+import com.spbsu.flamestream.core.graph.HashUnit;
 import com.spbsu.flamestream.core.graph.HashingVertexStub;
 import com.spbsu.flamestream.core.graph.LabelMarkers;
 import com.spbsu.flamestream.core.graph.LabelSpawn;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import com.spbsu.flamestream.runtime.config.ComputationProps;
-import com.spbsu.flamestream.core.graph.HashUnit;
 import com.spbsu.flamestream.runtime.graph.api.AddressedItem;
 import com.spbsu.flamestream.runtime.graph.api.ComponentPrepared;
 import com.spbsu.flamestream.runtime.graph.api.NewRear;
@@ -91,9 +91,9 @@ public class Component extends LoggingActor {
                 final GraphManager.Destination toDest = GraphManager.Destination.fromVertexId(to.id());
 
                 final Consumer<DataItem> sink;
-                if (componentVertices.contains(to)) {
-                  sink = item -> localCall(item, toDest);
-                } else if (to instanceof HashingVertexStub && ((HashingVertexStub) to).hash() != null) {
+                final boolean isLocal = componentVertices.contains(to);
+                final boolean isHashing = to instanceof HashingVertexStub && ((HashingVertexStub) to).hash() != null;
+                if (isHashing) {
                   sink = item -> {
                     groupingSendTracer.log(item.xor());
                     final HashFunction hash = ((HashingVertexStub) to).hash();
@@ -114,9 +114,21 @@ public class Component extends LoggingActor {
                         next.getValue().tell(new AddressedItem(cloned, toDest), self());
                       }
                     } else {
+                      final ActorRef route = routes.get(Objects.requireNonNull(hash).applyAsInt(item));
+                      if (isLocal && route.equals(localManager)) {
+                        if (!localCall(item, toDest)) {
+                          ack(item, to);
+                        }
+                      } else {
+                        ack(item, to);
+                        route.tell(new AddressedItem(item, toDest), self());
+                      }
+                    }
+                  };
+                } else if (isLocal) {
+                  sink = item -> {
+                    if (!localCall(item, toDest)) {
                       ack(item, to);
-                      routes.get(Objects.requireNonNull(hash).applyAsInt(item))
-                              .tell(new AddressedItem(item, toDest), self());
                     }
                   };
                 } else {
