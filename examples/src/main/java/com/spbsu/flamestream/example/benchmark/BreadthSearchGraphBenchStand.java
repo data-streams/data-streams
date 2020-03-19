@@ -136,13 +136,16 @@ public class BreadthSearchGraphBenchStand {
     final Random random = new Random(0);
     try (
             AutoCloseable ignored = benchStandComponentFactory.producer(
-                    IntStream.range(0, requestsNumber).mapToObj(requestId -> new BreadthSearchGraph.Request(
+                    IntStream.range(0, requestsNumber).peek(i -> {
+                      if (i != 0) {
+                        LockSupport.parkNanos((long) (sleepBetweenDocs * 1.0e6));
+                      }
+                    }).mapToObj(requestId -> new BreadthSearchGraph.Request(
                             new BreadthSearchGraph.Request.Identifier(requestId),
                             new BreadthSearchGraph.VertexIdentifier(allTails[random.nextInt(allTails.length)]),
                             2
                     )).peek(request -> {
                       System.out.println("produced " + request.identifier.id + " " + request.vertexIdentifier.id);
-                      LockSupport.parkNanos((long) (nextExp(1.0 / sleepBetweenDocs) * 1.0e6));
                       latencies.put(request.identifier.id, new LatencyMeasurer());
                       remainingRequestResponses.put(request.identifier.id, parallelism - 1);
                     })::iterator,
@@ -162,7 +165,11 @@ public class BreadthSearchGraphBenchStand {
                       }
                       if (output.isRight()) {
                         final BreadthSearchGraph.Request.Identifier identifier = output.right().get();
-                        if (remainingRequestResponses.compute(identifier.id, (__, value) -> value - 1) == 0) {
+                        final Integer compute = remainingRequestResponses.compute(
+                                identifier.id,
+                                (__, value) -> value > 1 ? value - 1 : null
+                        );
+                        if (compute == null) {
                           System.out.println("consumed " + identifier.id);
                           latencies.get(identifier.id).finish();
                           awaitConsumer.accept(output);
@@ -177,7 +184,7 @@ public class BreadthSearchGraphBenchStand {
             )::stop
     ) {
       graphDeployer.deploy();
-      awaitConsumer.await(60, TimeUnit.MINUTES);
+      awaitConsumer.await(1, TimeUnit.MINUTES);
       Tracing.TRACING.flush(Paths.get("/tmp/trace.csv"));
     }
     final String latenciesString = latencies.values()
