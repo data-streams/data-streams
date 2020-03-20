@@ -200,7 +200,6 @@ public class GroupingState {
       }
       timeKeys.pollFirstEntry();
     }
-    System.out.println("buffers.size() == " + buffers.size());
   }
 
   public GroupingState subState(GlobalTime ceil, int window) {
