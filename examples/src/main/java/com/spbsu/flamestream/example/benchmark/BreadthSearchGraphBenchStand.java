@@ -5,6 +5,7 @@ import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.example.labels.BinarySocialGraph;
 import com.spbsu.flamestream.example.labels.BreadthSearchGraph;
 import com.spbsu.flamestream.example.labels.Materializer;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.edge.socket.SocketFrontType;
 import com.spbsu.flamestream.runtime.edge.socket.SocketRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitCountConsumer;
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -86,11 +88,16 @@ public class BreadthSearchGraphBenchStand {
     }
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
     final BreadthSearchGraphBenchStand wikiBenchStand = new BreadthSearchGraphBenchStand(benchConfig);
+    final String workerIdPrefix = benchConfig.getString("worker-id-prefix");
+    final SystemConfig.WorkersResourcesDistributor.Enumerated workersResourcesDistributor =
+            new SystemConfig.WorkersResourcesDistributor.Enumerated(workerIdPrefix, 1);
     try (
             GraphDeployer graphDeployer = new FlameGraphDeployer(
-                    benchStandComponentFactory.runtime(deployerConfig),
-                    Materializer.materialize(BreadthSearchGraph.immutableFlow(hashGroup ->
-                    {
+                    benchStandComponentFactory.runtime(
+                            deployerConfig,
+                            new SystemConfig.Builder().workersResourcesDistributor(workersResourcesDistributor).build()
+                    ),
+                    Materializer.materialize(BreadthSearchGraph.immutableFlow(hashGroup -> {
                       try {
                         return binarySocialGraph.new BinaryOutboundEdges(
                                 hashGroup,
@@ -104,7 +111,11 @@ public class BreadthSearchGraphBenchStand {
                     new SocketRearType(wikiBenchStand.benchHost, wikiBenchStand.rearPort, REAR_CLASSES_TO_REGISTER)
             )
     ) {
-      wikiBenchStand.run(graphDeployer, benchConfig.getString("worker-id-prefix") + "0");
+      wikiBenchStand.run(
+              graphDeployer,
+              IntStream.range(1, wikiBenchStand.parallelism).mapToObj(i -> workerIdPrefix + i)
+                      .collect(Collectors.toList())
+      );
     }
     System.exit(0);
   }
@@ -125,7 +136,7 @@ public class BreadthSearchGraphBenchStand {
     parallelism = benchConfig.getInt("parallelism");
   }
 
-  public void run(GraphDeployer graphDeployer, String inputHostId) throws Exception {
+  public void run(GraphDeployer graphDeployer, List<String> inputHosts) throws Exception {
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
     final int requestsNumber = streamLength;
     final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(requestsNumber);
@@ -170,7 +181,7 @@ public class BreadthSearchGraphBenchStand {
             AutoCloseable ignored = benchStandComponentFactory.producerConnections(
                     producerConnections::complete,
                     frontPort,
-                    Collections.singletonList(inputHostId),
+                    inputHosts,
                     FRONT_CLASSES_TO_REGISTER
             )::stop;
             AutoCloseable ignored1 = benchStandComponentFactory.consumer(
