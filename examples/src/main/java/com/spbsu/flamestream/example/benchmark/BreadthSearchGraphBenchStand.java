@@ -1,5 +1,6 @@
 package com.spbsu.flamestream.example.benchmark;
 
+import com.esotericsoftware.kryonet.Connection;
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.example.labels.BinarySocialGraph;
 import com.spbsu.flamestream.example.labels.BreadthSearchGraph;
@@ -22,11 +23,15 @@ import java.io.PrintWriter;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
@@ -65,7 +70,7 @@ public class BreadthSearchGraphBenchStand {
           long[].class,
           Left.class,
           Right.class,
-  };
+          };
   private final int streamLength;
   private final int parallelism;
 
@@ -134,23 +139,38 @@ public class BreadthSearchGraphBenchStand {
       }
     }
     final Random random = new Random(0);
+    final Semaphore semaphore = new Semaphore(Integer.parseInt(System.getenv("SIMULTANEOUS_REQUESTS")));
+    final CompletableFuture<Map<String, Connection>> producerConnections = new CompletableFuture<>();
+    final Thread producer = new Thread(() -> {
+      try {
+        final Map<String, Connection> connections = producerConnections.get();
+        int requestId = 0;
+        while (true) {
+          for (final Connection connection : connections.values()) {
+            semaphore.acquire();
+            final int vertex = allTails[random.nextInt(allTails.length)];
+            System.out.println("produced " + requestId + " " + vertex);
+            latencies.put(requestId, new LatencyMeasurer());
+            remainingRequestResponses.put(requestId, parallelism - 1);
+            connection.sendTCP(new BreadthSearchGraph.Request(
+                    new BreadthSearchGraph.Request.Identifier(requestId),
+                    new BreadthSearchGraph.VertexIdentifier(vertex),
+                    2
+            ));
+            requestId++;
+          }
+        }
+      } catch (InterruptedException ignored) {
+      } catch (ExecutionException e) {
+        throw new RuntimeException(e);
+      }
+    });
+    producer.start();
     try (
-            AutoCloseable ignored = benchStandComponentFactory.producer(
-                    IntStream.range(0, requestsNumber).peek(i -> {
-                      if (i != 0) {
-                        LockSupport.parkNanos((long) (sleepBetweenDocs * 1.0e6));
-                      }
-                    }).mapToObj(requestId -> new BreadthSearchGraph.Request(
-                            new BreadthSearchGraph.Request.Identifier(requestId),
-                            new BreadthSearchGraph.VertexIdentifier(allTails[random.nextInt(allTails.length)]),
-                            2
-                    )).peek(request -> {
-                      System.out.println("produced " + request.identifier.id + " " + request.vertexIdentifier.id);
-                      latencies.put(request.identifier.id, new LatencyMeasurer());
-                      remainingRequestResponses.put(request.identifier.id, parallelism - 1);
-                    })::iterator,
+            AutoCloseable ignored = benchStandComponentFactory.producerConnections(
+                    producerConnections::complete,
                     frontPort,
-                    Stream.of(inputHostId),
+                    Collections.singletonList(inputHostId),
                     FRONT_CLASSES_TO_REGISTER
             )::stop;
             AutoCloseable ignored1 = benchStandComponentFactory.consumer(
@@ -173,6 +193,7 @@ public class BreadthSearchGraphBenchStand {
                           System.out.println("consumed " + identifier.id);
                           latencies.get(identifier.id).finish();
                           awaitConsumer.accept(output);
+                          semaphore.release();
                           if (awaitConsumer.got() % 10000 == 0) {
                             LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
                           }
@@ -185,6 +206,7 @@ public class BreadthSearchGraphBenchStand {
     ) {
       graphDeployer.deploy();
       awaitConsumer.await(1, TimeUnit.MINUTES);
+      producer.interrupt();
       Tracing.TRACING.flush(Paths.get("/tmp/trace.csv"));
     }
     final String latenciesString = latencies.values()
