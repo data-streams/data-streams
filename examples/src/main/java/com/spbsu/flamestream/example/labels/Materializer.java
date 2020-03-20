@@ -13,7 +13,6 @@ import com.spbsu.flamestream.core.graph.LabelSpawn;
 import com.spbsu.flamestream.core.graph.SerializableBiFunction;
 import com.spbsu.flamestream.core.graph.SerializableComparator;
 import com.spbsu.flamestream.core.graph.SerializableFunction;
-import com.spbsu.flamestream.core.graph.SerializableToIntFunction;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import org.jetbrains.annotations.NotNull;
@@ -108,16 +107,9 @@ public class Materializer {
   }
 
   <In, Out> Graph.Vertex processMap(Operator.Map<In, Out> map) {
-    final HashFunction hashFunction;
-    if (Operator.Broadcast.Instance == map.hash) {
-      hashFunction = HashFunction.Broadcast.INSTANCE;
-    } else if (map.hash != null) {
-      hashFunction = hashFunction(dataItem -> dataItem.payload(map.source.typeClass), map.hash);
-    } else {
-      hashFunction = null;
-    }
     final FlameMap<In, Out> flameMap =
-            new FlameMap.Builder<>(map.mapper, map.source.typeClass).hashFunction(hashFunction).build();
+            new FlameMap.Builder<>(map.mapper, map.source.typeClass)
+                    .hashFunction(hashFunction(dataItem -> dataItem.payload(map.source.typeClass), map.hash)).build();
     cachedOperatorVertex.put(map, flameMap);
     vertexTrackingComponent.put(flameMap, operatorTrackingComponent.get(map));
     graphBuilder.link(operatorVertex(map.source), flameMap);
@@ -161,10 +153,15 @@ public class Materializer {
   }
 
   public <K> HashFunction hashFunction(
-          SerializableFunction<DataItem, K> function, Operator.Hashing<? super K> key
+          SerializableFunction<DataItem, K> function, Operator.Hashing<? super K> hashing
   ) {
-    final LabelsPresence labelsPresence = labelsPresence(key.labels());
-    return dataItem -> labelsPresence.hash(key.applyAsInt(function.apply(dataItem)), dataItem.labels());
+    if (hashing == Operator.Broadcast.Instance) {
+      return HashFunction.Broadcast.INSTANCE;
+    } else if (hashing == null) {
+      return null;
+    }
+    final LabelsPresence labelsPresence = labelsPresence(hashing.labels());
+    return dataItem -> labelsPresence.hash(hashing.applyAsInt(function.apply(dataItem)), dataItem.labels());
   }
 
   <In, Key, O extends Comparable<O>, S, Out> Graph.Vertex processStatefulMap(Operator.StatefulMap<In, Key, O, S, Out> statefulMap) {
@@ -266,7 +263,10 @@ public class Materializer {
   }
 
   <L> Graph.Vertex processLabelMarkers(Operator.LabelMarkers<?, L> labelMarkers) {
-    final LabelMarkers vertex = new LabelMarkers(operatorTrackingComponent.get(labelMarkers));
+    final LabelMarkers vertex = new LabelMarkers(
+            operatorTrackingComponent.get(labelMarkers),
+            hashFunction(dataItem -> dataItem.payload(labelMarkers.labelSpawn.lClass), labelMarkers.hashing)
+    );
     operatorVertex(labelMarkers.source);
     labelSpawnMarkers.get(labelMarkers.labelSpawn).add(vertex);
     vertexTrackingComponent.put(vertex, operatorTrackingComponent.get(labelMarkers));

@@ -125,7 +125,11 @@ public abstract class Operator<Type> {
   }
 
   public <L> Operator<L> labelMarkers(LabelSpawn<?, L> lClass) {
-    return new LabelMarkers<>(lClass, this);
+    return new LabelMarkers<>(lClass, this, null);
+  }
+
+  public <L> Operator<L> labelMarkers(LabelSpawn<?, L> lClass, Hashing<? super L> hashing) {
+    return new LabelMarkers<>(lClass, this, hashing);
   }
 
   public interface Hashing<T> extends SerializableToIntFunction<T> {
@@ -292,11 +296,13 @@ public abstract class Operator<Type> {
     @org.jetbrains.annotations.NotNull
     public final LabelSpawn<?, L> labelSpawn;
     public final Operator<In> source;
+    public final Hashing<? super L> hashing;
 
-    public LabelMarkers(LabelSpawn<?, L> labelSpawn, Operator<In> source) {
+    public LabelMarkers(LabelSpawn<?, L> labelSpawn, Operator<In> source, Hashing<? super L> hashing) {
       super(labelSpawn.lClass, Collections.singleton(labelSpawn));
       this.labelSpawn = labelSpawn;
       this.source = source;
+      this.hashing = hashing;
     }
   }
 }

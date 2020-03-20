@@ -283,11 +283,11 @@ public class BreadthSearchGraph {
       return Stream.empty();
     }));
     output.link(
-            agentAndActionAfterVisit.labelMarkers(requestLabel)
+            agentAndActionAfterVisit.labelMarkers(requestLabel, Operator.Broadcast.Instance)
                     .new MapBuilder<Either<RequestOutput, Request.Identifier>>(
                     OUTPUT_CLASS,
                     b -> Stream.of(Right.apply(b))
-            ).hash(Operator.Broadcast.Instance).build()
+            ).build()
     );
     return output;
   }
