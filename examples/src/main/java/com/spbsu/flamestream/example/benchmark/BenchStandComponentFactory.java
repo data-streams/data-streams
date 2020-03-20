@@ -75,14 +75,6 @@ public class BenchStandComponentFactory {
   ) throws IOException {
     Map<String, Connection> connections = new HashMap<>();
     CountDownLatch allConnected = new CountDownLatch(remotes.size());
-    new Thread(() -> {
-      try {
-        allConnected.await();
-      } catch (InterruptedException e) {
-        throw new RuntimeException();
-      }
-      consumer.accept(connections);
-    }).start();
     final Server producer = new Server(200_000_000 / remotes.size(), 1000 / remotes.size());
     for (final Class<?> clazz : classesToRegister) {
       producer.getKryo().register(clazz);
@@ -102,6 +94,9 @@ public class BenchStandComponentFactory {
           LOG.info("Accepting connection: {}", id);
           connections.put(id, connection);
           allConnected.countDown();
+          if (allConnected.getCount() == 0) {
+            consumer.accept(connections);
+          }
         } else {
           LOG.info("Closing connection {}", id);
           connection.close();
