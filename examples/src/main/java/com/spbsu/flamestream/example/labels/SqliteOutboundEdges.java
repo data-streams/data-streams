@@ -1,6 +1,6 @@
 package com.spbsu.flamestream.example.labels;
 
-import com.spbsu.flamestream.core.graph.SerializableFunction;
+import com.spbsu.flamestream.core.graph.HashUnit;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -11,12 +11,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
-public enum SqliteOutboundEdges implements SerializableFunction<
-        BreadthSearchGraph.VertexIdentifier,
-        Stream<BreadthSearchGraph.VertexIdentifier>
-        > {
+public enum SqliteOutboundEdges implements BreadthSearchGraph.HashedVertexEdges {
   INSTANCE;
   final Connection connection;
+  final int minTail, maxTail;
 
   SqliteOutboundEdges() {
     try {
@@ -29,6 +27,16 @@ public enum SqliteOutboundEdges implements SerializableFunction<
           throw new RuntimeException(e);
         }
       }));
+      {
+        final ResultSet result = connection.createStatement().executeQuery("SELECT MIN(tail) AS tail FROM edges;");
+        result.next();
+        this.minTail = result.getInt("tail");
+      }
+      {
+        final ResultSet result = connection.createStatement().executeQuery("SELECT MAX(tail) AS tail FROM edges;");
+        result.next();
+        this.maxTail = result.getInt("tail");
+      }
     } catch (SQLException e) {
       throw new RuntimeException(e);
     }
@@ -49,5 +57,10 @@ public enum SqliteOutboundEdges implements SerializableFunction<
     } catch (SQLException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  @Override
+  public int hash(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
+    return HashUnit.scale(vertexIdentifier.id, minTail, maxTail);
   }
 }
