@@ -20,13 +20,13 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
   private final Class<T> tClass;
   private final int index;
   private final SerializableFunction<T, L> mapper;
-  private final List<? extends LabelMarkers<?>> labelMarkers;
+  private final List<? extends LabelMarkers> labelMarkers;
 
   public LabelSpawn(
           Class<T> tClass,
           int index,
           SerializableFunction<T, L> mapper,
-          List<? extends LabelMarkers<?>> labelMarkers
+          List<? extends LabelMarkers> labelMarkers
   ) {
     this.tClass = tClass;
     this.index = index;
@@ -34,7 +34,7 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
     this.labelMarkers = labelMarkers;
   }
 
-  public Stream<? extends LabelMarkers<?>> labelMarkers() {
+  public Stream<? extends LabelMarkers> labelMarkers() {
     return labelMarkers.stream();
   }
 

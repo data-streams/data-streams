@@ -37,7 +37,7 @@ public class Materializer {
   private final Map<Operator<?>, TrackingComponent> operatorTrackingComponent;
   private final Map<Graph.Vertex, TrackingComponent> vertexTrackingComponent = new HashMap<>();
   private final List<Graph.Vertex> labelSpawns = new ArrayList<>();
-  private final Map<Operator.LabelSpawn<?, ?>, List<LabelMarkers<?>>> labelSpawnMarkers = new HashMap<>();
+  private final Map<Operator.LabelSpawn<?, ?>, List<LabelMarkers>> labelSpawnMarkers = new HashMap<>();
 
   public static Graph materialize(Flow<?, ?> flow) {
     return new Materializer(flow).graph;
@@ -253,7 +253,7 @@ public class Materializer {
   }
 
   <Value, L> Graph.Vertex processLabelSpawn(Operator.LabelSpawn<Value, L> labelSpawn) {
-    final List<LabelMarkers<?>> labelMarkers = new ArrayList<>();
+    final List<LabelMarkers> labelMarkers = new ArrayList<>();
     labelSpawnMarkers.put(labelSpawn, labelMarkers);
     final LabelSpawn<Value, L> vertex =
             new LabelSpawn<>(labelSpawn.typeClass, 0, labelSpawn.mapper::apply, labelMarkers);
@@ -266,7 +266,7 @@ public class Materializer {
   }
 
   <L> Graph.Vertex processLabelMarkers(Operator.LabelMarkers<?, L> labelMarkers) {
-    final LabelMarkers<L> vertex = new LabelMarkers<>(operatorTrackingComponent.get(labelMarkers));
+    final LabelMarkers vertex = new LabelMarkers(operatorTrackingComponent.get(labelMarkers));
     operatorVertex(labelMarkers.source);
     labelSpawnMarkers.get(labelMarkers.labelSpawn).add(vertex);
     vertexTrackingComponent.put(vertex, operatorTrackingComponent.get(labelMarkers));

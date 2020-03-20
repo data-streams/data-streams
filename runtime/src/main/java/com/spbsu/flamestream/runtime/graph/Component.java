@@ -170,7 +170,7 @@ public class Component extends LoggingActor {
                         sinkTrackingComponent.index
                 );
               } else if (vertex instanceof LabelMarkers) {
-                joba = new LabelMarkersJoba(jobaId, (LabelMarkers<?>) vertex, downstream);
+                joba = new LabelMarkersJoba(jobaId, (LabelMarkers) vertex, downstream);
               } else if (vertex instanceof FlameMap) {
                 joba = new MapJoba(jobaId, (FlameMap<?, ?>) vertex);
               } else if (vertex instanceof Grouping) {

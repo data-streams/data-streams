@@ -59,13 +59,13 @@ public class LabelMarkersJoba extends Joba {
   }
 
   @org.jetbrains.annotations.NotNull
-  private final LabelMarkers<?> labelMarkers;
+  private final LabelMarkers labelMarkers;
   private final Consumer<DataItem> sink;
   private final InboundMinTime inboundMinTime;
   private final PriorityQueue<DataItem> scheduled =
           new PriorityQueue<>(Comparator.comparing(dataItem -> dataItem.meta().globalTime()));
 
-  public LabelMarkersJoba(Id id, LabelMarkers<?> labelMarkers, Consumer<DataItem> sink) {
+  public LabelMarkersJoba(Id id, LabelMarkers labelMarkers, Consumer<DataItem> sink) {
     super(id);
     this.labelMarkers = labelMarkers;
     this.sink = sink;
