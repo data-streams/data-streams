@@ -26,6 +26,7 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -142,6 +143,7 @@ public class BreadthSearchGraphBenchStand {
     final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(requestsNumber);
     final Map<Integer, Integer> remainingRequestResponses = new ConcurrentHashMap<>();
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
+    final Map<Integer, int[]> requestOutputCount = new HashMap<>();
     final int[] allTails = new int[binarySocialGraph.size()];
     try (final BinarySocialGraph.CloseableTailsIterator tails = binarySocialGraph.new CloseableTailsIterator()) {
       int i = 0;
@@ -163,6 +165,7 @@ public class BreadthSearchGraphBenchStand {
             System.out.println("produced " + requestId + " " + vertex);
             latencies.put(requestId, new LatencyMeasurer());
             remainingRequestResponses.put(requestId, parallelism - 1);
+            requestOutputCount.put(requestId, new int[1]);
             connection.sendTCP(new BreadthSearchGraph.Request(
                     new BreadthSearchGraph.Request.Identifier(requestId),
                     new BreadthSearchGraph.VertexIdentifier(vertex),
@@ -201,7 +204,9 @@ public class BreadthSearchGraphBenchStand {
                                 (__, value) -> value > 1 ? value - 1 : null
                         );
                         if (compute == null) {
-                          System.out.println("consumed " + identifier.id);
+                          System.out.println(
+                                  "consumed " + identifier.id + " " + requestOutputCount.remove(identifier.id)[0]
+                          );
                           latencies.get(identifier.id).finish();
                           awaitConsumer.accept(output);
                           semaphore.release();
@@ -209,6 +214,8 @@ public class BreadthSearchGraphBenchStand {
                             LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
                           }
                         }
+                      } else {
+                        requestOutputCount.get(output.left().get().requestIdentifier.id)[0]++;
                       }
                     },
                     rearPort,
