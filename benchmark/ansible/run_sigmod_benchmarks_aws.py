@@ -14,6 +14,7 @@ def run_benchmarks(rate=2., iterations=100, results_name="", bench_environment={
                 EDGES_HEAD_FILE='/home/ubuntu/edge_head.bin',
                 WARM_UP_STREAM_LENGTH="10080",
                 WARM_UP_DELAY_MS="10",
+                FRONTS_NUMBER="1",
             ), **bench_environment},
             worker_environment={**dict(), **worker_environment},
         ),

@@ -112,10 +112,11 @@ public class BreadthSearchGraphBenchStand {
                     new SocketRearType(wikiBenchStand.benchHost, wikiBenchStand.rearPort, REAR_CLASSES_TO_REGISTER)
             )
     ) {
+      final String frontsNumber = System.getenv("FRONTS_NUMBER");
       wikiBenchStand.run(
               graphDeployer,
-              IntStream.range(1, wikiBenchStand.parallelism).mapToObj(i -> workerIdPrefix + i)
-                      .collect(Collectors.toList())
+              IntStream.range(1, frontsNumber == null ? wikiBenchStand.parallelism : Integer.parseInt(frontsNumber))
+                      .mapToObj(i -> workerIdPrefix + i).collect(Collectors.toList())
       );
     }
     System.exit(0);
