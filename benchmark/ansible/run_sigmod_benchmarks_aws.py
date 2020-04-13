@@ -33,7 +33,7 @@ def run_benchmarks(rate=2., iterations=100, results_name="", bench_environment={
       "-Xms500m -Xmx1500m -Xlog:gc,gc+cpu=info::utc " \
       "-XX:+HeapDumpOnOutOfMemoryError -cp \\'flamestream/lib/*\\' " \
       "com.spbsu.flamestream.example.benchmark.BreadthSearchGraphBenchStand "\
-      "flamestream/bench.conf flamestream/deployer.conf"
+      f"flamestream/bench.conf flamestream/deployer.conf '| tee {flamestream_dir}/bench.log'"
     )
     os.system(
         f"ansible-playbook --extra-vars '{json.dumps(dict(**extra_vars, results_name=results_name))}' -i remote.yml flamestream_post.yml"
