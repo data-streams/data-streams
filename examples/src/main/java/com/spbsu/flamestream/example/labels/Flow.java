@@ -3,7 +3,7 @@ package com.spbsu.flamestream.example.labels;
 import com.spbsu.flamestream.core.graph.HashGroup;
 import com.spbsu.flamestream.core.graph.SerializableConsumer;
 
-class Flow<In, Out> {
+public class Flow<In, Out> {
   public final Operator.Input<In> input;
   public final Operator<Out> output;
   public final SerializableConsumer<HashGroup> init;

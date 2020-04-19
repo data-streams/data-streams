@@ -87,6 +87,8 @@ public class Materializer {
       return processMap((Operator.Map<?, ?>) operator);
     } else if (operator instanceof Operator.StatefulMap) {
       return processStatefulMap((Operator.StatefulMap<?, ?, ?, ?, ?>) operator);
+    } else if (operator instanceof Operator.Grouping) {
+      return processGrouping((Operator.Grouping<?, ?, ?>) operator);
     } else if (operator instanceof Operator.LabelSpawn) {
       return processLabelSpawn((Operator.LabelSpawn<?, ?>) operator);
     } else if (operator instanceof Operator.LabelMarkers) {
@@ -100,7 +102,7 @@ public class Materializer {
     final FlameMap<T, T> flameMap = new FlameMap.Builder<T, T>(Stream::of, input.typeClass).build();
     cachedOperatorVertex.put(input, flameMap);
     vertexTrackingComponent.put(flameMap, operatorTrackingComponent.get(input));
-    for (final Operator<T> source : input.sources) {
+    for (final Operator<? extends T> source : input.sources) {
       graphBuilder.link(operatorVertex(source), flameMap);
     }
     return flameMap;
@@ -155,8 +157,10 @@ public class Materializer {
   public <K> HashFunction hashFunction(
           SerializableFunction<DataItem, K> function, Operator.Hashing<? super K> hashing
   ) {
-    if (hashing == Operator.Broadcast.Instance) {
+    if (hashing == Operator.Hashing.Special.Broadcast) {
       return HashFunction.Broadcast.INSTANCE;
+    } else if (hashing == Operator.Hashing.Special.PostBroadcast) {
+      return HashFunction.PostBroadcast.INSTANCE;
     } else if (hashing == null) {
       return null;
     }
@@ -240,6 +244,28 @@ public class Materializer {
             .link(regrouper, grouping)
             .link(reducer, sink);
     return sink;
+  }
+
+  <In, Key, O extends Comparable<O>> Graph.Vertex processGrouping(Operator.Grouping<In, Key, O> grouping) {
+    final Operator.Keyed<In, Key, O> keyed = grouping.keyed;
+    final LabelsPresence keyLabelsPresence = labelsPresence(keyed.key.labels());
+    final Class<In> typeClass = keyed.source.typeClass;
+    final SerializableFunction<DataItem, Key> dataItemKey = dataItem ->
+            keyed.key.function().apply(dataItem.payload(typeClass));
+    final HashFunction hash = hashFunction(dataItemKey, keyed.hash);
+    final Grouping<In> vertex = new Grouping<>(
+            new Grouping.Builder(
+                    hash,
+                    new StatefulMapGroupingEqualz<>(keyLabelsPresence, dataItemKey),
+                    grouping.window,
+                    typeClass
+            ).order(SerializableComparator.comparing(dataItem -> keyed.order.apply(dataItem.payload(typeClass))))
+                    .undoPartialWindows(grouping.undoPartialWindows)
+    );
+    cachedOperatorVertex.put(grouping, vertex);
+    vertexTrackingComponent.put(vertex, operatorTrackingComponent.get(grouping));
+    graphBuilder.link(operatorVertex(keyed.source), vertex);
+    return vertex;
   }
 
   @NotNull
@@ -359,6 +385,8 @@ public class Materializer {
               inboundOperators = Collections.singleton(((Operator.Map<?, ?>) operator).source);
             } else if (operator instanceof Operator.StatefulMap) {
               inboundOperators = Collections.singleton(((Operator.StatefulMap<?, ?, ?, ?, ?>) operator).keyed.source);
+            } else if (operator instanceof Operator.Grouping) {
+              inboundOperators = Collections.singleton(((Operator.Grouping<?, ?, ?>) operator).keyed.source);
             } else if (operator instanceof Operator.LabelSpawn) {
               inboundOperators = Collections.singleton(((Operator.LabelSpawn<?, ?>) operator).source);
             } else if (operator instanceof Operator.LabelMarkers) {

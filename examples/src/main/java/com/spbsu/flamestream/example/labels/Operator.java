@@ -58,11 +58,15 @@ public abstract class Operator<Type> {
     Instance
   }
 
-  <K> KeyedBuilder<K, DefaultOrder> newKeyedBuilder(SerializableFunction<Type, K> key) {
+  public KeyedBuilder<Void, DefaultOrder> newKeyedBuilder() {
+    return new KeyedBuilder<>(__ -> null, __ -> DefaultOrder.Instance);
+  }
+
+  public <K> KeyedBuilder<K, DefaultOrder> newKeyedBuilder(SerializableFunction<Type, K> key) {
     return new KeyedBuilder<>(key, __ -> DefaultOrder.Instance);
   }
 
-  <K, O extends Comparable<O>> KeyedBuilder<K, O> newKeyedBuilder(
+  public <K, O extends Comparable<O>> KeyedBuilder<K, O> newKeyedBuilder(
           SerializableFunction<Type, K> key, SerializableFunction<Type, O> order
   ) {
     return new KeyedBuilder<>(key, order);
@@ -131,6 +135,15 @@ public abstract class Operator<Type> {
     default Set<LabelSpawn<?, ?>> labels() {
       return Collections.emptySet();
     }
+
+    enum Special implements Hashing<Object> {
+      Broadcast, PostBroadcast;
+
+      @Override
+      public int applyAsInt(Object o) {
+        throw new UnsupportedOperationException();
+      }
+    }
   }
 
   public interface Key<F> {
@@ -138,15 +151,6 @@ public abstract class Operator<Type> {
 
     default Set<LabelSpawn<?, ?>> labels() {
       return Collections.emptySet();
-    }
-  }
-
-  public enum Broadcast implements Hashing<Object> {
-    Instance;
-
-    @Override
-    public int applyAsInt(Object o) {
-      throw new UnsupportedOperationException();
     }
   }
 
@@ -194,6 +198,13 @@ public abstract class Operator<Type> {
 
     public <S, Output> Operator<Output> statefulFlatMap(
             Class<Output> outputClass,
+            SerializableBiFunction<Source, S, Tuple2<S, Stream<Output>>> mapper
+    ) {
+      return new StatefulMap<>(this, Collections.emptySet(), outputClass, mapper);
+    }
+
+    public <S, Output> Operator<Output> statefulFlatMap(
+            Class<Output> outputClass,
             SerializableBiFunction<Source, S, Tuple2<S, Stream<Output>>> mapper,
             Set<LabelSpawn<?, ?>> labels
     ) {
@@ -202,7 +213,7 @@ public abstract class Operator<Type> {
   }
 
   public static final class Input<Type> extends Operator<Type> {
-    public final List<Operator<Type>> sources = new ArrayList<>();
+    public final List<Operator<? extends Type>> sources = new ArrayList<>();
 
     public Input(Class<Type> typeClass) {
       super(typeClass, Collections.emptySet());
@@ -212,7 +223,7 @@ public abstract class Operator<Type> {
       super(typeClass, labels);
     }
 
-    public void link(Operator<Type> operator) {
+    public void link(Operator<? extends Type> operator) {
       for (final LabelSpawn<?, ?> label : labels) {
         if (!operator.labels.contains(label)) {
           throw new IllegalArgumentException(label.toString());
@@ -274,6 +285,20 @@ public abstract class Operator<Type> {
       super(outClass, labels);
       this.keyed = keyed;
       this.reducer = reducer;
+    }
+  }
+
+  public static final class Grouping<In, Key, O extends Comparable<O>> extends Operator<List<In>> {
+    public final Keyed<In, Key, O> keyed;
+    public final int window;
+    public final boolean undoPartialWindows;
+
+    public Grouping(Keyed<In, Key, O> keyed, int window, boolean undoPartialWindows) {
+      //noinspection unchecked
+      super((Class<List<In>>) (Class<?>) List.class, keyed.key.labels());
+      this.keyed = keyed;
+      this.window = window;
+      this.undoPartialWindows = undoPartialWindows;
     }
   }
 

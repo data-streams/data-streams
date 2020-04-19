@@ -283,7 +283,7 @@ public class BreadthSearchGraph {
       return Stream.empty();
     }));
     output.link(
-            agentAndActionAfterVisit.labelMarkers(requestLabel, Operator.Broadcast.Instance)
+            agentAndActionAfterVisit.labelMarkers(requestLabel, Operator.Hashing.Special.Broadcast)
                     .new MapBuilder<Either<RequestOutput, Request.Identifier>>(
                     OUTPUT_CLASS,
                     b -> Stream.of(Right.apply(b))

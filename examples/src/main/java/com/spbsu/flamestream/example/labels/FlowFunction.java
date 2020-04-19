@@ -105,7 +105,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
     this.consumer = (Materialized<FlowInput, ?>) materializedOperator.get(flow.input);
   }
 
-  private <Output> Materialized<?, Output> materialize(Operator<Output> operator) {
+  private <Output> Materialized<?, Output> materialize(Operator<? extends Output> operator) {
     {
       final Materialized<?, ?> materialized = materializedOperator.get(operator);
       if (materialized != null) {
@@ -139,8 +139,8 @@ public class FlowFunction<FlowInput, FlowOutput> {
       }
     };
     materializedOperator.put(input, materialized);
-    for (final Operator<Output> source : input.sources) {
-      materialize(source).listen(materialized);
+    for (final Operator<? extends Output> source : input.sources) {
+      this.<Output>materialize(source).listen(materialized);
     }
     return materialized;
   }
@@ -185,6 +185,29 @@ public class FlowFunction<FlowInput, FlowOutput> {
     return materialized;
   }
 
+  //private <In, Key, O extends Comparable<O>> Materialized<?, List<In>> materializeGrouping(
+  //        Operator.Grouping<In, Key, O> grouping
+  //) {
+  //  final Map<Tuple2<Key, Labels>, List<In>> keyState = new HashMap<>();
+  //  final Function<In, Key> keyFunction =
+  //          statefulMap.keyed.key.function() == null ? ignored -> null : statefulMap.keyed.key.function();
+  //  final Materialized<In, Out> materialized = new Materialized<In, Out>() {
+  //    @Override
+  //    public void handle(Record<? extends In> in) {
+  //      final Tuple2<Key, Labels> key = new Tuple2<>(keyFunction.apply(in.value), in.labels);
+  //      final Record<Tuple2<S, Stream<Out>>> result = new Record<>(statefulMap.reducer.apply(
+  //              in.value,
+  //              keyState.get(key)
+  //      ), in.labels);
+  //      keyState.put(key, result.value._1);
+  //      result.value._2.forEach(out -> emit(new Record<>(out, result.labels)));
+  //    }
+  //  };
+  //  materializedOperator.put(statefulMap, materialized);
+  //  materialize(statefulMap.keyed.source).listen(materialized);
+  //  return materialized;
+  //}
+
   private <Value, L> Materialized<?, Value> materializeLabelSpawn(Operator.LabelSpawn<Value, L> labelSpawn) {
     final Materialized<Value, Value> materialized = new Materialized<Value, Value>() {
       @Override
@@ -222,7 +245,7 @@ public class FlowFunction<FlowInput, FlowOutput> {
     final Materialized<?, Value> materialized = materialize(operator);
     if (materialized.labelTrackers.add(labelTracker)) {
       if (operator instanceof Operator.Input) {
-        for (final Operator<Value> source : ((Operator.Input<Value>) operator).sources) {
+        for (final Operator<? extends Value> source : ((Operator.Input<Value>) operator).sources) {
           trackLabels(labelTracker, source);
         }
       } else if (operator instanceof Operator.Map) {
