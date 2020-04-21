@@ -40,7 +40,7 @@ public class TextClassifierGraph implements Supplier<Graph> {
   private final Vectorizer vectorizer;
   private final OnlineModel onlineModel;
 
-  TextClassifierGraph(Vectorizer vectorizer, OnlineModel onlineModel) {
+  public TextClassifierGraph(Vectorizer vectorizer, OnlineModel onlineModel) {
     this.vectorizer = vectorizer;
     this.onlineModel = onlineModel;
   }
