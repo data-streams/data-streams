@@ -27,7 +27,7 @@ public class GroupingState {
   private static final long baseNanos = System.nanoTime();
   private static final DataOutputStream output;
   private static final Executor fileWriter = Executors.newSingleThreadExecutor();
-  private static final AtomicInteger idsSequence = new AtomicInteger();
+  private static final AtomicInteger stateIdsSequence = new AtomicInteger(), keyIdsSequence = new AtomicInteger();
 
   static {
     try {
@@ -49,12 +49,13 @@ public class GroupingState {
     }
   }
 
-  private static void logEvent(long time, boolean free, int id) {
+  private static void logEvent(long time, boolean free, int keyId, int stateId) {
     fileWriter.execute(() -> {
       try {
         output.writeLong(time);
         output.writeBoolean(free);
-        output.writeInt(id);
+        output.writeInt(keyId);
+        output.writeInt(stateId);
       } catch (IOException exception) {
         throw new RuntimeException(exception);
       }
@@ -66,7 +67,7 @@ public class GroupingState {
     final int id;
 
     public Buffer(InvalidatingBucket bucket) {
-      this(bucket, idsSequence.getAndIncrement());
+      this(bucket, keyIdsSequence.getAndIncrement());
     }
 
     public Buffer(InvalidatingBucket bucket, int id) {
@@ -156,15 +157,18 @@ public class GroupingState {
   private final ConcurrentMap<Key, Buffer> buffers;
   private TreeMap<Long, Set<Key>> timeKeys = new TreeMap<>();
   private long minTime = Long.MIN_VALUE;
+  private final int id;
 
   public GroupingState(Grouping<?> grouping) {
     this.grouping = grouping;
     buffers = new ConcurrentHashMap<>();
+    id = stateIdsSequence.getAndIncrement();
   }
 
-  private GroupingState(Grouping<?> grouping, ConcurrentMap<Key, Buffer> buffers) {
+  private GroupingState(Grouping<?> grouping, ConcurrentMap<Key, Buffer> buffers, int id) {
     this.grouping = grouping;
     this.buffers = buffers;
+    this.id = id;
   }
 
   public InvalidatingBucket bucketFor(DataItem item) {
@@ -181,7 +185,7 @@ public class GroupingState {
             key,
             __ -> new Buffer(new SynchronizedInvalidatingBucket(grouping.order()))
     );
-    logEvent(System.nanoTime() - baseNanos, false, buffer.id);
+    logEvent(System.nanoTime() - baseNanos, false, buffer.id, id);
     return buffer;
   }
 
@@ -197,7 +201,7 @@ public class GroupingState {
         break;
       }
       for (Key key : minTimeKeys.getValue()) {
-        logEvent(time, true, buffers.remove(key).id);
+        logEvent(time, true, buffers.remove(key).id, id);
       }
       timeKeys.pollFirstEntry();
     }
@@ -206,6 +210,6 @@ public class GroupingState {
   public GroupingState subState(GlobalTime ceil, int window) {
     final ConcurrentMap<Key, Buffer> subState = new ConcurrentHashMap<>();
     buffers.forEach((key, bucket) -> subState.put(key, bucket.subBucket(ceil, window)));
-    return new GroupingState(grouping, subState);
+    return new GroupingState(grouping, subState, id);
   }
 }

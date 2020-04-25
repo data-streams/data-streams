@@ -191,6 +191,13 @@ public class LentaBenchStand {
     final Thread connectionsAwaiter = new Thread(() -> {
       try {
         final Map<String, Connection> connections = producerConnections.get();
+        final ScheduledExecutorService progressLogger = Executors.newSingleThreadScheduledExecutor();
+        progressLogger.scheduleAtFixedRate(
+                () -> System.out.println("Progress: " + awaitConsumer.got() + "/" + awaitConsumer.expected()),
+                0,
+                1,
+                TimeUnit.SECONDS
+        );
         final Iterator<TextDocument> iterator = documents(documentsPath).iterator();
         final ScheduledExecutorService producer = Executors.newSingleThreadScheduledExecutor();
         producer.scheduleAtFixedRate(new Runnable() {
@@ -200,6 +207,7 @@ public class LentaBenchStand {
           public void run() {
             if (!iterator.hasNext()) {
               producer.shutdownNow();
+              progressLogger.shutdown();
               return;
             }
             if (!connectionIterator.hasNext()) {
@@ -245,17 +253,9 @@ public class LentaBenchStand {
                     REAR_CLASSES_TO_REGISTER
             )::stop
     ) {
-      final ScheduledExecutorService progressLogger = Executors.newSingleThreadScheduledExecutor();
-      progressLogger.scheduleAtFixedRate(
-              () -> System.out.println("Progress: " + awaitConsumer.got() + "/" + awaitConsumer.expected()),
-              0,
-              1,
-              TimeUnit.SECONDS
-      );
       graphDeployer.deploy();
       awaitConsumer.await(1, TimeUnit.MINUTES);
       connectionsAwaiter.interrupt();
-      progressLogger.shutdown();
       Tracing.TRACING.flush(Paths.get("/tmp/trace.csv"));
     }
     final String latenciesString = latencies.values()
