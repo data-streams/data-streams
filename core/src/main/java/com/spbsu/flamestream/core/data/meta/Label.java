@@ -40,4 +40,9 @@ public final class Label<L> {
             && Objects.equals(nodeId, label.nodeId)
             && uniqueness == label.uniqueness;
   }
+
+  @Override
+  public String toString() {
+    return "(" + index + ", " + value + ", " + nodeId + ", " + uniqueness + ")";
+  }
 }

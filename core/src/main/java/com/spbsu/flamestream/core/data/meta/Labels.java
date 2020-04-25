@@ -37,6 +37,11 @@ public class Labels {
     throw new IllegalArgumentException();
   }
 
+  @Override
+  public String toString() {
+    return Arrays.toString(all);
+  }
+
   public boolean hasAll(LabelsPresence presence) {
     return presence.stream().allMatch(index -> index < all.length && all[index] != null);
   }
