@@ -18,8 +18,8 @@
   tasks:
     - name: Fetch grouping events
       fetch:
-        src: /tmp/grouping_events.csv
-        dest: "{{ results_dir }}/flamestream/grouping_events/{{ inventory_hostname }}.csv"
+        src: /tmp/grouping_events.bin
+        dest: "{{ results_dir }}/flamestream/grouping_events/{{ inventory_hostname }}.bin"
         flat: true
         fail_on_missing: false
     - name: Fetch traces

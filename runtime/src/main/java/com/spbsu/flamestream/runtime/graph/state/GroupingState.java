@@ -26,19 +26,23 @@ import java.util.function.Consumer;
 public class GroupingState {
   private static final long baseNanos = System.nanoTime();
   private static final DataOutputStream output;
+  private static final Executor fileWriter = Executors.newSingleThreadExecutor();
+  private static final AtomicInteger idsSequence = new AtomicInteger();
 
   static {
     try {
       output = new DataOutputStream(new BufferedOutputStream(
-              new FileOutputStream("/tmp/grouping_events.csv"),
+              new FileOutputStream("/tmp/grouping_events.bin"),
               1 << 22
       ));
       Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-        try {
-          output.close();
-        } catch (IOException e) {
-          throw new RuntimeException(e);
-        }
+        fileWriter.execute(() -> {
+          try {
+            output.flush();
+          } catch (IOException e) {
+            throw new RuntimeException(e);
+          }
+        });
       }));
     } catch (FileNotFoundException e) {
       throw new RuntimeException(e);
@@ -56,9 +60,6 @@ public class GroupingState {
       }
     });
   }
-
-  private static final Executor fileWriter = Executors.newSingleThreadExecutor();
-  private static final AtomicInteger idsSequence = new AtomicInteger();
 
   static class Buffer implements InvalidatingBucket {
     final InvalidatingBucket bucket;
