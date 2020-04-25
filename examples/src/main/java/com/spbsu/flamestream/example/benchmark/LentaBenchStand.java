@@ -109,7 +109,7 @@ public class LentaBenchStand {
       return new TextDocument(
               r.get(0), // url order
               text.toString().toLowerCase(),
-              String.valueOf(ThreadLocalRandom.current().nextInt(0, 200)),
+              String.valueOf(ThreadLocalRandom.current().nextInt()),
               counter.incrementAndGet(),
               r.get(4) // label
       );
