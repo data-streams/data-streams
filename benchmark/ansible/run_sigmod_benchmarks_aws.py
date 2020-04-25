@@ -32,7 +32,7 @@ def run_benchmarks(rate=2., iterations=100, results_name="", bench_environment={
       "java -Daeron.term.buffer.length=4194304 -Daeron.mtu.length=16384 " \
       "-Xms500m -Xmx1500m -Xlog:gc,gc+cpu=info::utc " \
       "-XX:+HeapDumpOnOutOfMemoryError -cp \\'flamestream/lib/*\\' " \
-      "com.spbsu.flamestream.example.benchmark.BreadthSearchGraphBenchStand "\
+      "com.spbsu.flamestream.example.benchmark.LentaBenchStand "\
       f"flamestream/bench.conf flamestream/deployer.conf '| tee {flamestream_dir}/bench.log'"
     )
     os.system(
