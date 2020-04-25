@@ -15,7 +15,14 @@ public class Labels {
 
   @Override
   public boolean equals(Object obj) {
-    return obj != null && obj.equals(all);
+    if (this == obj) {
+      return true;
+    }
+    if (!(obj instanceof Labels)) {
+      return false;
+    }
+    final Labels labels = (Labels) obj;
+    return Arrays.equals(all, labels.all);
   }
 
   @Override
