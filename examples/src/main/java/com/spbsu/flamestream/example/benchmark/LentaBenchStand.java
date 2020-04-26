@@ -54,6 +54,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -188,6 +189,7 @@ public class LentaBenchStand {
             new AwaitCountConsumer((int) (long) streamLength * (parallelism - 1));
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
     final CompletableFuture<Map<String, Connection>> producerConnections = new CompletableFuture<>();
+    final Semaphore requestsInProgress = new Semaphore(Integer.parseInt(System.getenv("SIMULTANEOUS_REQUESTS")));
     final Thread connectionsAwaiter = new Thread(() -> {
       try {
         final Map<String, Connection> connections = producerConnections.get();
@@ -214,15 +216,10 @@ public class LentaBenchStand {
             connection.sendTCP(textDocument);
           }
         };
-        final ScheduledExecutorService producer = Executors.newSingleThreadScheduledExecutor();
-        producer.scheduleAtFixedRate(() -> {
-          if (!iterator.hasNext()) {
-            producer.shutdownNow();
-            progressLogger.shutdown();
-            return;
-          }
+        while (iterator.hasNext()) {
+          requestsInProgress.acquire();
           sendRequest.run();
-        }, 0, sleepBetweenDocs, TimeUnit.MILLISECONDS);
+        }
       } catch (InterruptedException ignored) {
       } catch (ExecutionException | IOException e) {
         throw new RuntimeException(e);
@@ -248,6 +245,9 @@ public class LentaBenchStand {
                       }
                       latencies.get(prediction.tfIdf().number()).finish();
                       awaitConsumer.accept(prediction);
+                      if (awaitConsumer.got() % (parallelism - 1) == 0) {
+                        requestsInProgress.release();
+                      }
                       if (awaitConsumer.got() % 10000 == 0) {
                         LOG.info("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
                       }
