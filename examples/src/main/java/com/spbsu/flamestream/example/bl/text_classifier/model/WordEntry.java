@@ -8,13 +8,15 @@ public class WordEntry implements WordContainer, DocContainer {
   private final String word;
   private final String docId;
   private final String partitioning;
+  private final boolean labeled;
   private final int idfCardinality;
 
-  public WordEntry(String word, String docId, int idfCardinality, String partitioning) {
+  public WordEntry(String word, String docId, int idfCardinality, String partitioning, boolean labeled) {
     this.word = word;
     this.docId = docId;
     this.idfCardinality = idfCardinality;
     this.partitioning = partitioning;
+    this.labeled = labeled;
   }
 
   @Override
@@ -30,6 +32,11 @@ public class WordEntry implements WordContainer, DocContainer {
   @Override
   public String partitioning() {
     return partitioning;
+  }
+
+  @Override
+  public boolean labeled() {
+    return labeled;
   }
 
   public int idfCardinality() {

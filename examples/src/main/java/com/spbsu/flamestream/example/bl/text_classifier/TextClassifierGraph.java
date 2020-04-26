@@ -1,7 +1,6 @@
 package com.spbsu.flamestream.example.bl.text_classifier;
 
 import com.spbsu.flamestream.core.Graph;
-import com.spbsu.flamestream.core.HashFunction;
 import com.spbsu.flamestream.example.bl.text_classifier.model.ClassifierState;
 import com.spbsu.flamestream.example.bl.text_classifier.model.IdfObject;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
@@ -35,8 +34,8 @@ public class TextClassifierGraph implements Supplier<Graph> {
   private final static Logger LOG = LoggerFactory.getLogger(TextClassifierGraph.class);
 
   @SuppressWarnings("unchecked")
-  private static final Class<Either<WordCounter, DocumentKey>> EITHER_WORD_COUNTER_OR_MARKER =
-          (Class<Either<WordCounter, DocumentKey>>) (Class<?>) Either.class;
+  private static final Class<Either<DocContainer, DocumentKey>> EITHER_WORD_COUNTER_OR_MARKER =
+          (Class<Either<DocContainer, DocumentKey>>) (Class<?>) Either.class;
   private final Vectorizer vectorizer;
   private final OnlineModel onlineModel;
 
@@ -90,12 +89,13 @@ public class TextClassifierGraph implements Supplier<Graph> {
                     integer,
                     tfObject.document(),
                     tfObject.counts().size(),
-                    tfObject.partitioning()
+                    tfObject.partitioning(),
+                    tfObject.labeled()
             ))
     );
     final Set<Operator.LabelSpawn<?, ?>> labels = Collections.singleton(documents);
-    final Operator<Either<WordCounter, DocumentKey>> wordCounters =
-            new Operator.Keyed<>(wordEntries.newKeyedBuilder(WordEntry::word)).statefulMap(
+    final Operator<WordCounter> wordCounters = new Operator.Keyed<>(wordEntries.newKeyedBuilder(WordEntry::word))
+            .statefulMap(
                     WordCounter.class,
                     (WordEntry wordEntry, WordCounter previous) -> {
                       final WordCounter updated = previous == null ? new WordCounter(wordEntry, 1) : new WordCounter(
@@ -104,24 +104,7 @@ public class TextClassifierGraph implements Supplier<Graph> {
                       );
                       return new Tuple2<>(updated, updated);
                     }
-            ).new MapBuilder<Either<WordCounter, DocumentKey>>(
-                    EITHER_WORD_COUNTER_OR_MARKER,
-                    wordCounter -> Stream.of(new Left<>(wordCounter))
-            ).hash(new Operator.Hashing<>() {
-              @Override
-              public Set<Operator.LabelSpawn<?, ?>> labels() {
-                return labels;
-              }
-
-              @Override
-              public int applyAsInt(WordCounter wordCounter) {
-                return 0;
-              }
-            }).build();
-    final Operator.Input<Either<WordCounter, DocumentKey>> wordCounterOrMarker =
-            new Operator.Input<>(EITHER_WORD_COUNTER_OR_MARKER, labels);
-    wordCounterOrMarker.link(wordCounters);
-    wordCounterOrMarker.link(wordCounters.labelMarkers(documents).map(EITHER_WORD_COUNTER_OR_MARKER, Right::new));
+            );
     final Operator.Hashing<Object> labelsHashing = new Operator.Hashing<>() {
       @Override
       public Set<Operator.LabelSpawn<?, ?>> labels() {
@@ -133,55 +116,55 @@ public class TextClassifierGraph implements Supplier<Graph> {
         return 0;
       }
     };
-    final Operator<IdfObject> idfObjects = new Operator.Grouping<>(
-            new Operator.Keyed<>(wordCounterOrMarker.newKeyedBuilder().keyLabels(labels).hash(labelsHashing)),
+    final Operator.Input<DocContainer> scatteredTfsAndWordCounters =
+            new Operator.Input<>(DocContainer.class, labels).link(documents).link(wordCounters);
+    final Operator.Input<DocContainer> gatheredTfsAndWordCounters = new Operator.Input<>(DocContainer.class, labels)
+            .link(scatteredTfsAndWordCounters.new MapBuilder<DocContainer>(
+                    DocContainer.class,
+                    (DocContainer docContainer) -> docContainer.labeled() ? Stream.of(docContainer) : Stream.empty()
+            ).hash(Operator.Hashing.Special.Broadcast).build())
+            .link(scatteredTfsAndWordCounters.new MapBuilder<DocContainer>(
+                    DocContainer.class,
+                    (DocContainer docContainer) -> docContainer.labeled() ? Stream.empty() : Stream.of(docContainer)
+            ).hash(labelsHashing).build());
+    final Operator.Input<Either<DocContainer, DocumentKey>> markeredTfsAndWordCounters =
+            new Operator.Input<>(EITHER_WORD_COUNTER_OR_MARKER, labels)
+                    .link(gatheredTfsAndWordCounters.map(EITHER_WORD_COUNTER_OR_MARKER, Left::new))
+                    .link(gatheredTfsAndWordCounters.labelMarkers(documents).map(EITHER_WORD_COUNTER_OR_MARKER, Right::new));
+
+    final Operator<TfIdfObject> tfIdfObjects = new Operator.Grouping<>(
+            new Operator.Keyed<>(markeredTfsAndWordCounters.newKeyedBuilder()
+                    .keyLabels(labels)
+                    .hash(Operator.Hashing.Special.PostBroadcast)),
             Integer.MAX_VALUE,
             true
-    ).filter(grouped -> grouped.get(grouped.size() - 1).isRight()).map(IdfObject.class, grouped ->
-            new IdfObject(grouped.subList(0, grouped.size() - 1)
+    ).filter(grouped -> grouped.get(grouped.size() - 1).isRight()).map(TfIdfObject.class, grouped -> new TfIdfObject(
+            (TfObject) grouped.get(0).left().get(),
+            new IdfObject(grouped.subList(1, grouped.size() - 1)
                     .stream()
-                    .map(either -> either.left().get())
+                    .map(either -> ((WordCounter) either.left().get()))
                     .collect(Collectors.toSet()))
-    );
-    final Operator.Input<DocContainer> tfsAndIdfs = new Operator.Input<>(DocContainer.class, labels);
-    tfsAndIdfs.link(idfObjects);
-    tfsAndIdfs.link(documents);
-    final Operator<TfIdfObject> tfIdfs = new Operator.Grouping<>(
-            new Operator.Keyed<>(tfsAndIdfs.newKeyedBuilder().keyLabels(labels).hash(labelsHashing)),
-            2,
-            true
-    ).filter(docContainers -> docContainers.size() == 2).map(TfIdfObject.class, docContainers ->
-            new TfIdfObject((TfObject) docContainers.get(0), (IdfObject) docContainers.get(1))
-    );
-    final Operator.Input<TfIdfObject> classifierInputs = new Operator.Input<>(TfIdfObject.class);
-    classifierInputs.link(tfIdfs.new MapBuilder<TfIdfObject>(
-            TfIdfObject.class,
-            (TfIdfObject tfIdf) -> tfIdf.label() != null ? Stream.of(tfIdf) : Stream.empty()
-    ).hash(Operator.Hashing.Special.Broadcast).build());
-    classifierInputs.link(tfIdfs.filter(tfIdfObject -> tfIdfObject.label() == null));
+    ));
     final Classifier classifier = new Classifier(vectorizer, onlineModel);
     final Operator<Prediction> predictions = new Operator.Keyed<>(
-            classifierInputs.newKeyedBuilder().hash(Operator.Hashing.Special.PostBroadcast)
-    ).statefulFlatMap(
-            Prediction.class,
-            ((TfIdfObject tfIdfObject, ClassifierState classifierState) -> {
-              if (tfIdfObject.label() == null) {
-                if (classifierState == null) {
-                  LOG.warn("Cannot process doc: {}. Empty model.", tfIdfObject.document());
-                  return new Tuple2<>(null, Stream.empty());
-                }
-                return new Tuple2<>(
-                        classifierState,
-                        Stream.of(new Prediction(tfIdfObject, classifier.predict(classifierState, tfIdfObject)))
-                );
-              } else {
-                return new Tuple2<>(
-                        classifier.step(classifierState, tfIdfObject),
-                        Stream.of(new Prediction(tfIdfObject, new Topic[]{}))
-                );
-              }
-            })
-    );
+            tfIdfObjects.newKeyedBuilder().hash(Operator.Hashing.Special.PostBroadcast)
+    ).statefulFlatMap(Prediction.class, (TfIdfObject tfIdfObject, ClassifierState classifierState) -> {
+      if (tfIdfObject.label() == null) {
+        if (classifierState == null) {
+          LOG.warn("Cannot process doc: {}. Empty model.", tfIdfObject.document());
+          return new Tuple2<>(null, Stream.empty());
+        }
+        return new Tuple2<>(
+                classifierState,
+                Stream.of(new Prediction(tfIdfObject, classifier.predict(classifierState, tfIdfObject)))
+        );
+      } else {
+        return new Tuple2<>(
+                classifier.step(classifierState, tfIdfObject),
+                Stream.of(new Prediction(tfIdfObject, new Topic[]{}))
+        );
+      }
+    });
     return Materializer.materialize(new Flow<>(textDocumentInput, predictions, __ -> classifier.init()));
   }
 }
