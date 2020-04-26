@@ -185,7 +185,7 @@ public class LentaBenchStand {
   public void run(GraphDeployer graphDeployer, List<String> inputHosts) throws Exception {
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
     final AwaitCountConsumer awaitConsumer =
-            new AwaitCountConsumer((int) documents(documentsPath).count() * (parallelism - 1));
+            new AwaitCountConsumer((int) (long) streamLength * (parallelism - 1));
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
     final CompletableFuture<Map<String, Connection>> producerConnections = new CompletableFuture<>();
     final Thread connectionsAwaiter = new Thread(() -> {
@@ -198,7 +198,7 @@ public class LentaBenchStand {
                 1,
                 TimeUnit.SECONDS
         );
-        final Iterator<TextDocument> iterator = documents(documentsPath).iterator();
+        final Iterator<TextDocument> iterator = documents(documentsPath).limit(streamLength).iterator();
         final ScheduledExecutorService producer = Executors.newSingleThreadScheduledExecutor();
         producer.scheduleAtFixedRate(new Runnable() {
           Iterator<Connection> connectionIterator = connections.values().iterator();

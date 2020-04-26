@@ -7,7 +7,7 @@ import os
 def run_benchmarks(rate=2., iterations=100, results_name="", bench_environment={}, worker_environment={}, **kwargs):
     extra_vars = {
         **dict(
-            parallelism=5, iterations=iterations, stream_length=1, local_acker_flush_delay_in_millis=5,
+            parallelism=5, iterations=iterations, stream_length=800975, local_acker_flush_delay_in_millis=5,
             rate=rate,
             bench_environment={**dict(
                 EDGES_TAIL_FILE='/home/ubuntu/tail_head_offset.bin',
