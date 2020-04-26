@@ -71,8 +71,8 @@ public abstract class Operator<Type> {
   public class KeyedBuilder<K, O extends Comparable<O>> {
     final SerializableFunction<Type, K> keyFunction;
     final Function<Type, O> order;
-    private SerializableToIntFunction<K> hashFunction = Objects::hashCode;
-    private Set<LabelSpawn<?, ?>> keyLabels = Collections.emptySet(), hashLabels = Collections.emptySet();
+    private Set<LabelSpawn<?, ?>> keyLabels = Collections.emptySet();
+    private Hashing<? super K> hash = Object::hashCode;
     private boolean orderedByProcessingTime = false;
 
     private KeyedBuilder(SerializableFunction<Type, K> key, SerializableFunction<Type, O> order) {
@@ -80,8 +80,8 @@ public abstract class Operator<Type> {
       this.order = order;
     }
 
-    public KeyedBuilder<K, O> hashFunction(SerializableToIntFunction<K> hashFunction) {
-      this.hashFunction = hashFunction;
+    public KeyedBuilder<K, O> hash(Hashing<? super K> hash) {
+      this.hash = hash;
       return this;
     }
 
@@ -96,11 +96,6 @@ public abstract class Operator<Type> {
 
     public KeyedBuilder<K, O> keyLabels(Set<LabelSpawn<?, ?>> keyLabels) {
       this.keyLabels = keyLabels;
-      return this;
-    }
-
-    public KeyedBuilder<K, O> hashLabels(Set<LabelSpawn<?, ?>> hashLabels) {
-      this.hashLabels = hashLabels;
       return this;
     }
 
@@ -176,17 +171,7 @@ public abstract class Operator<Type> {
           return builder.keyFunction;
         }
       };
-      hash = new Hashing<K>() {
-        @Override
-        public Set<LabelSpawn<?, ?>> labels() {
-          return builder.hashLabels;
-        }
-
-        @Override
-        public int applyAsInt(K key) {
-          return builder.hashFunction.applyAsInt(key);
-        }
-      };
+      hash = builder.hash;
       orderedByProcessingTime = builder.orderedByProcessingTime;
     }
 

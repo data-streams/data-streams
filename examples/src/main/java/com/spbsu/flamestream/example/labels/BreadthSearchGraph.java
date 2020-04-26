@@ -254,7 +254,7 @@ public class BreadthSearchGraph {
           VertexEdges vertexEdges
   ) {
     return agentInput.newKeyedBuilder(agent -> agent.vertexIdentifier, agent -> -agent.remainingPathLength)
-            .keyLabels(Collections.singleton(requestLabel)).hashFunction(vertexEdges::hash).build()
+            .keyLabels(Collections.singleton(requestLabel)).hash(vertexEdges::hash).build()
             .statefulMap(AGENT_WITH_ACTION_AFTER_VISIT_CLASS, (Agent agent, Integer remainingPathLength) -> {
               final Agent.ActionAfterVisit actionAfterVisit;
               if (remainingPathLength == null) {
