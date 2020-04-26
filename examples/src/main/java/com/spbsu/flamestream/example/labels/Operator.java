@@ -10,7 +10,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -137,7 +136,8 @@ public abstract class Operator<Type> {
     }
 
     enum Special implements Hashing<Object> {
-      Broadcast, PostBroadcast;
+      Broadcast,
+      PostBroadcast;
 
       @Override
       public int applyAsInt(Object o) {
@@ -223,13 +223,14 @@ public abstract class Operator<Type> {
       super(typeClass, labels);
     }
 
-    public void link(Operator<? extends Type> operator) {
+    public Input<Type> link(Operator<? extends Type> operator) {
       for (final LabelSpawn<?, ?> label : labels) {
         if (!operator.labels.contains(label)) {
           throw new IllegalArgumentException(label.toString());
         }
       }
       sources.add(operator);
+      return this;
     }
   }
 
