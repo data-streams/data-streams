@@ -193,7 +193,7 @@ public class LentaBenchStand {
         final Map<String, Connection> connections = producerConnections.get();
         final ScheduledExecutorService progressLogger = Executors.newSingleThreadScheduledExecutor();
         progressLogger.scheduleAtFixedRate(
-                () -> System.out.println("Progress: " + awaitConsumer.got() + "/" + awaitConsumer.expected()),
+                () -> System.out.println("Sent: " + latencies.size() + ", " + "received: " + awaitConsumer.got() / (parallelism - 1) + "/" + streamLength),
                 0,
                 1,
                 TimeUnit.SECONDS
