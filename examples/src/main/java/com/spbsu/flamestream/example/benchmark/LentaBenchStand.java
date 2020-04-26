@@ -199,17 +199,11 @@ public class LentaBenchStand {
                 TimeUnit.SECONDS
         );
         final Iterator<TextDocument> iterator = documents(documentsPath).limit(streamLength).iterator();
-        final ScheduledExecutorService producer = Executors.newSingleThreadScheduledExecutor();
-        producer.scheduleAtFixedRate(new Runnable() {
+        final Runnable sendRequest = new Runnable() {
           Iterator<Connection> connectionIterator = connections.values().iterator();
 
           @Override
           public void run() {
-            if (!iterator.hasNext()) {
-              producer.shutdownNow();
-              progressLogger.shutdown();
-              return;
-            }
             if (!connectionIterator.hasNext()) {
               connectionIterator = connections.values().iterator();
             }
@@ -219,6 +213,15 @@ public class LentaBenchStand {
             latencies.put(requestId, new LatencyMeasurer());
             connection.sendTCP(textDocument);
           }
+        };
+        final ScheduledExecutorService producer = Executors.newSingleThreadScheduledExecutor();
+        producer.scheduleAtFixedRate(() -> {
+          if (!iterator.hasNext()) {
+            producer.shutdownNow();
+            progressLogger.shutdown();
+            return;
+          }
+          sendRequest.run();
         }, 0, sleepBetweenDocs, TimeUnit.MILLISECONDS);
       } catch (InterruptedException ignored) {
       } catch (ExecutionException | IOException e) {
