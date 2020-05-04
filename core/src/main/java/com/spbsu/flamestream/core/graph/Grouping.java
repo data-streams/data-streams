@@ -2,7 +2,6 @@ package com.spbsu.flamestream.core.graph;
 
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.Equalz;
-import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.HashFunction;
 import com.spbsu.flamestream.core.data.PayloadDataItem;
 import com.spbsu.flamestream.core.data.invalidation.InvalidatingBucket;
@@ -20,6 +19,7 @@ public class Grouping<T> extends HashingVertexStub {
   private final int window;
   private final Class<?> clazz;
   private final boolean undoPartialWindows;
+  private final SerializableComparator<DataItem> order;
 
   public static class Builder {
     private final HashFunction hash;
@@ -27,6 +27,7 @@ public class Grouping<T> extends HashingVertexStub {
     private final int window;
     private final Class<?> clazz;
     private boolean undoPartialWindows = false;
+    private SerializableComparator<DataItem> order = (dataItem1, dataItem2) -> 0;
 
     public Builder(HashFunction hash, Equalz equalz, int window, Class<?> clazz) {
       this.window = window;
@@ -35,8 +36,13 @@ public class Grouping<T> extends HashingVertexStub {
       this.clazz = clazz;
     }
 
-    Builder undoPartialWindows(boolean undoPartialWindows) {
+    public Builder undoPartialWindows(boolean undoPartialWindows) {
       this.undoPartialWindows = undoPartialWindows;
+      return this;
+    }
+
+    public Builder order(SerializableComparator<DataItem> order) {
+      this.order = order;
       return this;
     }
   }
@@ -47,6 +53,7 @@ public class Grouping<T> extends HashingVertexStub {
     this.equalz = equalz;
     this.clazz = clazz;
     undoPartialWindows = false;
+    this.order = (dataItem1, dataItem2) -> 0;
   }
 
   public Grouping(Builder builder) {
@@ -55,6 +62,7 @@ public class Grouping<T> extends HashingVertexStub {
     this.equalz = builder.equalz;
     this.clazz = builder.clazz;
     this.undoPartialWindows = builder.undoPartialWindows;
+    this.order = builder.order;
   }
 
   public HashFunction hash() {
@@ -82,6 +90,10 @@ public class Grouping<T> extends HashingVertexStub {
             '}';
   }
 
+  public SerializableComparator<DataItem> order() {
+    return order;
+  }
+
   public class GroupingOperation {
     private final long physicalId;
 
@@ -93,12 +105,12 @@ public class Grouping<T> extends HashingVertexStub {
       final Collection<DataItem> items = new ArrayList<>();
 
       if (!dataItem.meta().isTombstone()) {
-        final int positionToBeInserted = bucket.lowerBound(dataItem.meta());
+        final int positionToBeInserted = bucket.insertionPosition(dataItem);
         items.addAll(replayAround(positionToBeInserted, bucket, true, false));
         bucket.insert(dataItem);
         items.addAll(replayAround(positionToBeInserted, bucket, false, true));
       } else {
-        final int positionToBeCleared = bucket.lowerBound(dataItem.meta()) - 1;
+        final int positionToBeCleared = bucket.insertionPosition(dataItem) - 1;
         items.addAll(replayAround(positionToBeCleared, bucket, true, true));
         bucket.insert(dataItem);
         items.addAll(replayAround(positionToBeCleared, bucket, false, false));
@@ -107,7 +119,12 @@ public class Grouping<T> extends HashingVertexStub {
       return items.stream();
     }
 
-    private List<DataItem> replayAround(int index, InvalidatingBucket bucket, boolean areTombs, boolean include) {
+    private List<DataItem> replayAround(
+            int index,
+            InvalidatingBucket bucket,
+            boolean areTombs,
+            boolean include
+    ) {
       final int limit = (int) Math.min((long) index + window - (include ? 0 : 1), bucket.size());
       if (undoPartialWindows) {
         if (bucket.isEmpty()) {
@@ -134,7 +151,10 @@ public class Grouping<T> extends HashingVertexStub {
       final List<T> groupingResult = new ArrayList<>();
       //noinspection unchecked
       bucket.forRange(left, right, dataItem -> groupingResult.add(dataItem.payload((Class<T>) clazz)));
-      return new PayloadDataItem(new Meta(bucket.get(right - 1).meta(), physicalId, areTombs), groupingResult);
+      return new PayloadDataItem(
+              new Meta(bucket.get(right - 1).meta(), physicalId, areTombs),
+              groupingResult
+      );
     }
   }
 }

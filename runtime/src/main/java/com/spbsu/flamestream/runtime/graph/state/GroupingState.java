@@ -2,9 +2,8 @@ package com.spbsu.flamestream.runtime.graph.state;
 
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.data.invalidation.InvalidatingBucket;
-import com.spbsu.flamestream.core.data.invalidation.SynchronizedArrayInvalidatingBucket;
+import com.spbsu.flamestream.core.data.invalidation.SynchronizedInvalidatingBucket;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
-import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.core.graph.Grouping;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -57,12 +56,15 @@ public class GroupingState {
   }
 
   public InvalidatingBucket bucketFor(DataItem item) {
-    return buffers.computeIfAbsent(new Key(grouping, item), __ -> new SynchronizedArrayInvalidatingBucket());
+    return buffers.computeIfAbsent(
+            new Key(grouping, item),
+            __ -> new SynchronizedInvalidatingBucket(grouping.order())
+    );
   }
 
   public GroupingState subState(GlobalTime ceil, int window) {
     final ConcurrentMap<Key, InvalidatingBucket> subState = new ConcurrentHashMap<>();
-    buffers.forEach((key, bucket) -> subState.put(key, bucket.subBucket(new Meta(ceil), window)));
+    buffers.forEach((key, bucket) -> subState.put(key, bucket.subBucket(ceil, window)));
     return new GroupingState(grouping, subState);
   }
 }

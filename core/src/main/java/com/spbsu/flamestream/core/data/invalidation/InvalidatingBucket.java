@@ -1,7 +1,7 @@
 package com.spbsu.flamestream.core.data.invalidation;
 
 import com.spbsu.flamestream.core.DataItem;
-import com.spbsu.flamestream.core.data.meta.Meta;
+import com.spbsu.flamestream.core.data.meta.GlobalTime;
 
 import java.util.function.Consumer;
 
@@ -51,13 +51,21 @@ public interface InvalidatingBucket {
    * <p>
    * min i : a[i] >= x
    */
-  int lowerBound(Meta meta);
+  int lowerBound(GlobalTime meta);
+
+  /**
+   * Returns an index of the first element in the bucket that is not less than (i.e. greater or equal to) value,
+   * or last if no such element is found.
+   * <p>
+   * min i : a[i] >= x
+   */
+  int insertionPosition(DataItem meta);
 
   /**
    *
-   * @param meta of last item in sub bucket
+   * @param globalTime of last item in sub bucket
    * @param window for offset
-   * @return bucket that contains [lowerBound(meta) - window + 1, lowerBound(meta)) items
+   * @return bucket that contains [lowerBound(globalTime) - window + 1, lowerBound(globalTime)) items
    */
-  InvalidatingBucket subBucket(Meta meta, int window);
+  InvalidatingBucket subBucket(GlobalTime globalTime, int window);
 }

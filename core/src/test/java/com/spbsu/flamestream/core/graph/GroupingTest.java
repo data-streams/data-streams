@@ -88,10 +88,10 @@ public final class GroupingTest extends FlameStreamSuite {
     final Meta x0Global = new Meta(new GlobalTime(1, EdgeId.MIN));
 
     final DataItem x5 = new PayloadDataItem(x5Global, "v5");
-    final DataItem x5State = new PayloadDataItem(new Meta(x5.meta(), 2, false), "v5State");
+    final DataItem x5State = new PayloadDataItem(new Meta(x5.meta(), 2, 0), "v5State");
     final DataItem x0 = new PayloadDataItem(x0Global, "x0");
-    final DataItem x0State = new PayloadDataItem(new Meta(x0.meta(), 2, false), "x0State");
-    final DataItem theState = new PayloadDataItem(new Meta(x5State.meta(), 4, false), "theState");
+    final DataItem x0State = new PayloadDataItem(new Meta(x0.meta(), 2, 0), "x0State");
+    final DataItem theState = new PayloadDataItem(new Meta(x5State.meta(), 4, 0), "theState");
 
     final Set<List<String>> actualResult = GroupingTest.groupMe(Stream.of(x5, x5State, x0, x0State, theState), 2);
     final Set<List<String>> expectedResult = new HashSet<>();
@@ -117,7 +117,7 @@ public final class GroupingTest extends FlameStreamSuite {
 
     final DataItem x1 = new PayloadDataItem(x1Meta, "v1");
     final DataItem x2 = new PayloadDataItem(new Meta(new GlobalTime(2, EdgeId.MIN)), "v2");
-    final DataItem x1Prime = new PayloadDataItem(new Meta(x1Meta, 2, false), "state");
+    final DataItem x1Prime = new PayloadDataItem(new Meta(x1Meta, 2, 0), "state");
 
     final Set<List<String>> actualResult = GroupingTest.groupMe(Stream.of(x1, x2, x1Prime), 2);
     final Set<List<String>> expectedResult = new HashSet<>();

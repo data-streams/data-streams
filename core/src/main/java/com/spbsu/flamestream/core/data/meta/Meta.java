@@ -1,5 +1,7 @@
 package com.spbsu.flamestream.core.data.meta;
 
+import org.jetbrains.annotations.NotNull;
+
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
@@ -9,7 +11,7 @@ public class Meta implements Comparable<Meta> {
 
   public static final Comparator<Meta> NATURAL_ORDER = Comparator
           .comparing(Meta::globalTime)
-          .thenComparing(Meta::childIds, new ArrayComparator())
+          .thenComparing(Meta::childIds, Arrays::compare)
           .thenComparing(Meta::trace)
           .thenComparing(Meta::isTombstone);
 
@@ -57,9 +59,24 @@ public class Meta implements Comparable<Meta> {
     return childIds;
   }
 
+  public int childIdsLength() {
+    return childIds.length;
+  }
+
   @Override
-  public int compareTo(Meta that) {
+  public int compareTo(@NotNull Meta that) {
     return NATURAL_ORDER.compare(this, that);
+  }
+
+  public int comparePrefixedChildIds(int thisPrefix, Meta that, int thatPrefix) {
+    return Comparator.comparing(
+            Meta::childIds,
+            (a, b) -> Arrays.compare(a, 0, thisPrefix, b, 0, thatPrefix)
+    ).compare(this, that);
+  }
+
+  public boolean childIdsArePrefixTo(Meta that) {
+    return Arrays.mismatch(childIds, that.childIds) == childIds.length;
   }
 
   public boolean isInvalidedBy(Meta that) {
@@ -95,17 +112,5 @@ public class Meta implements Comparable<Meta> {
   @Override
   public String toString() {
     return "(" + globalTime + ", " + Arrays.toString(childIds) + ", " + trace + (tombstone ? ", tombstone" : "") + ')';
-  }
-
-  public static class ArrayComparator implements Comparator<int[]> {
-    @Override
-    public int compare(int[] o1, int[] o2) {
-      for (int i = 0; i < Math.min(o1.length, o2.length); ++i) {
-        if (o1[i] != o2[i]) {
-          return Long.compare(o1[i], o2[i]);
-        }
-      }
-      return Integer.compare(o1.length, o2.length);
-    }
   }
 }
