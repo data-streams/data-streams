@@ -106,7 +106,7 @@ public class SocketRear implements Rear {
   private boolean writeAllUntilFull(Iterator<DataItem> iterator) {
     while (iterator.hasNext()) {
       if (client.getTcpWriteBufferSize() < BUFFER_SIZE * 0.9) {
-        client.sendTCP(iterator.next().payload(Object.class));
+        client.sendTCP(iterator.next());
       } else {
         return false;
       }
