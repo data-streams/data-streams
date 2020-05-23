@@ -113,6 +113,10 @@ public class Component extends LoggingActor {
                         ack(cloned, to);
                         next.getValue().tell(new AddressedItem(cloned, toDest), self());
                       }
+                    } else if (hash == HashFunction.PostBroadcast.INSTANCE) {
+                      if (!localCall(item, toDest)) {
+                        ack(item, to);
+                      }
                     } else {
                       final ActorRef route = routes.get(Objects.requireNonNull(hash).applyAsInt(item));
                       if (isLocal && route.equals(localManager)) {
