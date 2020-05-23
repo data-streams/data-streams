@@ -2,27 +2,25 @@ package com.spbsu.flamestream.core.data.meta;
 
 import java.util.Objects;
 
-public final class Label<L> {
-  public final int index;
-  public final L value;
+public final class Label {
+  public final int type;
   public final String nodeId;
-  public final int uniqueness;
   public final long time;
+  public final int uniqueness;
 
-  public Label(int index, L value, String nodeId, int uniqueness, long time) {
-    this.index = index;
-    this.value = value;
+  public Label(int type, String nodeId, long time, int uniqueness) {
+    this.type = type;
     this.nodeId = nodeId;
-    this.uniqueness = uniqueness;
     this.time = time;
+    this.uniqueness = uniqueness;
   }
 
   @Override
   public int hashCode() {
-    int hashCode = Integer.hashCode(index);
+    int hashCode = Integer.hashCode(type);
     hashCode = 31 * hashCode + Objects.hashCode(nodeId);
+    hashCode = 31 * hashCode + Long.hashCode(time);
     hashCode = 31 * hashCode + Integer.hashCode(uniqueness);
-    hashCode = 31 * hashCode + Objects.hashCode(value);
     return hashCode;
   }
 
@@ -34,15 +32,15 @@ public final class Label<L> {
     if (!(obj instanceof Label)) {
       return false;
     }
-    final Label<?> label = (Label<?>) obj;
-    return index == label.index
-            && Objects.equals(value, label.value)
+    final Label label = (Label) obj;
+    return type == label.type
             && Objects.equals(nodeId, label.nodeId)
+            && time == label.time
             && uniqueness == label.uniqueness;
   }
 
   @Override
   public String toString() {
-    return "(" + index + ", " + value + ", " + nodeId + ", " + uniqueness + ")";
+    return "(" + type + ", " + nodeId + ", " + time + ", " + uniqueness + ")";
   }
 }

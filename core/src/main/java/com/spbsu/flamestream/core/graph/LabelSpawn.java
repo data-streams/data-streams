@@ -6,11 +6,7 @@ import com.spbsu.flamestream.core.data.PayloadDataItem;
 import com.spbsu.flamestream.core.data.meta.Label;
 import com.spbsu.flamestream.core.data.meta.Meta;
 
-import java.util.ArrayList;
-import java.util.BitSet;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -42,8 +38,7 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
     private final long physicalId;
     private final String nodeId;
     private final Iterable<Consumer<DataItem>> markers;
-    private final Map<L, BitSet> valueUniqueness = new HashMap<>();
-    private final TreeMap<Long, List<Label<L>>> timeLabels = new TreeMap<>();
+    private final TreeMap<Long, Integer> timeSequences = new TreeMap<>();
 
     private LabelsInUse(long physicalId, String nodeId, Iterable<Consumer<DataItem>> markers) {
       this.physicalId = physicalId;
@@ -54,9 +49,10 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
     @Override
     public DataItem apply(DataItem in) {
       final T payload = in.payload(tClass);
+      final L value = mapper.apply(payload);
+      final long time = in.meta().globalTime().time();
+      final Label label = new Label(index, nodeId, time, timeSequences.merge(time, 1, Integer::sum) - 1);
       int childId = 0;
-      final Label<L> label = lock(payload, in.meta().globalTime().time());
-      timeLabels.computeIfAbsent(in.meta().globalTime().time(), __ -> new ArrayList<>()).add(label);
       final PayloadDataItem dataItem = new PayloadDataItem(
               new Meta(in.meta(), physicalId, childId++),
               payload,
@@ -65,7 +61,7 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
       for (final Consumer<DataItem> marker : markers) {
         marker.accept(new PayloadDataItem(
                 new Meta(in.meta(), physicalId, childId++),
-                label.value,
+                value,
                 in.labels().added(label)
         ));
       }
@@ -73,24 +69,9 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
     }
 
     public void onMinTime(long time) {
-      while (!timeLabels.isEmpty()) {
-        if (time <= timeLabels.firstKey())
-          break;
-        timeLabels.pollFirstEntry().getValue().forEach(this::unlock);
-      }
+      timeSequences.headMap(time).clear();
     }
 
-    private Label<L> lock(T payload, long time) {
-      final L label = mapper.apply(payload);
-      final BitSet locked = valueUniqueness.computeIfAbsent(label, __ -> new BitSet());
-      final int uniqueness = locked.nextClearBit(0);
-      locked.set(uniqueness);
-      return new Label<>(index, label, nodeId, uniqueness, time);
-    }
-
-    private void unlock(Label<L> label) {
-      valueUniqueness.get(label.value).clear(label.uniqueness);
-    }
   }
 
   public LabelsInUse operation(long physicalId, String nodeId, Iterable<Consumer<DataItem>> markers) {
