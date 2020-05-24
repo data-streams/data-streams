@@ -33,12 +33,13 @@ import com.spbsu.flamestream.runtime.utils.collections.HashUnitMap;
 import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -49,10 +50,10 @@ public class Component extends LoggingActor {
 
   private class JobaWrapper<WrappedJoba extends Joba> {
     WrappedJoba joba;
-    Consumer<DataItem> downstream;
+    Joba.Sink downstream;
     final Graph.Vertex vertex;
 
-    JobaWrapper(WrappedJoba joba, Consumer<DataItem> downstream, Graph.Vertex vertex) {
+    JobaWrapper(WrappedJoba joba, Joba.Sink downstream, Graph.Vertex vertex) {
       this.joba = joba;
       this.downstream = downstream;
       this.vertex = vertex;
@@ -87,78 +88,109 @@ public class Component extends LoggingActor {
             vertex -> GraphManager.Destination.fromVertexId(vertex.id()),
             vertex -> {
               final Joba.Id jobaId = new Joba.Id(nodeId, vertex.id());
-              final Function<Graph.Vertex, Consumer<DataItem>> vertexDownstream = to -> {
+              final Function<Graph.Vertex, Joba.Sink> vertexDownstream = to -> {
                 final GraphManager.Destination toDest = GraphManager.Destination.fromVertexId(to.id());
 
-                final Consumer<DataItem> sink;
                 final boolean isLocal = componentVertices.contains(to);
                 final boolean isHashing = to instanceof HashingVertexStub && ((HashingVertexStub) to).hash() != null;
-                if (isHashing) {
-                  sink = item -> {
-                    groupingSendTracer.log(item.xor());
-                    final HashFunction hash = ((HashingVertexStub) to).hash();
-                    if (hash == HashFunction.Broadcast.INSTANCE) {
-                      int childId = 0;
-                      for (Map.Entry<HashUnit, ActorRef> next : routes.entrySet()) {
-                        if (next.getKey().isEmpty()) {
-                          //ignore empty ranges
-                          continue;
+                return new Joba.Sink() {
+                  @Override
+                  public Runnable schedule(DataItem dataItem) {
+                    List<Runnable> list = new ArrayList<>();
+                    accept(dataItem, (route, item) -> {
+                      Component.this.ack(item, to);
+                      list.add(() -> {
+                        if (isLocal && route.equals(localManager)) {
+                          if (localCall(item, toDest)) {
+                            Component.this.ack(item, to);
+                          }
+                        } else {
+                          route.tell(new AddressedItem(item, toDest), self());
                         }
+                      });
+                    });
+                    return () -> list.forEach(Runnable::run);
+                  }
 
-                        final DataItem cloned = item.cloneWith(new Meta(
-                                item.meta(),
-                                0,
-                                childId++
-                        ));
-                        ack(cloned, to);
-                        next.getValue().tell(new AddressedItem(cloned, toDest), self());
-                      }
-                    } else if (hash == HashFunction.PostBroadcast.INSTANCE) {
-                      if (!localCall(item, toDest)) {
-                        ack(item, to);
-                      }
-                    } else {
-                      final ActorRef route = routes.get(Objects.requireNonNull(hash).applyAsInt(item));
+                  @Override
+                  public void accept(DataItem dataItem) {
+                    accept(dataItem, (route, item) -> {
                       if (isLocal && route.equals(localManager)) {
                         if (!localCall(item, toDest)) {
-                          ack(item, to);
+                          Component.this.ack(item, to);
                         }
                       } else {
-                        ack(item, to);
+                        Component.this.ack(item, to);
                         route.tell(new AddressedItem(item, toDest), self());
                       }
+                    });
+                  }
+
+                  private void accept(DataItem item, BiConsumer<ActorRef, DataItem> sink) {
+                    groupingSendTracer.log(item.xor());
+                    if (isHashing) {
+                      final HashFunction hash = ((HashingVertexStub) to).hash();
+                      if (hash == HashFunction.Broadcast.INSTANCE) {
+                        int childId = 0;
+                        for (final Map.Entry<HashUnit, ActorRef> route : routes.entrySet()) {
+                          if (!route.getKey().isEmpty()) {
+                            sink.accept(route.getValue(), item.cloneWith(new Meta(
+                                    item.meta(),
+                                    0,
+                                    childId++
+                            )));
+                          }
+                        }
+                      } else if (hash == HashFunction.PostBroadcast.INSTANCE) {
+                        sink.accept(localManager, item);
+                      } else {
+                        sink.accept(routes.get(Objects.requireNonNull(hash).applyAsInt(item)), item);
+                      }
+                    } else {
+                      sink.accept(localManager, item);
                     }
-                  };
-                } else if (isLocal) {
-                  sink = item -> {
-                    if (!localCall(item, toDest)) {
-                      ack(item, to);
-                    }
-                  };
-                } else {
-                  sink = item -> {
-                    ack(item, to);
-                    localManager.tell(new AddressedItem(item, toDest), self());
-                  };
-                }
-                return sink;
+                  }
+                };
               };
-              final List<Consumer<DataItem>> sinks =
+              final List<Joba.Sink> sinks =
                       graph.adjacent(vertex).map(vertexDownstream).collect(Collectors.toList());
-              final Consumer<DataItem> downstream;
+              final Joba.Sink downstream;
               switch (sinks.size()) {
                 case 0:
-                  downstream = item -> context().system().deadLetters().tell(item, self());
+                  downstream = new Joba.Sink() {
+                    @Override
+                    public Runnable schedule(DataItem dataItem) {
+                      context().system().deadLetters().tell(dataItem, self());
+                      return () -> {};
+                    }
+
+                    @Override
+                    public void accept(DataItem dataItem) {
+                      context().system().deadLetters().tell(dataItem, self());
+                    }
+                  };
                   break;
                 case 1:
-                  //noinspection ConstantConditions
                   downstream = sinks.stream().findAny().get();
                   break;
                 default:
-                  downstream = item -> {
-                    int childId = 0;
-                    for (Consumer<DataItem> sink : sinks) {
-                      sink.accept(item.cloneWith(new Meta(item.meta(), 0, childId++)));
+                  downstream = new Joba.Sink() {
+                    @Override
+                    public Runnable schedule(DataItem item) {
+                      final List<Runnable> list = new ArrayList<>();
+                      int childId = 0;
+                      for (Joba.Sink sink : sinks) {
+                        list.add(sink.schedule(item.cloneWith(new Meta(item.meta(), 0, childId++))));
+                      }
+                      return () -> list.forEach(Runnable::run);
+                    }
+
+                    @Override
+                    public void accept(DataItem item) {
+                      int childId = 0;
+                      for (Joba.Sink sink : sinks) {
+                        sink.accept(item.cloneWith(new Meta(item.meta(), 0, childId++)));
+                      }
                     }
                   };
               }
@@ -174,7 +206,7 @@ public class Component extends LoggingActor {
                         sinkTrackingComponent.index
                 );
               } else if (vertex instanceof LabelMarkers) {
-                joba = new LabelMarkersJoba(jobaId, (LabelMarkers) vertex, downstream);
+                joba = new LabelMarkersJoba(jobaId, (LabelMarkers) vertex);
               } else if (vertex instanceof FlameMap) {
                 joba = new MapJoba(jobaId, (FlameMap<?, ?>) vertex);
               } else if (vertex instanceof Grouping) {

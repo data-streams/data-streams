@@ -9,6 +9,7 @@ import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitResultConsumer;
 import org.testng.annotations.Test;
+import scala.Function;
 import scala.util.Either;
 
 import java.util.Collections;
@@ -29,10 +30,11 @@ public class MaterializerTest extends FlameAkkaSuite {
   public void testForkAndJoinWithLabels() {
     final Operator.Input<Integer> input = new Operator.Input<>(Integer.class);
     final Operator.LabelSpawn<Integer, Integer> label = input.spawnLabel(Integer.class, i -> i);
-    final Operator.Input<Integer> union = new Operator.Input<>(Integer.class, Collections.singleton(label));
-    union.link(label.map(Integer.class, i -> i));
-    union.link(label.map(Integer.class, i -> i));
-    final Flow<Integer, Integer> flow = new Flow<>(input, union.labelMarkers(label));
+    final Operator.Input<Integer> union =
+            new Operator.Input<>(Integer.class, Collections.singleton(label))
+                    .link(label.map(Integer.class, i -> i))
+                    .link(label.map(Integer.class, i -> i));
+    final Flow<Integer, Either> flow = new Flow<>(input, union.labelMarkers(label).map(Either.class, i -> i));
 
     final Map<Operator<?>, Materializer.StronglyConnectedComponent> stronglyConnectedComponents =
             Materializer.buildStronglyConnectedComponents(flow);

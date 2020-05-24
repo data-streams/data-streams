@@ -42,13 +42,17 @@ public abstract class Joba {
     }
   }
 
+  public interface Sink extends Consumer<DataItem> {
+    Runnable schedule(DataItem dataItem);
+  }
+
   final Id id;
 
   Joba(Id id) {
     this.id = id;
   }
 
-  abstract boolean accept(DataItem item, Consumer<DataItem> sink);
+  abstract boolean accept(DataItem item, Sink sink);
 
   List<DataItem> onMinTime(MinTimeUpdate time) {
     return Collections.emptyList();

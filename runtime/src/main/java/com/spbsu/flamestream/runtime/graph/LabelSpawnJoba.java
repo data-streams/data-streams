@@ -17,7 +17,7 @@ public class LabelSpawnJoba extends Joba {
   public LabelSpawnJoba(
           Id id,
           LabelSpawn<?, ?> flameMap,
-          Iterable<Consumer<DataItem>> markers,
+          Iterable<Sink> markers,
           int sinkTrackingComponent
   ) {
     super(id);
@@ -26,7 +26,7 @@ public class LabelSpawnJoba extends Joba {
   }
 
   @Override
-  public boolean accept(DataItem item, Consumer<DataItem> sink) {
+  public boolean accept(DataItem item, Sink sink) {
     sink.accept(operation.apply(item));
     return true;
   }

@@ -31,7 +31,7 @@ public class GroupingJoba extends Joba {
   }
 
   @Override
-  public boolean accept(DataItem item, Consumer<DataItem> sink) {
+  public boolean accept(DataItem item, Sink sink) {
     tracer.log(item.xor());
 
     final InvalidatingBucket bucket = state.bucketFor(item);

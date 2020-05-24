@@ -37,10 +37,10 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
   public class LabelsInUse implements Function<DataItem, DataItem> {
     private final long physicalId;
     private final String nodeId;
-    private final Iterable<Consumer<DataItem>> markers;
+    private final Iterable<? extends Consumer<DataItem>> markers;
     private final TreeMap<Long, Integer> timeSequences = new TreeMap<>();
 
-    private LabelsInUse(long physicalId, String nodeId, Iterable<Consumer<DataItem>> markers) {
+    private LabelsInUse(long physicalId, String nodeId, Iterable<? extends Consumer<DataItem>> markers) {
       this.physicalId = physicalId;
       this.nodeId = nodeId;
       this.markers = markers;
@@ -62,7 +62,8 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
         marker.accept(new PayloadDataItem(
                 new Meta(in.meta(), physicalId, childId++),
                 value,
-                in.labels().added(label)
+                in.labels().added(label),
+                true
         ));
       }
       return dataItem;
@@ -71,10 +72,9 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
     public void onMinTime(long time) {
       timeSequences.headMap(time).clear();
     }
-
   }
 
-  public LabelsInUse operation(long physicalId, String nodeId, Iterable<Consumer<DataItem>> markers) {
+  public LabelsInUse operation(long physicalId, String nodeId, Iterable<? extends Consumer<DataItem>> markers) {
     return new LabelsInUse(physicalId, nodeId, markers);
   }
 }

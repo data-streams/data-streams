@@ -13,4 +13,6 @@ public interface DataItem {
   long xor();
 
   DataItem cloneWith(Meta meta);
+
+  boolean marker();
 }

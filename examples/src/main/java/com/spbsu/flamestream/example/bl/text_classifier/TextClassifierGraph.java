@@ -82,13 +82,19 @@ public class TextClassifierGraph implements Supplier<Graph> {
   public Graph get() {
     final Operator.Hashing<TextDocument> documentHashing = text -> text.partitioning().hashCode();
     final Operator.Input<TextDocument> textDocumentInput = new Operator.Input<>(TextDocument.class);
-    final Operator.LabelSpawn<TfObject, DocumentKey> documents = textDocumentInput
+    final Operator<TfObject> source = textDocumentInput
             .new MapBuilder<TfObject>(TfObject.class, text -> Stream.of(TfObject.ofText(text)))
-            .hash(documentHashing).build()
+            .hash(documentHashing).build();
+    final Operator.LabelSpawn<TfObject, DocumentKey> labeled = source.filter(TfObject::labeled)
             .spawnLabel(DocumentKey.class, tfObject ->
                     new DocumentKey(tfObject.number(), tfObject.partitioning(), tfObject.labeled())
             );
-    final Operator<WordEntry> wordEntries = documents.flatMap(
+    final Operator.LabelSpawn<TfObject, DocumentKey> unlabeled = source.filter(tfObject -> !tfObject.labeled())
+            .spawnLabel(DocumentKey.class, tfObject ->
+                    new DocumentKey(tfObject.number(), tfObject.partitioning(), tfObject.labeled())
+            );
+    final Operator.Input<TfObject> tfObjects = new Operator.Input<>(TfObject.class).link(labeled).link(unlabeled);
+    final Operator<WordEntry> wordEntries = tfObjects.flatMap(
             WordEntry.class,
             tfObject -> tfObject.counts().keySet().stream().map(integer -> new WordEntry(
                     integer,
@@ -98,7 +104,7 @@ public class TextClassifierGraph implements Supplier<Graph> {
                     tfObject.labeled()
             ))
     );
-    final Set<Operator.LabelSpawn<?, ?>> labels = Collections.singleton(documents);
+    final Set<Operator.LabelSpawn<?, ?>> unlabeledLabels = Collections.singleton(unlabeled);
     final Operator<WordCounter> wordCounters = new Operator.Keyed<>(wordEntries.newKeyedBuilder(WordEntry::word))
             .statefulMap(WordCounter.class, (WordEntry wordEntry, WordCounter previous) -> {
               final WordCounter updated = previous == null ? new WordCounter(wordEntry, 1) : new WordCounter(
@@ -107,48 +113,36 @@ public class TextClassifierGraph implements Supplier<Graph> {
               );
               return new Tuple2<>(updated, updated);
             });
-    final Operator.Hashing<Object> labelsHashing = new Operator.Hashing<>() {
-      @Override
-      public Set<Operator.LabelSpawn<?, ?>> labels() {
-        return labels;
-      }
-
-      @Override
-      public int applyAsInt(Object aVoid) {
-        return 0;
-      }
-    };
     final Operator.Input<DocContainer> scatteredTfsAndWordCounters =
-            new Operator.Input<>(DocContainer.class, labels).link(documents).link(wordCounters);
-    final Operator<DocContainer> gatheredTfsAndWordCounters = chooseHashing(
-            scatteredTfsAndWordCounters,
-            DocContainer::labeled,
-            Operator.Hashing.Special.Broadcast,
-            labelsHashing
-    );
-    final Operator.Input<Either<DocContainer, DocumentKey>> markeredTfsAndWordCounters =
-            new Operator.Input<>(WORD_COUNTER_OR_MARKER, labels)
-                    .link(gatheredTfsAndWordCounters.map(WORD_COUNTER_OR_MARKER, Left::new))
-                    .link(chooseHashing(
-                            gatheredTfsAndWordCounters.labelMarkers(documents),
-                            documentKey -> documentKey.labeled,
-                            Operator.Hashing.Special.Broadcast,
-                            labelsHashing
-                    ).map(WORD_COUNTER_OR_MARKER, Right::new));
+            new Operator.Input<>(DocContainer.class).link(tfObjects).link(wordCounters);
 
-    final Operator<TfIdfObject> tfIdfObjects = new Operator.Grouping<>(
-            new Operator.Keyed<>(markeredTfsAndWordCounters.newKeyedBuilder()
-                    .keyLabels(labels)
-                    .hash(Operator.Hashing.Special.PostBroadcast)),
-            Integer.MAX_VALUE,
-            true
-    ).filter(grouped -> grouped.get(grouped.size() - 1).isRight()).map(TfIdfObject.class, grouped -> new TfIdfObject(
-            (TfObject) grouped.get(0).left().get(),
-            new IdfObject(grouped.subList(1, grouped.size() - 1)
-                    .stream()
-                    .map(either -> (WordCounter) either.left().get())
-                    .collect(Collectors.toSet()))
-    ));
+    final Operator<TfIdfObject> tfIdfObjects = new Operator.Input<>(TfIdfObject.class)
+            .link(
+                    tfIdfObjects(
+                            scatteredTfsAndWordCounters
+                                    .filter(DocContainer::labeled)
+                                    .labelMarkers(labeled, Operator.Hashing.Special.Broadcast),
+                            labeled
+                    )
+            )
+            .link(
+                    tfIdfObjects(
+                            scatteredTfsAndWordCounters
+                                    .filter(docContainer -> !docContainer.labeled())
+                                    .labelMarkers(unlabeled, new Operator.Hashing<Object>() {
+                                      @Override
+                                      public Set<Operator.LabelSpawn<?, ?>> labels() {
+                                        return unlabeledLabels;
+                                      }
+
+                                      @Override
+                                      public int applyAsInt(Object aVoid) {
+                                        return 0;
+                                      }
+                                    }),
+                            unlabeled
+                    )
+            );
     final Classifier classifier = new Classifier(vectorizer, onlineModel);
     final Operator<Prediction> predictions = new Operator.Keyed<>(
             tfIdfObjects.newKeyedBuilder().hash(Operator.Hashing.Special.PostBroadcast)
@@ -172,20 +166,21 @@ public class TextClassifierGraph implements Supplier<Graph> {
     return Materializer.materialize(new Flow<>(textDocumentInput, predictions, __ -> classifier.init()));
   }
 
-  <Type> Operator<Type> chooseHashing(
-          Operator<Type> operator,
-          SerializablePredicate<Type> predicate,
-          Operator.Hashing<? super Type> hashingTrue,
-          Operator.Hashing<? super Type> hashingFalse
+  private Operator<TfIdfObject> tfIdfObjects(
+          Operator<Either<DocContainer, DocumentKey>> markered, Operator.LabelSpawn<?, ?> labels
   ) {
-    return new Operator.Input<>(operator.typeClass, operator.labels)
-            .link(operator.new MapBuilder<Type>(
-                    operator.typeClass,
-                    type -> predicate.test(type) ? Stream.of(type) : Stream.empty()
-            ).hash(hashingTrue).build())
-            .link(operator.new MapBuilder<Type>(
-                    operator.typeClass,
-                    type -> predicate.test(type) ? Stream.empty() : Stream.of(type)
-            ).hash(hashingFalse).build());
+    return new Operator.Grouping<>(
+            new Operator.Keyed<>(markered.newKeyedBuilder()
+                    .keyLabels(Collections.singleton(labels))
+                    .hash(Operator.Hashing.Special.PostBroadcast)),
+            Integer.MAX_VALUE,
+            true
+    ).filter(grouped -> grouped.get(grouped.size() - 1).isRight()).map(TfIdfObject.class, grouped -> new TfIdfObject(
+            (TfObject) grouped.get(0).left().get(),
+            new IdfObject(grouped.subList(1, grouped.size() - 1)
+                    .stream()
+                    .map(either -> (WordCounter) either.left().get())
+                    .collect(Collectors.toSet()))
+    ));
   }
 }

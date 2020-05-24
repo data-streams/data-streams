@@ -43,7 +43,7 @@ public class SourceJoba extends Joba {
   }
 
   @Override
-  public boolean accept(DataItem item, Consumer<DataItem> sink) {
+  public boolean accept(DataItem item, Sink sink) {
     sink.accept(item);
     unutilizedRequests--;
     final GlobalTime globalTime = item.meta().globalTime();

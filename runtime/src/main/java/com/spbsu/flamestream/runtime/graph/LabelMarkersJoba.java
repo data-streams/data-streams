@@ -1,99 +1,79 @@
 package com.spbsu.flamestream.runtime.graph;
 
 import com.spbsu.flamestream.core.DataItem;
-import com.spbsu.flamestream.core.TrackingComponent;
+import com.spbsu.flamestream.core.data.PayloadDataItem;
+import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.core.graph.LabelMarkers;
 import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
+import org.jetbrains.annotations.NotNull;
+import scala.util.Left;
+import scala.util.Right;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
-import java.util.function.Consumer;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class LabelMarkersJoba extends Joba {
-  private interface InboundMinTime {
-    long accept(MinTimeUpdate globalTime);
+  private final long physicalId = ThreadLocalRandom.current().nextLong();
+  @org.jetbrains.annotations.NotNull
+  private final LabelMarkers labelMarkers;
+  private long inboundMinTime;
 
-    long get();
+  private static final class Scheduled implements Comparable<Scheduled> {
+    static final Comparator<Scheduled> COMPARATOR =
+            Comparator.comparing(scheduled -> scheduled.dataItem.meta().globalTime());
 
-    class Impl implements InboundMinTime {
-      private final int[] sortedTrackingComponent;
-      private final long[] inboundMinTime;
-      private long minMinTime;
+    final DataItem dataItem;
+    final Runnable send;
 
-      public Impl(TrackingComponent trackingComponent) {
-        this.sortedTrackingComponent = new int[trackingComponent.inbound.size()];
-        int i = 0;
-        for (final TrackingComponent component : trackingComponent.inbound) {
-          sortedTrackingComponent[i] = component.index;
-          i++;
-        }
-        Arrays.sort(sortedTrackingComponent);
-        this.inboundMinTime = new long[trackingComponent.inbound.size()];
-        Arrays.fill(inboundMinTime, minMinTime = Long.MIN_VALUE);
-      }
+    private Scheduled(DataItem dataItem, Runnable send) {
+      this.dataItem = dataItem;
+      this.send = send;
+    }
 
-      @Override
-      public long accept(MinTimeUpdate globalTime) {
-        final int i = Arrays.binarySearch(sortedTrackingComponent, globalTime.trackingComponent());
-        if (i < 0 || sortedTrackingComponent[i] != globalTime.trackingComponent()) {
-          return Long.MIN_VALUE;
-        }
-        final int index = sortedTrackingComponent[i];
-        if (globalTime.minTime().time() <= inboundMinTime[index]) {
-          throw new IllegalArgumentException();
-        }
-        inboundMinTime[index] = globalTime.minTime().time();
-        return minMinTime = Arrays.stream(inboundMinTime).min().getAsLong();
-      }
-
-      @Override
-      public long get() {
-        return minMinTime;
-      }
+    @Override
+    public int compareTo(@NotNull Scheduled o) {
+      return COMPARATOR.compare(this, o);
     }
   }
 
-  @org.jetbrains.annotations.NotNull
-  private final LabelMarkers labelMarkers;
-  private final Consumer<DataItem> sink;
-  private final InboundMinTime inboundMinTime;
-  private final PriorityQueue<DataItem> scheduled =
-          new PriorityQueue<>(Comparator.comparing(dataItem -> dataItem.meta().globalTime()));
+  private final PriorityQueue<Scheduled> scheduled = new PriorityQueue<>();
 
-  public LabelMarkersJoba(Id id, LabelMarkers labelMarkers, Consumer<DataItem> sink) {
+  public LabelMarkersJoba(Id id, LabelMarkers labelMarkers) {
     super(id);
     this.labelMarkers = labelMarkers;
-    this.sink = sink;
-    inboundMinTime = new InboundMinTime.Impl(labelMarkers.trackingComponent);
+    inboundMinTime = Long.MIN_VALUE;
   }
 
   @Override
   List<DataItem> onMinTime(MinTimeUpdate componentTime) {
-    final List<DataItem> accepted = new ArrayList<>();
-    final long inboundTime = inboundMinTime.accept(componentTime);
+    if (componentTime.trackingComponent() != labelMarkers.trackingComponent.index) {
+      return Collections.emptyList();
+    }
+    inboundMinTime = componentTime.minTime().time();
     while (!scheduled.isEmpty()) {
-      final DataItem dataItem = scheduled.peek();
-      if (inboundTime <= dataItem.meta().globalTime().time()) {
+      final Scheduled scheduled = this.scheduled.peek();
+      if (inboundMinTime <= scheduled.dataItem.meta().globalTime().time()) {
         break;
       }
-      accepted.add(dataItem);
-      sink.accept(dataItem.cloneWith(dataItem.meta()));
-      scheduled.poll();
+      scheduled.send.run();
+      this.scheduled.poll();
     }
-    return accepted;
+    return Collections.emptyList();
   }
 
   @Override
-  public boolean accept(DataItem item, Consumer<DataItem> sink) {
-    if (inboundMinTime.get() <= item.meta().globalTime().time()) {
-      scheduled.add(item);
-      return false;
+  public boolean accept(DataItem item, Sink sink) {
+    final Meta meta = new Meta(item.meta(), physicalId, 0);
+    if (item.marker()) {
+      final PayloadDataItem marker = new PayloadDataItem(meta, new Right<>(item.payload(Object.class)), item.labels());
+      scheduled.add(new Scheduled(marker, sink.schedule(marker)));
     } else {
-      sink.accept(item.cloneWith(item.meta()));
-      return true;
+      sink.accept(new PayloadDataItem(meta, new Left<>(item.payload(Object.class)), item.labels()));
     }
+    return true;
   }
 }

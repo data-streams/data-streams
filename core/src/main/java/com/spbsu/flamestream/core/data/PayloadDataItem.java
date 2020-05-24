@@ -9,22 +9,25 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class PayloadDataItem implements DataItem {
   private final Meta meta;
-  private final Labels labels;
   private final Object payload;
+  private final Labels labels;
   private final long xor;
+  private final boolean marker;
 
   public PayloadDataItem(Meta meta, Object payload) {
-    this.payload = payload;
-    this.meta = meta;
-    labels = new Labels(0);
-    this.xor = ThreadLocalRandom.current().nextLong();
+    this(meta, payload, new Labels(0));
   }
 
   public PayloadDataItem(Meta meta, Object payload, Labels labels) {
-    this.payload = payload;
+    this(meta, payload, labels, false);
+  }
+
+  public PayloadDataItem(Meta meta, Object payload, Labels labels, boolean marker) {
     this.meta = meta;
+    this.payload = payload;
     this.labels = labels;
     this.xor = ThreadLocalRandom.current().nextLong();
+    this.marker = marker;
   }
 
   @Override
@@ -49,7 +52,12 @@ public class PayloadDataItem implements DataItem {
 
   @Override
   public DataItem cloneWith(Meta newMeta) {
-    return new PayloadDataItem(newMeta, payload, labels);
+    return new PayloadDataItem(newMeta, payload, labels, marker);
+  }
+
+  @Override
+  public boolean marker() {
+    return marker;
   }
 
   @Override

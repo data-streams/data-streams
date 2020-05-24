@@ -5,6 +5,7 @@ import com.spbsu.flamestream.core.graph.SerializableFunction;
 import com.spbsu.flamestream.core.graph.SerializablePredicate;
 import com.spbsu.flamestream.core.graph.SerializableToIntFunction;
 import scala.Tuple2;
+import scala.util.Either;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -122,11 +123,11 @@ public abstract class Operator<Type> {
     return new Map<>(labels, this, this.typeClass, in -> predicate.test(in) ? Stream.of(in) : Stream.empty());
   }
 
-  public <L> Operator<L> labelMarkers(LabelSpawn<?, L> lClass) {
+  public <L> Operator<Either<Type, L>> labelMarkers(LabelSpawn<?, L> lClass) {
     return new LabelMarkers<>(lClass, this, null);
   }
 
-  public <L> Operator<L> labelMarkers(LabelSpawn<?, L> lClass, Hashing<? super L> hashing) {
+  public <L> Operator<Either<Type, L>> labelMarkers(LabelSpawn<?, L> lClass, Hashing<? super Either<Type, L>> hashing) {
     return new LabelMarkers<>(lClass, this, hashing);
   }
 
@@ -303,14 +304,15 @@ public abstract class Operator<Type> {
     }
   }
 
-  public static final class LabelMarkers<In, L> extends Operator<L> {
+  public static final class LabelMarkers<In, L> extends Operator<Either<In, L>> {
     @org.jetbrains.annotations.NotNull
     public final LabelSpawn<?, L> labelSpawn;
     public final Operator<In> source;
-    public final Hashing<? super L> hashing;
+    public final Hashing<? super Either<In, L>> hashing;
 
-    public LabelMarkers(LabelSpawn<?, L> labelSpawn, Operator<In> source, Hashing<? super L> hashing) {
-      super(labelSpawn.lClass, Collections.singleton(labelSpawn));
+    public LabelMarkers(LabelSpawn<?, L> labelSpawn, Operator<In> source, Hashing<? super Either<In, L>> hashing) {
+      //noinspection unchecked
+      super((Class<Either<In, L>>) (Class<?>) Either.class, Collections.singleton(labelSpawn));
       this.labelSpawn = labelSpawn;
       this.source = source;
       this.hashing = hashing;

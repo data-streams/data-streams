@@ -274,22 +274,12 @@ public class BreadthSearchGraph {
           Operator<Tuple2<Agent, Agent.ActionAfterVisit>> agentAndActionAfterVisit,
           Operator.LabelSpawn<Request, Request.Identifier> requestLabel
   ) {
-    final Operator.Input<Either<RequestOutput, Request.Identifier>> output =
-            new Operator.Input<>(OUTPUT_CLASS, Collections.singleton(requestLabel));
-    output.link(agentAndActionAfterVisit.flatMap(OUTPUT_CLASS, agent -> {
+    return agentAndActionAfterVisit.flatMap(RequestOutput.class, agent -> {
       if (agent._2 == Agent.ActionAfterVisit.VisitFirstTime) {
-        return Stream.of(new Left<>(new RequestOutput(agent._1.requestIdentifier, agent._1.vertexIdentifier)));
+        return Stream.of(new RequestOutput(agent._1.requestIdentifier, agent._1.vertexIdentifier));
       }
       return Stream.empty();
-    }));
-    output.link(
-            agentAndActionAfterVisit.labelMarkers(requestLabel, Operator.Hashing.Special.Broadcast)
-                    .new MapBuilder<Either<RequestOutput, Request.Identifier>>(
-                    OUTPUT_CLASS,
-                    b -> Stream.of(Right.apply(b))
-            ).build()
-    );
-    return output;
+    }).labelMarkers(requestLabel, Operator.Hashing.Special.Broadcast);
   }
 
   private static <T> List<T> scalaStreamToJava(scala.collection.immutable.Vector<T> scalaStream) {

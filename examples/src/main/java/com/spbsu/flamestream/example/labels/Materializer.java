@@ -17,6 +17,9 @@ import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import org.jetbrains.annotations.NotNull;
 import scala.Tuple2;
+import scala.util.Either;
+import scala.util.Left;
+import scala.util.Right;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -27,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -279,51 +283,60 @@ public class Materializer {
     final List<LabelMarkers> labelMarkers = new ArrayList<>();
     labelSpawnMarkers.put(labelSpawn, labelMarkers);
     final LabelSpawn<Value, L> vertex =
-            new LabelSpawn<>(labelSpawn.typeClass, 0, labelSpawn.mapper::apply, labelMarkers);
+            new LabelSpawn<>(labelSpawn.typeClass, labelSpawns.size(), labelSpawn.mapper, labelMarkers);
     labelSpawns.add(vertex);
     cachedOperatorVertex.put(labelSpawn, vertex);
-    final TrackingComponent trackingComponent = operatorTrackingComponent.get(labelSpawn);
-    vertexTrackingComponent.put(vertex, trackingComponent);
+    vertexTrackingComponent.put(vertex, operatorTrackingComponent.get(labelSpawn));
     graphBuilder.link(operatorVertex(labelSpawn.source), vertex);
     return vertex;
   }
 
-  <L> Graph.Vertex processLabelMarkers(Operator.LabelMarkers<?, L> labelMarkers) {
+  <In, L> Graph.Vertex processLabelMarkers(Operator.LabelMarkers<In, L> labelMarkers) {
+    final Operator.Hashing<? super Either<In, L>> hashing = labelMarkers.hashing;
     final LabelMarkers vertex = new LabelMarkers(
             operatorTrackingComponent.get(labelMarkers),
-            hashFunction(dataItem -> dataItem.payload(labelMarkers.labelSpawn.lClass), labelMarkers.hashing)
+            hashFunction(
+                    dataItem ->
+                            dataItem.marker()
+                                    ? new Right<>(dataItem.payload(labelMarkers.labelSpawn.lClass))
+                                    : new Left<>(dataItem.payload(labelMarkers.source.typeClass)),
+                    hashing
+            )
     );
     operatorVertex(labelMarkers.source);
     labelSpawnMarkers.get(labelMarkers.labelSpawn).add(vertex);
     vertexTrackingComponent.put(vertex, operatorTrackingComponent.get(labelMarkers));
     cachedOperatorVertex.put(labelMarkers, vertex);
+    graphBuilder.link(operatorVertex(labelMarkers.source), vertex);
     return vertex;
   }
 
-  public static Map<StronglyConnectedComponent, TrackingComponent> buildTrackingComponents(StronglyConnectedComponent sink) {
+  public static Map<StronglyConnectedComponent, TrackingComponent> buildTrackingComponents(
+          StronglyConnectedComponent sink
+  ) {
     final Map<StronglyConnectedComponent, Set<Operator.LabelMarkers<?, ?>>> componentLabelMarkers = new HashMap<>();
     new Consumer<StronglyConnectedComponent>() {
       final Set<StronglyConnectedComponent> visited = new HashSet<>();
 
       @Override
-      public void accept(StronglyConnectedComponent visited) {
-        if (this.visited.add(visited)) {
-          componentLabelMarkers.put(visited, new HashSet<>());
-          visited.inbound.forEach(this);
-          for (final Operator<?> operator : visited.operators) {
+      public void accept(StronglyConnectedComponent current) {
+        if (this.visited.add(current)) {
+          componentLabelMarkers.put(current, new HashSet<>());
+          current.inbound.forEach(this);
+          for (final Operator<?> operator : current.operators) {
             if (operator instanceof Operator.LabelMarkers) {
-              if (visited.operators.size() > 1) {
+              if (current.operators.size() > 1) {
                 throw new IllegalArgumentException();
               }
               final Operator.LabelMarkers<?, ?> labelMarkers = (Operator.LabelMarkers<?, ?>) operator;
-              visited.inbound.forEach(new Consumer<StronglyConnectedComponent>() {
+              new Consumer<StronglyConnectedComponent>() {
                 @Override
-                public void accept(StronglyConnectedComponent tracked) {
-                  if (componentLabelMarkers.get(tracked).add(labelMarkers)) {
-                    tracked.inbound.forEach(this);
+                public void accept(StronglyConnectedComponent inbound) {
+                  if (componentLabelMarkers.get(inbound).add(labelMarkers)) {
+                    inbound.inbound.forEach(this);
                   }
                 }
-              });
+              }.accept(current);
             }
           }
         }
@@ -336,7 +349,7 @@ public class Materializer {
             ));
     final Map<Set<Operator.LabelMarkers<?, ?>>, TrackingComponent> trackingComponents = new HashMap<>();
     final Function<Set<Operator.LabelMarkers<?, ?>>, TrackingComponent> getTrackingComponent =
-            new Function<Set<Operator.LabelMarkers<?, ?>>, TrackingComponent>() {
+            new Function<>() {
               @Override
               public TrackingComponent apply(Set<Operator.LabelMarkers<?, ?>> labelMarkers) {
                 {
