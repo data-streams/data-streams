@@ -58,7 +58,7 @@ public class SynchronizedInvalidatingBucket implements InvalidatingBucket {
   }
 
   @Override
-  public synchronized InvalidatingBucket subBucket(GlobalTime globalTime, int window) {
+  public synchronized SynchronizedInvalidatingBucket subBucket(GlobalTime globalTime, int window) {
     return new SynchronizedInvalidatingBucket(bucket.subBucket(globalTime, window));
   }
 }

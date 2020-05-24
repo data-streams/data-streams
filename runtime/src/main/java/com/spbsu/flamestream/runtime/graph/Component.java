@@ -11,11 +11,13 @@ import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
+import com.spbsu.flamestream.core.graph.HashUnit;
 import com.spbsu.flamestream.core.graph.HashingVertexStub;
+import com.spbsu.flamestream.core.graph.LabelMarkers;
+import com.spbsu.flamestream.core.graph.LabelSpawn;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import com.spbsu.flamestream.runtime.config.ComputationProps;
-import com.spbsu.flamestream.core.graph.HashUnit;
 import com.spbsu.flamestream.runtime.graph.api.AddressedItem;
 import com.spbsu.flamestream.runtime.graph.api.ComponentPrepared;
 import com.spbsu.flamestream.runtime.graph.api.NewRear;
@@ -31,23 +33,27 @@ import com.spbsu.flamestream.runtime.utils.collections.HashUnitMap;
 import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class Component extends LoggingActor {
+  @org.jetbrains.annotations.NotNull
+  private final Graph graph;
   private final ActorRef localAcker;
 
   private class JobaWrapper<WrappedJoba extends Joba> {
     WrappedJoba joba;
-    Consumer<DataItem> downstream;
+    Joba.Sink downstream;
     final Graph.Vertex vertex;
 
-    JobaWrapper(WrappedJoba joba, Consumer<DataItem> downstream, Graph.Vertex vertex) {
+    JobaWrapper(WrappedJoba joba, Joba.Sink downstream, Graph.Vertex vertex) {
       this.joba = joba;
       this.downstream = downstream;
       this.vertex = vertex;
@@ -75,15 +81,123 @@ public class Component extends LoggingActor {
                     @Nullable ActorRef localAcker,
                     ComputationProps props,
                     Map<String, GroupGroupingState> stateByVertex) {
+    this.graph = graph;
     this.localAcker = localAcker;
     final TrackingComponent sinkTrackingComponent = graph.sinkTrackingComponent();
     this.wrappedJobas = componentVertices.stream().collect(Collectors.toMap(
             vertex -> GraphManager.Destination.fromVertexId(vertex.id()),
             vertex -> {
               final Joba.Id jobaId = new Joba.Id(nodeId, vertex.id());
+              final Function<Graph.Vertex, Joba.Sink> vertexDownstream = to -> {
+                final GraphManager.Destination toDest = GraphManager.Destination.fromVertexId(to.id());
+
+                final boolean isLocal = componentVertices.contains(to);
+                final HashFunction hash = to instanceof HashingVertexStub ? ((HashingVertexStub) to).hash() : null;
+                return new Joba.Sink() {
+                  @Override
+                  public Runnable schedule(DataItem dataItem) {
+                    List<Runnable> list = new ArrayList<>();
+                    accept(dataItem, (route, item) -> {
+                      Component.this.ack(item, to);
+                      list.add(() -> {
+                        if (isLocal && route.equals(localManager)) {
+                          localCall(item, toDest);
+                          Component.this.ack(item, to);
+                        } else {
+                          route.tell(new AddressedItem(item, toDest), self());
+                        }
+                      });
+                    });
+                    return () -> list.forEach(Runnable::run);
+                  }
+
+                  @Override
+                  public void accept(DataItem dataItem) {
+                    accept(dataItem, (route, item) -> {
+                      if (isLocal && route.equals(localManager)) {
+                        localCall(item, toDest);
+                      } else {
+                        Component.this.ack(item, to);
+                        route.tell(new AddressedItem(item, toDest), self());
+                      }
+                    });
+                  }
+
+                  private void accept(DataItem item, BiConsumer<ActorRef, DataItem> sink) {
+                    groupingSendTracer.log(item.xor());
+                    if (hash == HashFunction.Broadcast.INSTANCE || hash == null && item.marker()) {
+                      int childId = 0;
+                      for (final Map.Entry<HashUnit, ActorRef> route : routes.entrySet()) {
+                        if (!route.getKey().isEmpty()) {
+                          sink.accept(route.getValue(), item.cloneWith(new Meta(
+                                  item.meta(),
+                                  0,
+                                  childId++
+                          )));
+                        }
+                      }
+                    } else if (hash == HashFunction.PostBroadcast.INSTANCE || hash == null) {
+                      sink.accept(localManager, item);
+                    } else {
+                      sink.accept(routes.get(Objects.requireNonNull(hash).applyAsInt(item)), item);
+                    }
+                  }
+                };
+              };
+              final List<Joba.Sink> sinks =
+                      graph.adjacent(vertex).map(vertexDownstream).collect(Collectors.toList());
+              final Joba.Sink downstream;
+              switch (sinks.size()) {
+                case 0:
+                  downstream = new Joba.Sink() {
+                    @Override
+                    public Runnable schedule(DataItem dataItem) {
+                      context().system().deadLetters().tell(dataItem, self());
+                      return () -> {};
+                    }
+
+                    @Override
+                    public void accept(DataItem dataItem) {
+                      context().system().deadLetters().tell(dataItem, self());
+                    }
+                  };
+                  break;
+                case 1:
+                  downstream = sinks.stream().findAny().get();
+                  break;
+                default:
+                  downstream = new Joba.Sink() {
+                    @Override
+                    public Runnable schedule(DataItem item) {
+                      final List<Runnable> list = new ArrayList<>();
+                      int childId = 0;
+                      for (Joba.Sink sink : sinks) {
+                        list.add(sink.schedule(item.cloneWith(new Meta(item.meta(), 0, childId++))));
+                      }
+                      return () -> list.forEach(Runnable::run);
+                    }
+
+                    @Override
+                    public void accept(DataItem item) {
+                      int childId = 0;
+                      for (Joba.Sink sink : sinks) {
+                        sink.accept(item.cloneWith(new Meta(item.meta(), 0, childId++)));
+                      }
+                    }
+                  };
+              }
               final Joba joba;
               if (vertex instanceof Sink) {
                 joba = new SinkJoba(jobaId, context(), props.barrierIsDisabled(), sinkTrackingComponent.index);
+              } else if (vertex instanceof LabelSpawn) {
+                final LabelSpawn<?, ?> labelSpawn = (LabelSpawn<?, ?>) vertex;
+                joba = new LabelSpawnJoba(
+                        jobaId,
+                        labelSpawn,
+                        labelSpawn.labelMarkers().map(vertexDownstream).collect(Collectors.toList())
+                );
+              } else if (vertex instanceof LabelMarkers) {
+                joba = new LabelMarkersJoba(jobaId, (LabelMarkers) vertex);
               } else if (vertex instanceof FlameMap) {
                 joba = new MapJoba(jobaId, (FlameMap<?, ?>) vertex);
               } else if (vertex instanceof Grouping) {
@@ -99,7 +213,8 @@ public class Component extends LoggingActor {
                 joba = new GroupingJoba(
                         jobaId,
                         grouping,
-                        stateByVertex.computeIfAbsent(vertex.id(), __ -> new GroupGroupingState(grouping, values))
+                        stateByVertex.computeIfAbsent(vertex.id(), __ -> new GroupGroupingState(grouping, values)),
+                        sinkTrackingComponent.index
                 );
               } else if (vertex instanceof Source) {
                 joba = new SourceJoba(
@@ -111,65 +226,6 @@ public class Component extends LoggingActor {
                 );
               } else {
                 throw new RuntimeException("Invalid vertex type");
-              }
-              final List<Consumer<DataItem>> sinks = graph.adjacent(vertex)
-                      .map(to -> {
-                        final GraphManager.Destination toDest = GraphManager.Destination.fromVertexId(to.id());
-
-                        final Consumer<DataItem> sink;
-                        if (componentVertices.contains(to)) {
-                          sink = item -> localCall(item, toDest);
-                        } else if (to instanceof HashingVertexStub && ((HashingVertexStub) to).hash() != null) {
-                          sink = item -> {
-                            groupingSendTracer.log(item.xor());
-                            final HashFunction hash = ((HashingVertexStub) to).hash();
-                            if (hash == HashFunction.Broadcast.INSTANCE) {
-                              int childId = 0;
-                              for (Map.Entry<HashUnit, ActorRef> next : routes.entrySet()) {
-                                if (next.getKey().isEmpty()) {
-                                  //ignore empty ranges
-                                  continue;
-                                }
-
-                                final DataItem cloned = item.cloneWith(new Meta(
-                                        item.meta(),
-                                        0,
-                                        childId++
-                                ));
-                                ack(cloned, to);
-                                next.getValue().tell(new AddressedItem(cloned, toDest), self());
-                              }
-                            } else {
-                              ack(item, to);
-                              routes.get(Objects.requireNonNull(hash).applyAsInt(item))
-                                      .tell(new AddressedItem(item, toDest), self());
-                            }
-                          };
-                        } else {
-                          sink = item -> {
-                            ack(item, to);
-                            localManager.tell(new AddressedItem(item, toDest), self());
-                          };
-                        }
-                        return sink;
-                      })
-                      .collect(Collectors.toList());
-              Consumer<DataItem> downstream;
-              switch (sinks.size()) {
-                case 0:
-                  downstream = item -> context().system().deadLetters().tell(item, self());
-                  break;
-                case 1:
-                  //noinspection ConstantConditions
-                  downstream = sinks.stream().findAny().get();
-                  break;
-                default:
-                  downstream = item -> {
-                    int childId = 0;
-                    for (Consumer<DataItem> sink : sinks) {
-                      sink.accept(item.cloneWith(new Meta(item.meta(), 0, childId++)));
-                    }
-                  };
               }
               if (joba instanceof SinkJoba) {
                 return wrappedSinkJoba = new JobaWrapper<>((SinkJoba) joba, downstream, vertex);
@@ -248,7 +304,7 @@ public class Component extends LoggingActor {
     if (localAcker != null) {
       final GlobalTime globalTime = dataItem.meta().globalTime();
       localAcker.tell(new Ack(
-              to.trackingComponent().index,
+              graph.trackingComponent(to).index,
               new GlobalTime(globalTime.time(), globalTime.frontId()),
               dataItem.xor()
       ), self());

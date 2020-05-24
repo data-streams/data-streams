@@ -55,6 +55,11 @@ public class TfIdfObject implements DocContainer, ClassifierInput {
   }
 
   @Override
+  public boolean labeled() {
+    return label != null;
+  }
+
+  @Override
   public String toString() {
     return String.format(
             "<TFO> doc hash: %d, doc: %s, idf: %s, words: %s",

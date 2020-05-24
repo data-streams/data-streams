@@ -20,19 +20,26 @@ public class Meta implements Comparable<Meta> {
   private final int[] childIds;
   private final long trace;
   private final boolean tombstone;
+  private final Labels labels;
 
   public Meta(GlobalTime globalTime) {
     this.globalTime = globalTime;
     this.childIds = EMPTY_ARRAY;
     this.tombstone = false;
     this.trace = 0;
+    labels = Labels.EMPTY;
   }
 
   public Meta(Meta previous, long physicalId, boolean tombstone) {
+    this(previous, physicalId, tombstone, previous.labels);
+  }
+
+  public Meta(Meta previous, long physicalId, boolean tombstone, Labels labels) {
     this.globalTime = previous.globalTime();
     this.childIds = previous.childIds;
     this.tombstone = tombstone;
     this.trace = previous.trace ^ physicalId;
+    this.labels = labels;
   }
 
   public Meta(Meta previous, long physicalId, int childId) {
@@ -41,6 +48,16 @@ public class Meta implements Comparable<Meta> {
     childIds[childIds.length - 1] = childId;
     this.tombstone = previous.tombstone;
     this.trace = previous.trace ^ physicalId;
+    this.labels = previous.labels;
+  }
+
+  public Meta(Meta previous, long physicalId, int childId, Labels labels) {
+    this.globalTime = previous.globalTime();
+    this.childIds = Arrays.copyOf(previous.childIds, previous.childIds.length + 1);
+    childIds[childIds.length - 1] = childId;
+    this.tombstone = previous.tombstone;
+    this.trace = previous.trace ^ physicalId;
+    this.labels = labels;
   }
 
   public boolean isTombstone() {
@@ -61,6 +78,10 @@ public class Meta implements Comparable<Meta> {
 
   public int childIdsLength() {
     return childIds.length;
+  }
+
+  public Labels labels() {
+    return labels;
   }
 
   @Override

@@ -55,4 +55,9 @@ public class TfObject implements DocContainer {
   public String partitioning() {
     return partitioning;
   }
+
+  @Override
+  public boolean labeled() {
+    return label != null;
+  }
 }

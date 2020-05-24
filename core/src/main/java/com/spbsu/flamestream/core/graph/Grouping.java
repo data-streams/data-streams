@@ -152,7 +152,7 @@ public class Grouping<T> extends HashingVertexStub {
       //noinspection unchecked
       bucket.forRange(left, right, dataItem -> groupingResult.add(dataItem.payload((Class<T>) clazz)));
       return new PayloadDataItem(
-              new Meta(bucket.get(right - 1).meta(), physicalId, areTombs),
+              new Meta(bucket.get(right - 1).meta(), physicalId, areTombs, bucket.get(right - 1).meta().labels()),
               groupingResult
       );
     }

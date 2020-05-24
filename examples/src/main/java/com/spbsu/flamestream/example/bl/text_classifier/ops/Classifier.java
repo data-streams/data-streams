@@ -22,12 +22,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-public class ClassifierFilter implements SerializableFunction<List<ClassifierInput>, Stream<ClassifierOutput>> {
-  private final static Logger LOG = LoggerFactory.getLogger(ClassifierFilter.class);
+public class Classifier {
+  private final static Logger LOG = LoggerFactory.getLogger(Classifier.class);
   private final Vectorizer vectorizer;
   private final OnlineModel model;
 
-  public ClassifierFilter(Vectorizer vectorizer, OnlineModel model) {
+  public Classifier(Vectorizer vectorizer, OnlineModel model) {
     this.vectorizer = vectorizer;
     this.model = model;
   }
@@ -36,35 +36,15 @@ public class ClassifierFilter implements SerializableFunction<List<ClassifierInp
     vectorizer.init();
   }
 
-  @Override
-  public Stream<ClassifierOutput> apply(List<ClassifierInput> input) {
-    if (input.size() == 1) {
-      final TfIdfObject tfIdfObject = (TfIdfObject) input.get(0);
-      if (tfIdfObject.label() == null) {
-        LOG.warn("Cannot process doc: {}. Empty model.", tfIdfObject.document());
-        return Stream.empty();
-      }
-      final ModelState firstState = model.step(
-              new DataPoint(vectorize(tfIdfObject), tfIdfObject.label()),
-              new FTRLState(model.classes(), vectorizer.dim())
-      );
-      return Stream.of(new Prediction(tfIdfObject, new Topic[]{}), new ClassifierState(firstState));
-    }
+  public ClassifierState step(ClassifierState classifierState, TfIdfObject tfIdfObject) {
+    return new ClassifierState(model.step(
+            new DataPoint(vectorize(tfIdfObject), tfIdfObject.label()),
+            classifierState == null ? new FTRLState(model.classes(), vectorizer.dim()) : classifierState.getState()
+    ));
+  }
 
-    if (input.get(0) instanceof ClassifierState) {
-      final TfIdfObject tfIdfObject = (TfIdfObject) input.get(1);
-      final Vec features = vectorize(tfIdfObject);
-      final ModelState state = ((ClassifierState) input.get(0)).getState();
-      if (tfIdfObject.label() == null) {
-        final Topic[] prediction = model.predict(state, features);
-        return Stream.of(new Prediction(tfIdfObject, prediction), (ClassifierState) input.get(0));
-      } else {
-        final ModelState newState = model.step(new DataPoint(features, tfIdfObject.label()), state);
-        return Stream.of(new Prediction(tfIdfObject, new Topic[]{}), new ClassifierState(newState));
-      }
-    } else {
-      return Stream.of();
-    }
+  public Topic[] predict(ClassifierState classifierState, TfIdfObject tfIdfObject) {
+    return model.predict(classifierState.getState(), vectorize(tfIdfObject));
   }
 
   private Vec vectorize(TfIdfObject tfIdfObject) {

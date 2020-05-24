@@ -10,9 +10,11 @@ public class IdfObject implements DocContainer {
   private final Map<String, Integer> counts = new HashMap<>();
   private final String docName;
   private final String partitioning;
+  private final boolean labeled;
 
   public IdfObject(Set<WordCounter> counters) {
     counters.forEach(wordCounter -> counts.put(wordCounter.word(), wordCounter.count()));
+    labeled = counters.stream().findFirst().get().labeled();
     docName = counters.iterator().next().document();
     partitioning = counters.iterator().next().partitioning();
   }
@@ -25,6 +27,11 @@ public class IdfObject implements DocContainer {
   @Override
   public String partitioning() {
     return partitioning;
+  }
+
+  @Override
+  public boolean labeled() {
+    return labeled;
   }
 
   @Override

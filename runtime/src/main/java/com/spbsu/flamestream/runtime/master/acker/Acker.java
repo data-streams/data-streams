@@ -10,8 +10,8 @@ import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.runtime.master.acker.api.Ack;
 import com.spbsu.flamestream.runtime.master.acker.api.BufferedMessages;
 import com.spbsu.flamestream.runtime.master.acker.api.Heartbeat;
-import com.spbsu.flamestream.runtime.master.acker.api.NodeTime;
 import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
+import com.spbsu.flamestream.runtime.master.acker.api.NodeTime;
 import com.spbsu.flamestream.runtime.master.acker.api.commit.MinTimeUpdateListener;
 import com.spbsu.flamestream.runtime.master.acker.api.registry.FrontTicket;
 import com.spbsu.flamestream.runtime.master.acker.api.registry.RegisterFront;
@@ -78,13 +78,13 @@ public class Acker extends LoggingActor {
     int componentsNumber = 0;
     final Iterable<Graph.Vertex> vertices = () -> graph.components().flatMap(Function.identity()).iterator();
     for (Graph.Vertex component : vertices) {
-      componentsNumber = Integer.max(componentsNumber, component.trackingComponent().index + 1);
+      componentsNumber = Integer.max(componentsNumber, graph.trackingComponent(component).index + 1);
     }
     componentTable = new ComponentAckTable[componentsNumber];
     for (final Graph.Vertex vertex : vertices) {
-      if (componentTable[vertex.trackingComponent().index] == null) {
-        componentTable[vertex.trackingComponent().index] = new ComponentAckTable(
-                vertex.trackingComponent(),
+      if (componentTable[graph.trackingComponent(vertex).index] == null) {
+        componentTable[graph.trackingComponent(vertex).index] = new ComponentAckTable(
+                graph.trackingComponent(vertex),
                 new ArrayAckTable(defaultMinimalTime, SIZE / componentsNumber, WINDOW, assertAckingBackInTime),
                 defaultMinimalTime
         );
@@ -161,17 +161,21 @@ public class Acker extends LoggingActor {
   }
 
   private void checkMinTime(TrackingComponent component) {
-    final long minHeartbeat =
-            maxHeartbeats.isEmpty() ? defaultMinimalTime : Collections.min(maxHeartbeats.values()).time();
     final TreeSet<TrackingComponent> componentsToRefresh = new TreeSet<>();
     componentsToRefresh.add(component);
     while ((component = componentsToRefresh.pollFirst()) != null) {
       final ComponentAckTable table = componentTable[component.index];
+      final long minHeartbeat =
+              component.inbound.stream().mapToLong(inbound -> componentTable[inbound.index].lastMinTime).min()
+                      .orElseGet(() ->
+                              maxHeartbeats.isEmpty() ? defaultMinimalTime : Collections.min(maxHeartbeats.values())
+                                      .time()
+                      );
       final long minTime = table.ackTable.tryPromote(minHeartbeat);
       if (minTime == table.lastMinTime) {
         continue;
       }
-      componentsToRefresh.addAll(component.adjacent);
+      componentsToRefresh.addAll(component.outbound);
       table.lastMinTime = minTime;
       log().debug("New min time: {}", minHeartbeat);
       final GlobalTime minAmongTables = new GlobalTime(minTime, EdgeId.MIN);

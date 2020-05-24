@@ -40,13 +40,17 @@ public abstract class Joba {
     }
   }
 
+  public interface Sink extends Consumer<DataItem> {
+    Runnable schedule(DataItem dataItem);
+  }
+
   final Id id;
 
   Joba(Id id) {
     this.id = id;
   }
 
-  abstract void accept(DataItem item, Consumer<DataItem> sink);
+  abstract void accept(DataItem item, Sink sink);
 
   void onMinTime(MinTimeUpdate time) {
   }

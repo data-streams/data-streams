@@ -1,5 +1,6 @@
 package com.spbsu.flamestream.core;
 
+import com.spbsu.flamestream.core.data.meta.Labels;
 import com.spbsu.flamestream.core.data.meta.Meta;
 
 public interface DataItem {
@@ -10,4 +11,6 @@ public interface DataItem {
   long xor();
 
   DataItem cloneWith(Meta meta);
+
+  boolean marker();
 }

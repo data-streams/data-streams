@@ -42,8 +42,8 @@ public class RearActor extends LoggingActor {
   public Receive createReceive() {
     return ReceiveBuilder.create()
             .match(Batch.class, b -> {
-              rear.accept(b);
-              sender().tell(new BatchAccepted(), self());
+              final ActorRef sender = sender(), self = self();
+              rear.accept(b).thenRun(() -> sender.tell(new BatchAccepted(), self));
             })
             .match(GimmeLastBatch.class, l -> sender().tell(rear.last(), ActorRef.noSender()))
             .build();

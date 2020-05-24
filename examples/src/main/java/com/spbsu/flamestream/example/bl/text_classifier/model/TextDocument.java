@@ -38,6 +38,11 @@ public class TextDocument implements DocContainer {
     return partitioning;
   }
 
+  @Override
+  public boolean labeled() {
+    return label != null;
+  }
+
   public int number() {
     return number;
   }

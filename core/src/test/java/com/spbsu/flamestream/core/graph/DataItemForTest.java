@@ -43,6 +43,11 @@ public class DataItemForTest implements DataItem {
   }
 
   @Override
+  public boolean marker() {
+    return inner.marker();
+  }
+
+  @Override
   public int hashCode() {
     return hash.applyAsInt(inner);
   }

@@ -16,7 +16,7 @@ public class ClusterConfig {
     this.masterLocation = masterLocation;
   }
 
-  public Map<String, ActorPath> paths() {
+  public LinkedHashMap<String, ActorPath> paths() {
     return new LinkedHashMap<>(paths);
   }
 

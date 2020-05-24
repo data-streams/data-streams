@@ -5,6 +5,7 @@ import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.HashFunction;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
+import com.spbsu.flamestream.core.graph.SerializableFunction;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import com.spbsu.flamestream.example.bl.wordcount.model.WordContainer;
@@ -28,8 +29,8 @@ public class WordCountGraph implements Supplier<Graph> {
   public Graph get() {
     final Source source = new Source();
     final Pattern pattern = Pattern.compile("\\s");
-    final FlameMap<String, WordEntry> splitter = new FlameMap.Builder<String, WordEntry>(
-            s -> Arrays.stream(pattern.split(s)).map(WordEntry::new),
+    final FlameMap<String, WordEntry> splitter = new FlameMap.Builder<>(
+            (String s) -> Arrays.stream(pattern.split(s)).map(WordEntry::new),
             String.class
     ).build();
     final Grouping<WordContainer> grouping = new Grouping<>(wordHash, equalz, 2, WordContainer.class);

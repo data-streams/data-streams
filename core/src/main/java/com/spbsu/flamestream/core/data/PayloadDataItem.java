@@ -1,6 +1,7 @@
 package com.spbsu.flamestream.core.data;
 
 import com.spbsu.flamestream.core.DataItem;
+import com.spbsu.flamestream.core.data.meta.Labels;
 import com.spbsu.flamestream.core.data.meta.Meta;
 
 import java.util.Objects;
@@ -10,11 +11,17 @@ public class PayloadDataItem implements DataItem {
   private final Meta meta;
   private final Object payload;
   private final long xor;
+  private final boolean marker;
 
   public PayloadDataItem(Meta meta, Object payload) {
-    this.payload = payload;
+    this(meta, payload, false);
+  }
+
+  public PayloadDataItem(Meta meta, Object payload, boolean marker) {
     this.meta = meta;
+    this.payload = payload;
     this.xor = ThreadLocalRandom.current().nextLong();
+    this.marker = marker;
   }
 
   @Override
@@ -34,12 +41,17 @@ public class PayloadDataItem implements DataItem {
 
   @Override
   public DataItem cloneWith(Meta newMeta) {
-    return new PayloadDataItem(newMeta, this.payload);
+    return new PayloadDataItem(newMeta, payload, marker);
+  }
+
+  @Override
+  public boolean marker() {
+    return marker;
   }
 
   @Override
   public String toString() {
-    return '{' + "meta=" + meta + ", payload=" + payload + '}';
+    return '{' + "meta=" + meta + ", xor=" + xor + ", payload=" + payload + '}';
   }
 
   @Override

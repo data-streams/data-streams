@@ -29,6 +29,11 @@ public class WordCounter implements WordContainer, DocContainer {
     return wordEntry.partitioning();
   }
 
+  @Override
+  public boolean labeled() {
+    return wordEntry.labeled();
+  }
+
   public int idfCardinality() {
     return wordEntry.idfCardinality();
   }

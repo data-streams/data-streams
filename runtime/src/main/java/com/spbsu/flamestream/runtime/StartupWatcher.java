@@ -20,7 +20,9 @@ import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 
 import java.io.File;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 public class StartupWatcher extends LoggingActor {
   private static final RetryPolicy CURATOR_RETRY_POLICY = new ExponentialBackoffRetry(Math.toIntExact(FlameConfig.config
@@ -72,7 +74,11 @@ public class StartupWatcher extends LoggingActor {
             ActorPath$.MODULE$.fromString(self().path()
                     .toStringWithAddress(context().system().provider().getDefaultAddress()))
     );
-    if (zookeeperWorkersNode.isLeader(id)) {
+    final List<String> ids = zookeeperWorkersNode.workers()
+            .stream()
+            .map(ZookeeperWorkersNode.Worker::id)
+            .collect(Collectors.toList());
+    if (systemConfig.workersResourcesDistributor.master(ids).equals(id)) {
       context().actorOf(ClientWatcher.props(curator, kryoSerializer, zookeeperWorkersNode), "client-watcher");
     }
     context().actorOf(

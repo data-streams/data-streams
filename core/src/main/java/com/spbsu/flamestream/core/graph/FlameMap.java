@@ -3,6 +3,7 @@ package com.spbsu.flamestream.core.graph;
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.HashFunction;
 import com.spbsu.flamestream.core.data.PayloadDataItem;
+import com.spbsu.flamestream.core.data.meta.LabelsPresence;
 import com.spbsu.flamestream.core.data.meta.Meta;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,6 +16,7 @@ public class FlameMap<T, R> extends HashingVertexStub {
     private @Nullable
     HashFunction hashFunction;
     private SerializableConsumer<HashGroup> init = __ -> {};
+    private LabelsPresence labelsPresence = LabelsPresence.EMPTY;
 
     public Builder(SerializableFunction<T, Stream<R>> function, Class<?> clazz) {
       this.function = function;
@@ -31,6 +33,11 @@ public class FlameMap<T, R> extends HashingVertexStub {
       return this;
     }
 
+    public Builder<T, R> labelsPresence(LabelsPresence labelsPresence) {
+      this.labelsPresence = labelsPresence;
+      return this;
+    }
+
     public FlameMap<T, R> build() {
       return new FlameMap<>(this);
     }
@@ -41,12 +48,14 @@ public class FlameMap<T, R> extends HashingVertexStub {
   private final @Nullable
   HashFunction hashFunction;
   private final SerializableConsumer<HashGroup> init;
+  private final LabelsPresence labelsPresence;
 
   private FlameMap(Builder<T, R> builder) {
     function = builder.function;
     clazz = builder.clazz;
     hashFunction = builder.hashFunction;
     init = builder.init;
+    labelsPresence = builder.labelsPresence;
   }
 
   public FlameMapOperation operation(long physicalId) {
@@ -85,9 +94,12 @@ public class FlameMap<T, R> extends HashingVertexStub {
       //noinspection unchecked
       final Stream<R> result = function.apply(dataItem.payload((Class<T>) clazz));
       final int[] childId = {0};
+      final boolean hasLabels = dataItem.meta().labels().hasAll(labelsPresence);
       return result.map(r -> {
-        final Meta newMeta = new Meta(dataItem.meta(), physicalId, childId[0]++);
-        return new PayloadDataItem(newMeta, r);
+        if (!hasLabels) {
+          throw new IllegalArgumentException();
+        }
+        return new PayloadDataItem(new Meta(dataItem.meta(), physicalId, childId[0]++), r);
       });
     }
   }

@@ -10,12 +10,14 @@ import com.spbsu.flamestream.core.Job;
 import com.spbsu.flamestream.core.data.PayloadDataItem;
 import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
+import com.spbsu.flamestream.core.data.meta.Label;
+import com.spbsu.flamestream.core.data.meta.Labels;
 import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.core.graph.FlameMap;
+import com.spbsu.flamestream.core.graph.SerializableFunction;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import com.spbsu.flamestream.runtime.LocalClusterRuntime;
-import com.spbsu.flamestream.runtime.WorkerApplication;
 import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.edge.Rear;
 import org.objenesis.strategy.StdInstantiatorStrategy;
@@ -44,7 +46,7 @@ public class ZkFlameClientTest {
             {SystemConfig.WorkersResourcesDistributor.DEFAULT_DISABLED, true},
             {SystemConfig.WorkersResourcesDistributor.DEFAULT_CENTRALIZED, false},
             {SystemConfig.WorkersResourcesDistributor.DEFAULT_DISTRIBUTED, false},
-    };
+            };
   }
 
   @Test(dataProvider = "dataProvider")
@@ -140,6 +142,9 @@ public class ZkFlameClientTest {
             .getInstantiatorStrategy())
             .setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
     consumer.getKryo().register(PayloadDataItem.class);
+    consumer.getKryo().register(Label.class);
+    consumer.getKryo().register(Label[].class);
+    consumer.getKryo().register(Labels.class);
     consumer.getKryo().register(Meta.class);
     consumer.getKryo().register(GlobalTime.class);
     consumer.getKryo().register(EdgeId.class);
@@ -184,7 +189,7 @@ public class ZkFlameClientTest {
     final Sink sink = new Sink();
 
     final FlameMap<String, String> dumbMap =
-            new FlameMap.Builder<String, String>(s -> Stream.of("prefix_" + s), String.class).build();
+            new FlameMap.Builder<>((String s) -> Stream.of("prefix_" + s), String.class).build();
     return new Graph.Builder().link(source, dumbMap).link(dumbMap, sink).build(source, sink);
   }
 }

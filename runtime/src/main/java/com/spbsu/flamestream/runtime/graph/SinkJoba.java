@@ -10,7 +10,6 @@ import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.data.invalidation.ArrayInvalidatingBucket;
 import com.spbsu.flamestream.core.data.invalidation.InvalidatingBucket;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
-import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.runtime.edge.api.GimmeLastBatch;
 import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
 import com.spbsu.flamestream.runtime.utils.FlameConfig;
@@ -22,7 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 public class SinkJoba extends Joba {
@@ -45,7 +43,7 @@ public class SinkJoba extends Joba {
   }
 
   @Override
-  public void accept(DataItem item, Consumer<DataItem> sink) {
+  public void accept(DataItem item, Sink sink) {
     barrierReceiveTracer.log(item.xor());
     if (barrierDisabled) {
       rears.forEach((rear, lastEmmit) -> emmitRearBatch(
@@ -73,11 +71,10 @@ public class SinkJoba extends Joba {
 
   @Override
   public void onMinTime(MinTimeUpdate minTime) {
-    if (minTime.trackingComponent() != sinkTrackingComponent) {
-      return;
+    if (minTime.trackingComponent() == sinkTrackingComponent) {
+      this.minTime = minTime.minTime();
+      tryEmmit(minTime.minTime());
     }
-    this.minTime = minTime.minTime();
-    tryEmmit(minTime.minTime());
   }
 
   private void tryEmmit(GlobalTime upTo) {
