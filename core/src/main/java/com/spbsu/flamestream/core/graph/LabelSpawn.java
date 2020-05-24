@@ -4,6 +4,7 @@ import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.data.PayloadDataItem;
 import com.spbsu.flamestream.core.data.meta.Label;
+import com.spbsu.flamestream.core.data.meta.Labels;
 import com.spbsu.flamestream.core.data.meta.Meta;
 
 import java.util.List;
@@ -48,18 +49,13 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
       final L value = mapper.apply(payload);
       final Label label = new Label(index, in.meta());
       int childId = 0;
+      final Labels newLabels = in.meta().labels().added(label);
       final PayloadDataItem dataItem = new PayloadDataItem(
-              new Meta(in.meta(), physicalId, childId++),
-              payload,
-              in.labels().added(label)
+              new Meta(in.meta(), physicalId, childId++, newLabels),
+              payload
       );
       for (final Consumer<DataItem> marker : markers) {
-        marker.accept(new PayloadDataItem(
-                new Meta(in.meta(), physicalId, childId++),
-                value,
-                in.labels().added(label),
-                true
-        ));
+        marker.accept(new PayloadDataItem(new Meta(in.meta(), physicalId, childId++, newLabels), value, true));
       }
       return dataItem;
     }

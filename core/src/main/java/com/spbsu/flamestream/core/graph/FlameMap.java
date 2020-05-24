@@ -94,12 +94,12 @@ public class FlameMap<T, R> extends HashingVertexStub {
       //noinspection unchecked
       final Stream<R> result = function.apply(dataItem.payload((Class<T>) clazz));
       final int[] childId = {0};
-      final boolean hasLabels = dataItem.labels().hasAll(labelsPresence);
+      final boolean hasLabels = dataItem.meta().labels().hasAll(labelsPresence);
       return result.map(r -> {
         if (!hasLabels) {
           throw new IllegalArgumentException();
         }
-        return new PayloadDataItem(new Meta(dataItem.meta(), physicalId, childId[0]++), r, dataItem.labels());
+        return new PayloadDataItem(new Meta(dataItem.meta(), physicalId, childId[0]++), r);
       });
     }
   }

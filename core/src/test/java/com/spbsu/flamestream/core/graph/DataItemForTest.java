@@ -29,11 +29,6 @@ public class DataItemForTest implements DataItem {
   }
 
   @Override
-  public Labels labels() {
-    return inner.labels();
-  }
-
-  @Override
   public <R> R payload(Class<R> expectedClass) {
     return inner.payload(expectedClass);
   }

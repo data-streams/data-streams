@@ -10,22 +10,16 @@ import java.util.concurrent.ThreadLocalRandom;
 public class PayloadDataItem implements DataItem {
   private final Meta meta;
   private final Object payload;
-  private final Labels labels;
   private final long xor;
   private final boolean marker;
 
   public PayloadDataItem(Meta meta, Object payload) {
-    this(meta, payload, new Labels(0));
+    this(meta, payload, false);
   }
 
-  public PayloadDataItem(Meta meta, Object payload, Labels labels) {
-    this(meta, payload, labels, false);
-  }
-
-  public PayloadDataItem(Meta meta, Object payload, Labels labels, boolean marker) {
+  public PayloadDataItem(Meta meta, Object payload, boolean marker) {
     this.meta = meta;
     this.payload = payload;
-    this.labels = labels;
     this.xor = ThreadLocalRandom.current().nextLong();
     this.marker = marker;
   }
@@ -41,18 +35,13 @@ public class PayloadDataItem implements DataItem {
   }
 
   @Override
-  public Labels labels() {
-    return labels;
-  }
-
-  @Override
   public long xor() {
     return xor;
   }
 
   @Override
   public DataItem cloneWith(Meta newMeta) {
-    return new PayloadDataItem(newMeta, payload, labels, marker);
+    return new PayloadDataItem(newMeta, payload, marker);
   }
 
   @Override
@@ -62,7 +51,7 @@ public class PayloadDataItem implements DataItem {
 
   @Override
   public String toString() {
-    return '{' + "meta=" + meta + ", labels=" + labels + ", xor=" + xor + ", payload=" + payload + '}';
+    return '{' + "meta=" + meta + ", xor=" + xor + ", payload=" + payload + '}';
   }
 
   @Override
@@ -76,12 +65,11 @@ public class PayloadDataItem implements DataItem {
     final PayloadDataItem that = (PayloadDataItem) o;
     return xor == that.xor &&
             Objects.equals(meta, that.meta) &&
-            Objects.equals(payload, that.payload) &&
-            Objects.equals(labels, that.labels);
+            Objects.equals(payload, that.payload);
   }
 
   @Override
   public int hashCode() {
-    return Objects.hash(meta, payload, xor, labels);
+    return Objects.hash(meta, payload, xor);
   }
 }

@@ -9,7 +9,6 @@ import org.jetbrains.annotations.NotNull;
 import scala.util.Left;
 import scala.util.Right;
 
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.PriorityQueue;
 import java.util.concurrent.ThreadLocalRandom;
@@ -64,12 +63,12 @@ public class LabelMarkersJoba extends Joba {
 
   @Override
   public void accept(DataItem item, Sink sink) {
-    final Meta meta = new Meta(item.meta(), physicalId, 0);
+    final Meta meta = new Meta(item.meta(), physicalId, 0, item.meta().labels());
     if (item.marker()) {
-      final PayloadDataItem marker = new PayloadDataItem(meta, new Right<>(item.payload(Object.class)), item.labels());
+      final PayloadDataItem marker = new PayloadDataItem(meta, new Right<>(item.payload(Object.class)));
       scheduled.add(new Scheduled(marker, sink.schedule(marker)));
     } else {
-      sink.accept(new PayloadDataItem(meta, new Left<>(item.payload(Object.class)), item.labels()));
+      sink.accept(new PayloadDataItem(meta, new Left<>(item.payload(Object.class))));
     }
   }
 }

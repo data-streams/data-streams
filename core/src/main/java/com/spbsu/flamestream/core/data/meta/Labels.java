@@ -3,6 +3,8 @@ package com.spbsu.flamestream.core.data.meta;
 import java.util.Arrays;
 
 public class Labels {
+  public static final Labels EMPTY = new Labels(0);
+
   private final Label[] all;
 
   public Labels(int size) {

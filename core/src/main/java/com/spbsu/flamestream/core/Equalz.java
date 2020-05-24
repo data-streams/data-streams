@@ -23,8 +23,9 @@ public interface Equalz extends BiPredicate<DataItem, DataItem>, Serializable {
 
   @Override
   default boolean test(DataItem dataItem, DataItem dataItem2) {
-    return labels().stream().allMatch(label -> dataItem.labels().get(label).equals(dataItem2.labels().get(label)))
-            && testPayloads(dataItem, dataItem2);
+    return labels().stream().allMatch(label ->
+            dataItem.meta().labels().get(label).equals(dataItem2.meta().labels().get(label))
+    ) && testPayloads(dataItem, dataItem2);
   }
 
   boolean testPayloads(DataItem dataItem, DataItem dataItem2);
