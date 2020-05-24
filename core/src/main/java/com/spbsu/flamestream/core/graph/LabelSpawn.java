@@ -7,7 +7,6 @@ import com.spbsu.flamestream.core.data.meta.Label;
 import com.spbsu.flamestream.core.data.meta.Meta;
 
 import java.util.List;
-import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -36,13 +35,10 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
 
   public class LabelsInUse implements Function<DataItem, DataItem> {
     private final long physicalId;
-    private final String nodeId;
     private final Iterable<? extends Consumer<DataItem>> markers;
-    private final TreeMap<Long, Integer> timeSequences = new TreeMap<>();
 
-    private LabelsInUse(long physicalId, String nodeId, Iterable<? extends Consumer<DataItem>> markers) {
+    private LabelsInUse(long physicalId, Iterable<? extends Consumer<DataItem>> markers) {
       this.physicalId = physicalId;
-      this.nodeId = nodeId;
       this.markers = markers;
     }
 
@@ -50,8 +46,7 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
     public DataItem apply(DataItem in) {
       final T payload = in.payload(tClass);
       final L value = mapper.apply(payload);
-      final long time = in.meta().globalTime().time();
-      final Label label = new Label(index, nodeId, time, timeSequences.merge(time, 1, Integer::sum) - 1);
+      final Label label = new Label(index, in.meta());
       int childId = 0;
       final PayloadDataItem dataItem = new PayloadDataItem(
               new Meta(in.meta(), physicalId, childId++),
@@ -68,13 +63,9 @@ public class LabelSpawn<T, L> extends Graph.Vertex.Stub {
       }
       return dataItem;
     }
-
-    public void onMinTime(long time) {
-      timeSequences.headMap(time).clear();
-    }
   }
 
-  public LabelsInUse operation(long physicalId, String nodeId, Iterable<? extends Consumer<DataItem>> markers) {
-    return new LabelsInUse(physicalId, nodeId, markers);
+  public LabelsInUse operation(long physicalId, Iterable<? extends Consumer<DataItem>> markers) {
+    return new LabelsInUse(physicalId, markers);
   }
 }

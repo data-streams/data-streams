@@ -199,8 +199,7 @@ public class Component extends LoggingActor {
                 joba = new LabelSpawnJoba(
                         jobaId,
                         labelSpawn,
-                        labelSpawn.labelMarkers().map(vertexDownstream).collect(Collectors.toList()),
-                        sinkTrackingComponent.index
+                        labelSpawn.labelMarkers().map(vertexDownstream).collect(Collectors.toList())
                 );
               } else if (vertex instanceof LabelMarkers) {
                 joba = new LabelMarkersJoba(jobaId, (LabelMarkers) vertex);

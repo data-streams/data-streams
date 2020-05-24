@@ -1,26 +1,24 @@
 package com.spbsu.flamestream.core.data.meta;
 
+import java.util.Arrays;
 import java.util.Objects;
 
 public final class Label {
   public final int type;
-  public final String nodeId;
-  public final long time;
-  public final int uniqueness;
+  public final GlobalTime globalTime;
+  private final int[] childIds;
 
-  public Label(int type, String nodeId, long time, int uniqueness) {
+  public Label(int type, Meta meta) {
     this.type = type;
-    this.nodeId = nodeId;
-    this.time = time;
-    this.uniqueness = uniqueness;
+    globalTime = meta.globalTime();
+    childIds = meta.childIds();
   }
 
   @Override
   public int hashCode() {
     int hashCode = Integer.hashCode(type);
-    hashCode = 31 * hashCode + Objects.hashCode(nodeId);
-    hashCode = 31 * hashCode + Long.hashCode(time);
-    hashCode = 31 * hashCode + Integer.hashCode(uniqueness);
+    hashCode = 31 * hashCode + Objects.hashCode(globalTime);
+    hashCode = 31 * hashCode + Arrays.hashCode(childIds);
     return hashCode;
   }
 
@@ -34,13 +32,12 @@ public final class Label {
     }
     final Label label = (Label) obj;
     return type == label.type
-            && Objects.equals(nodeId, label.nodeId)
-            && time == label.time
-            && uniqueness == label.uniqueness;
+            && Objects.equals(globalTime, label.globalTime)
+            && Arrays.equals(childIds, label.childIds);
   }
 
   @Override
   public String toString() {
-    return "(" + type + ", " + nodeId + ", " + time + ", " + uniqueness + ")";
+    return "(" + type + ", " + globalTime + ", " + childIds + ")";
   }
 }

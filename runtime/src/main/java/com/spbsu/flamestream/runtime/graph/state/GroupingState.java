@@ -174,7 +174,7 @@ public class GroupingState {
   public InvalidatingBucket bucketFor(DataItem item) {
     final Key key = new Key(grouping, item);
     final OptionalLong keyMinTime =
-            grouping.equalz().labels().stream().mapToLong(label -> item.labels().get(label).time).min();
+            grouping.equalz().labels().stream().mapToLong(label -> item.labels().get(label).globalTime.time()).min();
     if (keyMinTime.isPresent()) {
       if (keyMinTime.getAsLong() < minTime) {
         throw new IllegalArgumentException();
