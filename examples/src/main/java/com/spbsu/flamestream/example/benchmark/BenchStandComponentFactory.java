@@ -7,6 +7,8 @@ import com.esotericsoftware.kryonet.Server;
 import com.spbsu.flamestream.core.data.PayloadDataItem;
 import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
+import com.spbsu.flamestream.core.data.meta.Label;
+import com.spbsu.flamestream.core.data.meta.Labels;
 import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.runtime.FlameRuntime;
 import com.spbsu.flamestream.runtime.LocalClusterRuntime;
@@ -73,14 +75,6 @@ public class BenchStandComponentFactory {
   ) throws IOException {
     Map<String, Connection> connections = new HashMap<>();
     CountDownLatch allConnected = new CountDownLatch(remotes.size());
-    new Thread(() -> {
-      try {
-        allConnected.await();
-      } catch (InterruptedException e) {
-        throw new RuntimeException();
-      }
-      consumer.accept(connections);
-    }).start();
     final Server producer = new Server(200_000_000 / remotes.size(), 1000 / remotes.size());
     for (final Class<?> clazz : classesToRegister) {
       producer.getKryo().register(clazz);
@@ -100,6 +94,9 @@ public class BenchStandComponentFactory {
           LOG.info("Accepting connection: {}", id);
           connections.put(id, connection);
           allConnected.countDown();
+          if (allConnected.getCount() == 0) {
+            consumer.accept(connections);
+          }
         } else {
           LOG.info("Closing connection {}", id);
           connection.close();
@@ -117,6 +114,9 @@ public class BenchStandComponentFactory {
       server.getKryo().register(clazz);
     }
     server.getKryo().register(PayloadDataItem.class);
+    server.getKryo().register(Label.class);
+    server.getKryo().register(Label[].class);
+    server.getKryo().register(Labels.class);
     server.getKryo().register(Meta.class);
     server.getKryo().register(GlobalTime.class);
     server.getKryo().register(EdgeId.class);
