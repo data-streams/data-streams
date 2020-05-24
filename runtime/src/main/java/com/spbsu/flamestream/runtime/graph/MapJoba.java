@@ -4,7 +4,6 @@ import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.graph.FlameMap;
 
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Consumer;
 
 public class MapJoba extends Joba {
   private final FlameMap<?, ?>.FlameMapOperation operation;
@@ -15,8 +14,7 @@ public class MapJoba extends Joba {
   }
 
   @Override
-  public boolean accept(DataItem item, Sink sink) {
+  public void accept(DataItem item, Sink sink) {
     operation.apply(item).forEach(sink);
-    return true;
   }
 }

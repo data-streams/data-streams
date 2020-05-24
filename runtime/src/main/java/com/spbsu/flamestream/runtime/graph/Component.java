@@ -101,9 +101,8 @@ public class Component extends LoggingActor {
                       Component.this.ack(item, to);
                       list.add(() -> {
                         if (isLocal && route.equals(localManager)) {
-                          if (localCall(item, toDest)) {
-                            Component.this.ack(item, to);
-                          }
+                          localCall(item, toDest);
+                          Component.this.ack(item, to);
                         } else {
                           route.tell(new AddressedItem(item, toDest), self());
                         }
@@ -116,9 +115,7 @@ public class Component extends LoggingActor {
                   public void accept(DataItem dataItem) {
                     accept(dataItem, (route, item) -> {
                       if (isLocal && route.equals(localManager)) {
-                        if (!localCall(item, toDest)) {
-                          Component.this.ack(item, to);
-                        }
+                        localCall(item, toDest);
                       } else {
                         Component.this.ack(item, to);
                         route.tell(new AddressedItem(item, toDest), self());
@@ -304,9 +301,8 @@ public class Component extends LoggingActor {
   private void inject(AddressedItem addressedItem) {
     final DataItem item = addressedItem.item();
     injectInTracer.log(item.xor());
-    if (localCall(item, addressedItem.destination())) {
-      ack(item, wrappedJobas.get(addressedItem.destination()).vertex);
-    }
+    localCall(item, addressedItem.destination());
+    ack(item, wrappedJobas.get(addressedItem.destination()).vertex);
     injectOutTracer.log(item.xor());
   }
 
@@ -321,14 +317,12 @@ public class Component extends LoggingActor {
     }
   }
 
-  private boolean localCall(DataItem item, GraphManager.Destination destination) {
-    return wrappedJobas.get(destination).joba.accept(item, wrappedJobas.get(destination).downstream);
+  private void localCall(DataItem item, GraphManager.Destination destination) {
+    wrappedJobas.get(destination).joba.accept(item, wrappedJobas.get(destination).downstream);
   }
 
   private void onMinTime(MinTimeUpdate minTime) {
-    wrappedJobas.values().forEach(jobaWrapper ->
-            jobaWrapper.joba.onMinTime(minTime).forEach(dataItem -> ack(dataItem, jobaWrapper.vertex))
-    );
+    wrappedJobas.values().forEach(jobaWrapper -> jobaWrapper.joba.onMinTime(minTime));
   }
 
   private void accept(DataItem item) {

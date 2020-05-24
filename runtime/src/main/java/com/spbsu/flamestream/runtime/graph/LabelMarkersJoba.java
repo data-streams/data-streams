@@ -9,10 +9,8 @@ import org.jetbrains.annotations.NotNull;
 import scala.util.Left;
 import scala.util.Right;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.List;
 import java.util.PriorityQueue;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -49,9 +47,9 @@ public class LabelMarkersJoba extends Joba {
   }
 
   @Override
-  List<DataItem> onMinTime(MinTimeUpdate componentTime) {
+  void onMinTime(MinTimeUpdate componentTime) {
     if (componentTime.trackingComponent() != labelMarkers.trackingComponent.index) {
-      return Collections.emptyList();
+      return;
     }
     inboundMinTime = componentTime.minTime().time();
     while (!scheduled.isEmpty()) {
@@ -62,11 +60,10 @@ public class LabelMarkersJoba extends Joba {
       scheduled.send.run();
       this.scheduled.poll();
     }
-    return Collections.emptyList();
   }
 
   @Override
-  public boolean accept(DataItem item, Sink sink) {
+  public void accept(DataItem item, Sink sink) {
     final Meta meta = new Meta(item.meta(), physicalId, 0);
     if (item.marker()) {
       final PayloadDataItem marker = new PayloadDataItem(meta, new Right<>(item.payload(Object.class)), item.labels());
@@ -74,6 +71,5 @@ public class LabelMarkersJoba extends Joba {
     } else {
       sink.accept(new PayloadDataItem(meta, new Left<>(item.payload(Object.class)), item.labels()));
     }
-    return true;
   }
 }

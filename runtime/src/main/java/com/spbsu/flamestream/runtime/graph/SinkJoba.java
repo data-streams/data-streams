@@ -21,7 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 public class SinkJoba extends Joba {
@@ -44,7 +43,7 @@ public class SinkJoba extends Joba {
   }
 
   @Override
-  public boolean accept(DataItem item, Sink sink) {
+  public void accept(DataItem item, Sink sink) {
     barrierReceiveTracer.log(item.xor());
     if (barrierDisabled) {
       rears.forEach((rear, lastEmmit) -> emmitRearBatch(
@@ -54,7 +53,6 @@ public class SinkJoba extends Joba {
     } else {
       invalidatingBucket.insert(item);
     }
-    return true;
   }
 
   public void attachRear(ActorRef rear) {
@@ -72,12 +70,11 @@ public class SinkJoba extends Joba {
   }
 
   @Override
-  public List<DataItem> onMinTime(MinTimeUpdate minTime) {
+  public void onMinTime(MinTimeUpdate minTime) {
     if (minTime.trackingComponent() == sinkTrackingComponent) {
       this.minTime = minTime.minTime();
       tryEmmit(minTime.minTime());
     }
-    return Collections.emptyList();
   }
 
   private void tryEmmit(GlobalTime upTo) {

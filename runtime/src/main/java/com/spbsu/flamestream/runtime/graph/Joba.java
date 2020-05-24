@@ -4,9 +4,7 @@ import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
 
-import java.util.Collections;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -52,10 +50,9 @@ public abstract class Joba {
     this.id = id;
   }
 
-  abstract boolean accept(DataItem item, Sink sink);
+  abstract void accept(DataItem item, Sink sink);
 
-  List<DataItem> onMinTime(MinTimeUpdate time) {
-    return Collections.emptyList();
+  void onMinTime(MinTimeUpdate time) {
   }
 
   void onPrepareCommit(GlobalTime time) {

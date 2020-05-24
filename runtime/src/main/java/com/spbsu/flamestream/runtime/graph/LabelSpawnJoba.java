@@ -1,14 +1,11 @@
 package com.spbsu.flamestream.runtime.graph;
 
 import com.spbsu.flamestream.core.DataItem;
-import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.core.graph.LabelSpawn;
 import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
 
 import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.function.Consumer;
 
 public class LabelSpawnJoba extends Joba {
   private final LabelSpawn<?, ?>.LabelsInUse operation;
@@ -26,15 +23,13 @@ public class LabelSpawnJoba extends Joba {
   }
 
   @Override
-  public boolean accept(DataItem item, Sink sink) {
+  public void accept(DataItem item, Sink sink) {
     sink.accept(operation.apply(item));
-    return true;
   }
 
   @Override
-  List<DataItem> onMinTime(MinTimeUpdate time) {
+  void onMinTime(MinTimeUpdate time) {
     if (time.trackingComponent() == sinkTrackingComponent)
       operation.onMinTime(time.minTime().time());
-    return Collections.emptyList();
   }
 }
