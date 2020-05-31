@@ -98,22 +98,22 @@ public class LentaTest extends FlameAkkaSuite {
     final ActorSystem system = ActorSystem.create("lentaTfIdf", ConfigFactory.load("remote"));
     try (final LocalClusterRuntime runtime = new LocalClusterRuntime(
             2,
-            new SystemConfig.Builder().maxElementsInGraph(10).millisBetweenCommits(10000).build()
+            new SystemConfig.Builder().maxElementsInGraph(10).millisBetweenCommits(10000).partitions(2).build()
     )) {
-      test(runtime, system, 1);
+      test(runtime, system, 2);
     }
     Await.ready(system.terminate(), Duration.Inf());
   }
 
   @Test
   public void lentaBlinkTest() throws IOException, InterruptedException {
-    try (final LocalRuntime runtime = new LocalRuntime.Builder().maxElementsInGraph(100)
+    try (final LocalRuntime runtime = new LocalRuntime.Builder()
+            .systemConfig(new SystemConfig.Builder().maxElementsInGraph(100).millisBetweenCommits(2000).partitions(2))
             .parallelism(2)
             .withBlink()
             .blinkPeriodSec(7)
-            .millisBetweenCommits(2000)
             .build()) {
-      test(runtime, runtime.system(), 2);
+      test(runtime, runtime.system(), 4);
     }
   }
 

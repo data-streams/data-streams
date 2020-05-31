@@ -56,8 +56,9 @@ public class BroadcastAcceptanceTest extends FlameAkkaSuite {
 
   @Test
   public void broadcastTest() throws InterruptedException {
-    final int parallelism = 4;
-    try (final LocalRuntime runtime = new LocalRuntime.Builder().parallelism(parallelism).build()) {
+    final int nodes = 4;
+    final int parallelism = nodes * Runtime.getRuntime().availableProcessors();
+    try (final LocalRuntime runtime = new LocalRuntime.Builder().parallelism(nodes).build()) {
       try (final FlameRuntime.Flame flame = runtime.run(graph())) {
         final List<AkkaFront.FrontHandle<String>> handles = flame
                 .attachFront("broadcastFront", new AkkaFrontType<String>(runtime.system()))

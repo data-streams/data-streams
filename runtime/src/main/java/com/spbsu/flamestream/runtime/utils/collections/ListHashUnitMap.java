@@ -39,6 +39,11 @@ public class ListHashUnitMap<T> implements HashUnitMap<T> {
   }
 
   @Override
+  public String toString() {
+    return mapping.toString();
+  }
+
+  @Override
   public Set<Map.Entry<HashUnit, T>> entrySet() {
     return mapping;
   }

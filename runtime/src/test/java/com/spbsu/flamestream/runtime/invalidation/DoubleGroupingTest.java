@@ -136,7 +136,7 @@ public class DoubleGroupingTest extends FlameStreamSuite {
     redisStateStorage.clear();
 
     try (final LocalRuntime runtime = new LocalRuntime.Builder().parallelism(4)
-            .millisBetweenCommits(50)
+            .systemConfig(new SystemConfig.Builder().millisBetweenCommits(50))
             .withSystem(system)
             .withStateStorage(redisStateStorage)
             .withBlink()

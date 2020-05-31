@@ -45,8 +45,8 @@ public class TopWordCountGraphTest extends FlameAkkaSuite {
 
   @Test(dataProvider = "dataProvider", invocationCount = 10)
   public void topWordCountTest(SystemConfig.Acking acking) throws InterruptedException {
-    try (final LocalRuntime runtime = new LocalRuntime.Builder().maxElementsInGraph(2)
-            .millisBetweenCommits(500)
+    try (final LocalRuntime runtime = new LocalRuntime.Builder()
+            .systemConfig(new SystemConfig.Builder().maxElementsInGraph(2).millisBetweenCommits(500))
             .acking(acking)
             .build()) {
       try (final FlameRuntime.Flame flame = runtime.run(new TopWordCountGraph().get())) {

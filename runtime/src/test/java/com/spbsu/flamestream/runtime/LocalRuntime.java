@@ -24,34 +24,28 @@ public class LocalRuntime implements FlameRuntime {
   private final ActorSystem system;
 
   private final StateStorage stateStorage;
+  private final SystemConfig systemConfig;
   private final int parallelism;
-  private final int maxElementsInGraph;
   private final SystemConfig.Acking acking;
-  private final int millisBetweenCommits;
-  private final boolean barrierDisabled;
   private final boolean blinking;
   private final int blinkPeriodSec;
 
   private LocalRuntime(
           ActorSystem system,
           int parallelism,
-          int maxElementsInGraph,
-          boolean barrierDisabled,
-          int millisBetweenCommits,
           boolean blinking,
           int blinkPeriodSec,
           SystemConfig.Acking acking,
-          StateStorage stateStorage
+          StateStorage stateStorage,
+          SystemConfig systemConfig
   ) {
     this.parallelism = parallelism;
-    this.barrierDisabled = barrierDisabled;
     this.blinking = blinking;
-    this.maxElementsInGraph = maxElementsInGraph;
-    this.millisBetweenCommits = millisBetweenCommits;
     this.system = system;
     this.blinkPeriodSec = blinkPeriodSec;
     this.acking = acking;
     this.stateStorage = stateStorage;
+    this.systemConfig = systemConfig;
   }
 
   public ActorSystem system() {
@@ -65,12 +59,10 @@ public class LocalRuntime implements FlameRuntime {
                     g,
                     stateStorage,
                     parallelism,
-                    maxElementsInGraph,
-                    barrierDisabled,
-                    millisBetweenCommits,
                     acking,
                     blinking,
-                    blinkPeriodSec
+                    blinkPeriodSec,
+                    systemConfig
             ),
             "restarter"
     );
@@ -116,8 +108,7 @@ public class LocalRuntime implements FlameRuntime {
 
   public static class Builder {
     private int parallelism = DEFAULT_PARALLELISM;
-    private int maxElementsInGraph = DEFAULT_MAX_ELEMENTS_IN_GRAPH;
-    private int millisBetweenCommits = DEFAULT_MILLIS_BETWEEN_COMMITS;
+    private SystemConfig.Builder systemConfig = new SystemConfig.Builder();
     private boolean blinking = false;
     private int blinkPeriodSec = 10;
     private SystemConfig.Acking acking = SystemConfig.Acking.CENTRALIZED;
@@ -125,15 +116,9 @@ public class LocalRuntime implements FlameRuntime {
 
     @Nullable
     private ActorSystem system = null;
-    private boolean barrierDisabled;
 
     public Builder parallelism(int parallelism) {
       this.parallelism = parallelism;
-      return this;
-    }
-
-    public Builder maxElementsInGraph(int maxElementsInGraph) {
-      this.maxElementsInGraph = maxElementsInGraph;
       return this;
     }
 
@@ -153,7 +138,7 @@ public class LocalRuntime implements FlameRuntime {
     }
 
     public Builder millisBetweenCommits(int millisBetweenCommits) {
-      this.millisBetweenCommits = millisBetweenCommits;
+      systemConfig.millisBetweenCommits(millisBetweenCommits);
       return this;
     }
 
@@ -167,8 +152,8 @@ public class LocalRuntime implements FlameRuntime {
       return this;
     }
 
-    public Builder barrierDisabled(boolean barrierDisabled) {
-      this.barrierDisabled = barrierDisabled;
+    public Builder systemConfig(SystemConfig.Builder systemConfig) {
+      this.systemConfig = systemConfig;
       return this;
     }
 
@@ -179,13 +164,11 @@ public class LocalRuntime implements FlameRuntime {
       return new LocalRuntime(
               system,
               parallelism,
-              maxElementsInGraph,
-              barrierDisabled,
-              millisBetweenCommits,
               blinking,
               blinkPeriodSec,
               acking,
-              stateStorage
+              stateStorage,
+              systemConfig.build()
       );
     }
   }

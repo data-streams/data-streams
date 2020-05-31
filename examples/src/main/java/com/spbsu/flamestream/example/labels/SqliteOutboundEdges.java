@@ -61,6 +61,6 @@ public enum SqliteOutboundEdges implements BreadthSearchGraph.HashedVertexEdges 
 
   @Override
   public int hash(BreadthSearchGraph.VertexIdentifier vertexIdentifier) {
-    return HashUnit.scale(vertexIdentifier.id, minTail, maxTail);
+    return HashUnit.ALL.scale(vertexIdentifier.id, minTail, maxTail);
   }
 }

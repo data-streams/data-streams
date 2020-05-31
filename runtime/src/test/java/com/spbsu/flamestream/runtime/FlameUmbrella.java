@@ -25,7 +25,6 @@ import com.spbsu.flamestream.runtime.edge.api.AttachFront;
 import com.spbsu.flamestream.runtime.edge.api.AttachRear;
 import com.spbsu.flamestream.runtime.master.acker.Acker;
 import com.spbsu.flamestream.runtime.master.acker.Committer;
-import com.spbsu.flamestream.runtime.master.acker.LocalAcker;
 import com.spbsu.flamestream.runtime.master.acker.MinTimeUpdater;
 import com.spbsu.flamestream.runtime.master.acker.Registry;
 import com.spbsu.flamestream.runtime.master.acker.RegistryHolder;
@@ -53,12 +52,10 @@ class Cluster extends LoggingActor {
           Graph g,
           StateStorage stateStorage,
           int parallelism,
-          int maxElementsInGraph,
-          boolean barrierDisabled,
-          int millisBetweenCommits,
           SystemConfig.Acking acking,
           boolean blinking,
-          int blinkPeriodSec
+          int blinkPeriodSec,
+          SystemConfig systemConfig
   ) {
     this.blinking = blinking;
     this.blinkPeriodSec = blinkPeriodSec;
@@ -82,33 +79,11 @@ class Cluster extends LoggingActor {
       ranges.put(id, new HashGroup(Collections.singleton(range)));
     }
     final ClusterConfig clusterConfig = new ClusterConfig(paths, "node-0");
-    final int defaultMinimalTime = 0;
-    final SystemConfig systemConfig =
-            new SystemConfig(
-                    maxElementsInGraph,
-                    millisBetweenCommits,
-                    defaultMinimalTime,
-                    barrierDisabled,
-                    new LocalAcker.Builder(),
-                    1,
-                    __ -> {
-                      switch (acking) {
-                        case DISABLED:
-                          return Collections.emptyList();
-                        case CENTRALIZED:
-                          return ids.subList(0, 1);
-                        case DISTRIBUTED:
-                          return ids;
-                        default:
-                          throw new IllegalStateException("Unexpected value: " + acking);
-                      }
-                    }
-            );
 
     final Registry registry = new InMemoryRegistry();
     inner = context().actorOf(FlameUmbrella.props(
             context -> {
-              final Props ackerProps = Acker.props(defaultMinimalTime, false, g);
+              final Props ackerProps = Acker.props(systemConfig.defaultMinimalTime(), false, g);
               final List<ActorRef> ackers;
               switch (acking) {
                 case DISABLED:
@@ -131,7 +106,7 @@ class Cluster extends LoggingActor {
                       "localAcker"
               );
               final ActorRef registryHolder = context.actorOf(
-                      RegistryHolder.props(registry, ackers, defaultMinimalTime),
+                      RegistryHolder.props(registry, ackers, systemConfig.defaultMinimalTime()),
                       "registry-holder"
               );
               final ActorRef committer = context.actorOf(Committer.props(
@@ -145,12 +120,15 @@ class Cluster extends LoggingActor {
                       id,
                       g,
                       clusterConfig,
-                      ranges,
+                      new ComputationProps(
+                              ranges,
+                              systemConfig.maxElementsInGraph(),
+                              systemConfig.barrierIsDisabled(),
+                              systemConfig.partitions
+                      ),
                       localAcker,
                       registryHolder,
                       committer,
-                      maxElementsInGraph,
-                      barrierDisabled,
                       stateStorage
               ), id)).collect(Collectors.toList());
             },
@@ -158,27 +136,24 @@ class Cluster extends LoggingActor {
     ), "cluster");
   }
 
-  static Props props(Graph g,
-                     StateStorage stateStorage,
-                     int parallelism,
-                     int maxElementsInGraph,
-                     boolean barrierDisabled,
-                     int millisBetweenCommits,
-                     SystemConfig.Acking acking,
-                     boolean blinking,
-                     int blinkPeriodSec
+  static Props props(
+          Graph g,
+          StateStorage stateStorage,
+          int parallelism,
+          SystemConfig.Acking acking,
+          boolean blinking,
+          int blinkPeriodSec,
+          SystemConfig systemConfig
   ) {
     return Props.create(
             Cluster.class,
             g,
             stateStorage,
             parallelism,
-            maxElementsInGraph,
-            barrierDisabled,
-            millisBetweenCommits,
             acking,
             blinking,
-            blinkPeriodSec
+            blinkPeriodSec,
+            systemConfig
     );
   }
 

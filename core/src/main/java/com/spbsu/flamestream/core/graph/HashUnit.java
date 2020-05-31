@@ -12,12 +12,8 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 public class HashUnit {
-  public static int scale(int value, int min, int max) {
-    return (int) (((long) value - min) * ((long) Integer.MAX_VALUE + 1 - Integer.MIN_VALUE) / ((long) max + 1 - min)
-            + Integer.MIN_VALUE);
-  }
-
   public static final HashUnit EMPTY = new HashUnit(Integer.MAX_VALUE, Integer.MIN_VALUE);
+  public static final HashUnit ALL = new HashUnit(Integer.MIN_VALUE, Integer.MAX_VALUE);
 
   private final String id;
   private final int from;
@@ -53,13 +49,17 @@ public class HashUnit {
             '}';
   }
 
+  public int scale(int value, int min, int max) {
+    return (int) (((long) value - min) * ((long) to + 1 - from) / ((long) max + 1 - min) + from);
+  }
+
   public static Stream<HashUnit> covering(int n) {
     if (n <= 0) {
       throw new IllegalArgumentException(n + "");
     }
     final List<HashUnit> result = new ArrayList<>();
     for (int i = 0; i < n; i++) {
-      result.add(new HashUnit(scale(i, 0, n - 1), scale(i + 1, 0, n - 1) - 1));
+      result.add(new HashUnit(ALL.scale(i, 0, n - 1), ALL.scale(i + 1, 0, n - 1) - 1));
     }
     return result.stream();
   }

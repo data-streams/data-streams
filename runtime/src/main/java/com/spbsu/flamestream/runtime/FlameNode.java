@@ -28,12 +28,10 @@ public class FlameNode extends LoggingActor {
           String id,
           Graph bootstrapGraph,
           ClusterConfig config,
-          Map<String, HashGroup> hashGroups,
+          ComputationProps computationProps,
           @Nullable ActorRef localAcker,
           ActorRef registryHolder,
           ActorRef committer,
-          int maxElementsInGraph,
-          boolean barrierIsDisabled,
           StateStorage storage
   ) {
     this.config = config;
@@ -44,7 +42,7 @@ public class FlameNode extends LoggingActor {
             localAcker,
             registryHolder,
             committer,
-            new ComputationProps(hashGroups, maxElementsInGraph, barrierIsDisabled),
+            computationProps,
             storage
     ), "graph");
     graph.tell(resolvedManagers(), self());
@@ -62,12 +60,10 @@ public class FlameNode extends LoggingActor {
           String id,
           Graph initialGraph,
           ClusterConfig initialConfig,
-          Map<String, HashGroup> hashGroups,
+          ComputationProps computationProps,
           @Nullable ActorRef localAcker,
           ActorRef registryHolder,
           ActorRef committer,
-          int maxElementsInGraph,
-          boolean barrierIsDisabled,
           StateStorage stateStorage
   ) {
     return Props.create(
@@ -75,12 +71,10 @@ public class FlameNode extends LoggingActor {
             id,
             initialGraph,
             initialConfig,
-            hashGroups,
+            computationProps,
             localAcker,
             registryHolder,
             committer,
-            maxElementsInGraph,
-            barrierIsDisabled,
             stateStorage
     );
   }

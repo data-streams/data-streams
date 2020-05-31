@@ -6,6 +6,8 @@ import akka.japi.pf.ReceiveBuilder;
 import akka.pattern.PatternsCS;
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.Graph;
+import com.spbsu.flamestream.core.data.meta.GlobalTime;
+import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.core.graph.Grouping;
 import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
@@ -16,6 +18,7 @@ import com.spbsu.flamestream.runtime.graph.api.AddressedItem;
 import com.spbsu.flamestream.runtime.graph.api.NewRear;
 import com.spbsu.flamestream.runtime.graph.state.GroupGroupingState;
 import com.spbsu.flamestream.runtime.graph.state.GroupingState;
+import com.spbsu.flamestream.runtime.master.acker.api.Ack;
 import com.spbsu.flamestream.runtime.master.acker.api.Heartbeat;
 import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
 import com.spbsu.flamestream.runtime.master.acker.api.commit.Commit;
@@ -35,11 +38,14 @@ import gnu.trove.map.TObjectIntMap;
 import gnu.trove.map.hash.TObjectIntHashMap;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class GraphManager extends LoggingActor {
@@ -53,22 +59,25 @@ public class GraphManager extends LoggingActor {
   ActorRef localAcker;
 
   private ActorRef sourceComponent;
-  private ActorRef sinkComponent;
+  private final List<ActorRef> sinkComponents = new ArrayList<>();
 
   private final HashUnitMap<ActorRef> routes = new ListHashUnitMap<>();
-  private final Map<Destination, ActorRef> verticesComponents = new HashMap<>();
+  private final HashMap<String, Graph.Vertex> vertexById = new HashMap<>();
+  private final Map<String, HashUnitMap<ActorRef>> verticesComponents;
   private final Set<ActorRef> components = new HashSet<>();
 
   private final Map<HashUnit, Map<String, GroupingState>> unitStates = new HashMap<>();
   private final TObjectIntMap<String> groupingWindows = new TObjectIntHashMap<>();
 
-  private GraphManager(String nodeId,
-                       Graph graph,
-                       @Nullable ActorRef localAcker,
-                       ActorRef registryHolder,
-                       ActorRef committer,
-                       ComputationProps computationProps,
-                       StateStorage storage) {
+  private GraphManager(
+          String nodeId,
+          Graph graph,
+          @Nullable ActorRef localAcker,
+          ActorRef registryHolder,
+          ActorRef committer,
+          ComputationProps computationProps,
+          StateStorage storage
+  ) {
     this.nodeId = nodeId;
     this.storage = storage;
     this.computationProps = computationProps;
@@ -76,6 +85,11 @@ public class GraphManager extends LoggingActor {
     this.localAcker = localAcker;
     this.registryHolder = registryHolder;
     this.committer = committer;
+    graph.components().forEach(component -> component.forEach(vertex -> vertexById.put(vertex.id(), vertex)));
+    verticesComponents = graph.components().flatMap(Function.identity()).collect(Collectors.toMap(
+            Graph.Vertex::id,
+            __ -> new ListHashUnitMap<>()
+    ));
   }
 
   @Override
@@ -116,60 +130,92 @@ public class GraphManager extends LoggingActor {
             .build();
   }
 
+  private static List<HashGroup> partitionedHashGroup(HashGroup toPartition, int partitions) {
+    final List<Set<HashUnit>> partitionHashUnits = new ArrayList<>();
+    for (int i = 0; i < partitions; i++) {
+      partitionHashUnits.add(new HashSet<>());
+    }
+    for (final HashUnit unit : toPartition.units()) {
+      for (int i = 0; i < partitions; i++) {
+        partitionHashUnits.get(i).add(new HashUnit(
+                unit.scale(i, 0, partitions - 1),
+                unit.scale(i + 1, 0, partitions - 1) - 1
+        ));
+      }
+    }
+    return partitionHashUnits.stream().map(HashGroup::new).collect(Collectors.toList());
+  }
+
   private Receive deploying() {
     return ReceiveBuilder.create()
             .match(LastCommit.class, lastCommit -> {
               log().info("Received last commit '{}'", lastCommit);
-              final Map<String, GroupGroupingState> stateByVertex = new HashMap<>();
-              final HashGroup localGroup = computationProps.hashGroups().get(nodeId);
-              for (final HashUnit unit : localGroup.units()) {
-                final Map<String, GroupingState> unitState = storage.stateFor(
-                        unit,
-                        lastCommit.globalTime()
-                );
-                graph.components()
-                        .flatMap(vertexStream -> vertexStream)
-                        .filter(vertex -> vertex instanceof Grouping)
-                        .forEach(vertex -> {
-                          final Grouping<?> grouping = (Grouping<?>) vertex;
-                          unitState.computeIfAbsent(vertex.id(), __ -> new GroupingState(grouping));
-                          groupingWindows.put(vertex.id(), grouping.window());
-                        });
-                unitState.forEach((vertexId, groupingState) ->
-                        stateByVertex.computeIfAbsent(vertexId, __ -> new GroupGroupingState(groupingState.grouping))
-                                .addUnitState(unit, groupingState)
-                );
-                unitStates.put(unit, unitState);
+              final int partitions = computationProps.partitions();
+              final List<Map<String, GroupGroupingState>> partitionStateByVertex = new ArrayList<>();
+              final List<HashGroup> partitionHashGroup =
+                      partitionedHashGroup(computationProps.hashGroups().get(nodeId), partitions);
+              for (final HashGroup hashGroup : partitionHashGroup) {
+                final HashMap<String, GroupGroupingState> stateByVertex = new HashMap<>();
+                partitionStateByVertex.add(stateByVertex);
+                for (final HashUnit unit : hashGroup.units()) {
+                  final Map<String, GroupingState> unitState = storage.stateFor(
+                          unit,
+                          lastCommit.globalTime()
+                  );
+                  graph.components()
+                          .flatMap(vertexStream -> vertexStream)
+                          .filter(vertex -> vertex instanceof Grouping)
+                          .forEach(vertex -> {
+                            final Grouping<?> grouping = (Grouping<?>) vertex;
+                            unitState.computeIfAbsent(vertex.id(), __ -> new GroupingState(grouping));
+                            groupingWindows.put(vertex.id(), grouping.window());
+                          });
+                  unitState.forEach((vertexId, groupingState) ->
+                          stateByVertex.computeIfAbsent(vertexId, __ -> new GroupGroupingState(groupingState.grouping))
+                                  .addUnitState(unit, groupingState)
+                  );
+                  unitStates.put(unit, unitState);
+                }
               }
 
               graph.components().forEach(c -> {
                 final Set<Graph.Vertex> vertexSet = c.collect(Collectors.toSet());
-                final ActorRef component = context().actorOf(Component.props(
-                        nodeId,
-                        vertexSet,
-                        graph,
-                        routes,
-                        self(),
-                        localAcker,
-                        computationProps,
-                        stateByVertex
-                ));
 
-                vertexSet.stream()
-                        .map(v -> Destination.fromVertexId(v.id()))
-                        .forEach(dest -> verticesComponents.put(dest, component));
+                for (int partition = 0; partition < partitions; partition++) {
+                  final HashGroup hashGroup = partitionHashGroup.get(partition);
+                  final Map<String, GroupGroupingState> stateByVertex = partitionStateByVertex.get(partition);
+                  final ActorRef component = context().actorOf(Component.props(
+                          nodeId,
+                          vertexSet,
+                          graph,
+                          routes,
+                          hashGroup,
+                          localAcker,
+                          computationProps,
+                          stateByVertex
+                  ));
 
-                components.add(component);
+                  for (Graph.Vertex dest : vertexSet) {
+                    final HashUnitMap<ActorRef> actorRefHashUnitMap = verticesComponents.get(dest.id());
+                    for (final HashUnit unit : hashGroup.units()) {
+                      actorRefHashUnitMap.put(unit, component);
+                    }
+                  }
 
-                vertexSet.stream()
-                        .filter(v -> v instanceof Source)
-                        .findAny()
-                        .ifPresent(v -> sourceComponent = component);
+                  components.add(component);
 
-                vertexSet.stream()
-                        .filter(v -> v instanceof Sink)
-                        .findAny()
-                        .ifPresent(v -> sinkComponent = component);
+                  if (sourceComponent == null) {
+                    vertexSet.stream()
+                            .filter(v -> v instanceof Source)
+                            .findAny()
+                            .ifPresent(v -> sourceComponent = component);
+                  }
+
+                  vertexSet.stream()
+                          .filter(v -> v instanceof Sink)
+                          .findAny()
+                          .ifPresent(v -> sinkComponents.add(component));
+                }
               });
 
               committer.tell(new Ready(), self());
@@ -183,31 +229,54 @@ public class GraphManager extends LoggingActor {
   private Receive managing() {
     return ReceiveBuilder.create()
             .match(DataItem.class, dataItem -> sourceComponent.forward(dataItem, context()))
-            .match(
-                    AddressedItem.class,
-                    addressedItem -> verticesComponents.get(addressedItem.destination())
-                            .forward(addressedItem, context())
-            )
-            .match(
-                    MinTimeUpdate.class,
-                    this::onMinTime
-            )
+            .match(AddressedItem.class, addressed -> {
+              final HashUnitMap<ActorRef> hashedComponents = verticesComponents.get(addressed.vertexId);
+              final Graph.Vertex vertex = vertexById.get(addressed.vertexId);
+              if (addressed.type == AddressedItem.Type.BROADCAST && hashedComponents.entrySet().size() != 1) {
+                int childId = 0;
+                for (final Map.Entry<HashUnit, ActorRef> route : hashedComponents.entrySet()) {
+                  final DataItem item = addressed.item().cloneWith(new Meta(
+                          addressed.item().meta(),
+                          0,
+                          childId++
+                  ));
+                  ack(vertex, item);
+                  route.getValue().forward(new AddressedItem(item, addressed), context());
+                }
+                ack(vertex, addressed.item());
+              } else if (addressed.type == AddressedItem.Type.HASHED) {
+                hashedComponents.get(addressed.hash).forward(addressed, context());
+              } else {
+                hashedComponents.first().forward(addressed, context());
+              }
+            })
+            .match(MinTimeUpdate.class, this::onMinTime)
             .match(Prepare.class, this::onPrepare)
             .match(Commit.class, commit -> sourceComponent.forward(commit, context()))
-            .match(NewRear.class, newRear -> sinkComponent.forward(newRear, context()))
+            .match(NewRear.class, newRear -> sinkComponents.forEach(component -> component.forward(newRear, context())))
             .match(Heartbeat.class, gt -> sourceComponent.forward(gt, context()))
             .match(UnregisterFront.class, u -> sourceComponent.forward(u, context()))
             .build();
   }
 
+  private void ack(Graph.Vertex vertex, DataItem item) {
+    if (localAcker != null) {
+      final GlobalTime globalTime = item.meta().globalTime();
+      localAcker.tell(new Ack(
+              graph.trackingComponent(vertex).index,
+              new GlobalTime(globalTime.time(), globalTime.frontId()),
+              item.xor()
+      ), self());
+    }
+  }
+
   private void onPrepare(Prepare prepare) {
-    final CompletableFuture[] futures = new CompletableFuture[components.size()];
+    final CompletableFuture<?>[] futures = new CompletableFuture[components.size()];
     int index = 0;
     for (ActorRef component : components) {
       futures[index++] = PatternsCS.ask(component, prepare, FlameConfig.config.bigTimeout()).toCompletableFuture();
     }
-    final CompletableFuture<Void> allOf = CompletableFuture.allOf(futures);
-    allOf.thenRun(() -> {
+    CompletableFuture.allOf(futures).thenRun(() -> {
       unitStates.forEach((hashUnit, stateMap) -> storage.putState(
               hashUnit,
               prepare.globalTime(),
@@ -225,47 +294,5 @@ public class GraphManager extends LoggingActor {
 
   private void onMinTime(MinTimeUpdate minTimeUpdate) {
     components.forEach(c -> c.tell(minTimeUpdate, sender()));
-  }
-
-  public static class Destination {
-    private static final Map<String, Destination> cache = new HashMap<>();
-    private final String vertexId;
-
-    @Override
-    public boolean equals(Object o) {
-      if (this == o) {
-        return true;
-      }
-      if (o == null || getClass() != o.getClass()) {
-        return false;
-      }
-      final Destination that = (Destination) o;
-      return vertexId.equals(that.vertexId);
-    }
-
-    @Override
-    public int hashCode() {
-      return vertexId.hashCode();
-    }
-
-    @Override
-    public String toString() {
-      return "Destination{" +
-              "vertexId='" + vertexId + '\'' +
-              '}';
-    }
-
-    private Destination(String vertexId) {
-      this.vertexId = vertexId;
-    }
-
-    static Destination fromVertexId(String vertexId) {
-      return cache.compute(vertexId, (s, destination) -> {
-        if (destination == null) {
-          return new Destination(s);
-        }
-        return destination;
-      });
-    }
   }
 }

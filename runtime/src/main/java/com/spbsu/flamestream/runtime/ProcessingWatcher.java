@@ -10,6 +10,7 @@ import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.runtime.config.ClusterConfig;
 import com.spbsu.flamestream.core.graph.HashGroup;
 import com.spbsu.flamestream.core.graph.HashUnit;
+import com.spbsu.flamestream.runtime.config.ComputationProps;
 import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.config.ZookeeperWorkersNode;
 import com.spbsu.flamestream.runtime.edge.api.AttachFront;
@@ -194,12 +195,15 @@ public class ProcessingWatcher extends LoggingActor {
                     id,
                     graph,
                     config.withChildPath("processing-watcher").withChildPath("graph"),
-                    new HashMap<>(ranges),
+                    new ComputationProps(
+                            new HashMap<>(ranges),
+                            systemConfig.maxElementsInGraph(),
+                            systemConfig.barrierIsDisabled(),
+                            systemConfig.partitions
+                    ),
                     localAcker,
                     registryHolder,
                     committer,
-                    systemConfig.maxElementsInGraph(),
-                    systemConfig.barrierIsDisabled(),
                     stateStorage
             ),
             "graph"

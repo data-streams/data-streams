@@ -4,6 +4,7 @@ import com.spbsu.flamestream.example.bl.wordcount.model.WordCounter;
 import com.spbsu.flamestream.runtime.acceptance.FlameAkkaSuite;
 import com.spbsu.flamestream.runtime.FlameRuntime;
 import com.spbsu.flamestream.runtime.LocalRuntime;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFront;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
@@ -34,8 +35,8 @@ import static java.util.stream.Collectors.toMap;
 public class WordCountTest extends FlameAkkaSuite {
   @Test(invocationCount = 10)
   public void localEnvironmentTest() throws InterruptedException {
-    try (final LocalRuntime runtime = new LocalRuntime.Builder().maxElementsInGraph(2)
-            .millisBetweenCommits(500)
+    try (final LocalRuntime runtime = new LocalRuntime.Builder()
+            .systemConfig(new SystemConfig.Builder().maxElementsInGraph(2).millisBetweenCommits(500))
             .build()) {
       test(runtime, 2000);
     }
@@ -43,8 +44,8 @@ public class WordCountTest extends FlameAkkaSuite {
 
   @Test
   public void localEnvironmentBlinkTest() throws InterruptedException {
-    try (final LocalRuntime runtime = new LocalRuntime.Builder().maxElementsInGraph(2)
-            .millisBetweenCommits(500)
+    try (final LocalRuntime runtime = new LocalRuntime.Builder()
+            .systemConfig(new SystemConfig.Builder().maxElementsInGraph(2).millisBetweenCommits(500))
             .withBlink()
             .build()) {
       test(runtime, 10000);

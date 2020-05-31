@@ -195,7 +195,7 @@ public class BinarySocialGraph {
   }
 
   private int hash(int tail) {
-    return HashUnit.scale(tail, minTail, maxTail);
+    return HashUnit.ALL.scale(tail, minTail, maxTail);
   }
 
   private static DataInputStream newBufferedFileDataInputStream(File file, long from) throws IOException {

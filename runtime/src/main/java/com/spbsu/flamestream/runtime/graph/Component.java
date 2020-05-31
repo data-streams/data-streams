@@ -11,6 +11,7 @@ import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.core.graph.FlameMap;
 import com.spbsu.flamestream.core.graph.Grouping;
+import com.spbsu.flamestream.core.graph.HashGroup;
 import com.spbsu.flamestream.core.graph.HashUnit;
 import com.spbsu.flamestream.core.graph.HashingVertexStub;
 import com.spbsu.flamestream.core.graph.LabelMarkers;
@@ -37,9 +38,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -48,7 +48,7 @@ public class Component extends LoggingActor {
   private final Graph graph;
   private final ActorRef localAcker;
 
-  private class JobaWrapper<WrappedJoba extends Joba> {
+  private static class JobaWrapper<WrappedJoba extends Joba> {
     WrappedJoba joba;
     Joba.Sink downstream;
     final Graph.Vertex vertex;
@@ -60,7 +60,7 @@ public class Component extends LoggingActor {
     }
   }
 
-  private final Map<GraphManager.Destination, JobaWrapper<?>> wrappedJobas;
+  private final Map<String, JobaWrapper<?>> wrappedJobas;
 
   private final Tracing.Tracer groupingSendTracer = Tracing.TRACING.forEvent("fm-send");
   private final Tracing.Tracer acceptInTracer = Tracing.TRACING.forEvent("accept-in", 1000, 1);
@@ -73,38 +73,39 @@ public class Component extends LoggingActor {
   @Nullable
   private JobaWrapper<SinkJoba> wrappedSinkJoba;
 
-  private Component(String nodeId,
-                    Set<Graph.Vertex> componentVertices,
-                    Graph graph,
-                    HashUnitMap<ActorRef> routes,
-                    ActorRef localManager,
-                    @Nullable ActorRef localAcker,
-                    ComputationProps props,
-                    Map<String, GroupGroupingState> stateByVertex) {
+  private Component(
+          String nodeId,
+          Set<Graph.Vertex> componentVertices,
+          Graph graph,
+          HashUnitMap<ActorRef> routes,
+          HashGroup localHashGroup,
+          @Nullable ActorRef localAcker,
+          ComputationProps props,
+          Map<String, GroupGroupingState> stateByVertex
+  ) {
     this.graph = graph;
     this.localAcker = localAcker;
     final TrackingComponent sinkTrackingComponent = graph.sinkTrackingComponent();
     this.wrappedJobas = componentVertices.stream().collect(Collectors.toMap(
-            vertex -> GraphManager.Destination.fromVertexId(vertex.id()),
+            Graph.Vertex::id,
             vertex -> {
               final Joba.Id jobaId = new Joba.Id(nodeId, vertex.id());
               final Function<Graph.Vertex, Joba.Sink> vertexDownstream = to -> {
-                final GraphManager.Destination toDest = GraphManager.Destination.fromVertexId(to.id());
-
                 final boolean isLocal = componentVertices.contains(to);
-                final boolean isHashing = to instanceof HashingVertexStub && ((HashingVertexStub) to).hash() != null;
+                final HashFunction hash = to instanceof HashingVertexStub ? ((HashingVertexStub) to).hash() : null;
                 return new Joba.Sink() {
                   @Override
                   public Runnable schedule(DataItem dataItem) {
                     List<Runnable> list = new ArrayList<>();
-                    accept(dataItem, (route, item) -> {
-                      Component.this.ack(item, to);
+                    accept(dataItem, addressed -> {
+                      Component.this.ack(addressed.item, to);
                       list.add(() -> {
-                        if (isLocal && route.equals(localManager)) {
-                          localCall(item, toDest);
-                          Component.this.ack(item, to);
+                        if (isLocal && addressed.type != AddressedItem.Type.BROADCAST
+                                && localHashGroup.covers(addressed.hash)) {
+                          localCall(addressed.item, to.id());
+                          Component.this.ack(addressed.item, to);
                         } else {
-                          route.tell(new AddressedItem(item, toDest), self());
+                          routes.get(addressed.hash).tell(addressed, self());
                         }
                       });
                     });
@@ -113,38 +114,39 @@ public class Component extends LoggingActor {
 
                   @Override
                   public void accept(DataItem dataItem) {
-                    accept(dataItem, (route, item) -> {
-                      if (isLocal && route.equals(localManager)) {
-                        localCall(item, toDest);
+                    accept(dataItem, addressed -> {
+                      if (isLocal && addressed.type != AddressedItem.Type.BROADCAST
+                              && localHashGroup.covers(addressed.hash)) {
+                        localCall(addressed.item, to.id());
                       } else {
-                        Component.this.ack(item, to);
-                        route.tell(new AddressedItem(item, toDest), self());
+                        Component.this.ack(addressed.item, to);
+                        routes.get(addressed.hash).tell(addressed, self());
                       }
                     });
                   }
 
-                  private void accept(DataItem item, BiConsumer<ActorRef, DataItem> sink) {
+                  private void accept(DataItem item, Consumer<AddressedItem> sink) {
                     groupingSendTracer.log(item.xor());
-                    if (isHashing) {
-                      final HashFunction hash = ((HashingVertexStub) to).hash();
-                      if (hash == HashFunction.Broadcast.INSTANCE) {
-                        int childId = 0;
-                        for (final Map.Entry<HashUnit, ActorRef> route : routes.entrySet()) {
-                          if (!route.getKey().isEmpty()) {
-                            sink.accept(route.getValue(), item.cloneWith(new Meta(
-                                    item.meta(),
-                                    0,
-                                    childId++
-                            )));
-                          }
+                    if (hash == HashFunction.Broadcast.INSTANCE) {
+                      int childId = 0;
+                      for (final Map.Entry<HashUnit, ActorRef> route : routes.entrySet()) {
+                        if (!route.getKey().isEmpty()) {
+                          sink.accept(new AddressedItem(
+                                  item.cloneWith(new Meta(item.meta(), 0, childId++)), to.id(),
+                                  AddressedItem.Type.BROADCAST,
+                                  route.getKey().from()
+                          ));
                         }
-                      } else if (hash == HashFunction.PostBroadcast.INSTANCE) {
-                        sink.accept(localManager, item);
-                      } else {
-                        sink.accept(routes.get(Objects.requireNonNull(hash).applyAsInt(item)), item);
                       }
+                    } else if (hash == HashFunction.PostBroadcast.INSTANCE || hash == null) {
+                      sink.accept(new AddressedItem(
+                              item,
+                              to.id(),
+                              AddressedItem.Type.ANY,
+                              localHashGroup.isEmpty() ? 0 : localHashGroup.units().iterator().next().from()
+                      ));
                     } else {
-                      sink.accept(localManager, item);
+                      sink.accept(new AddressedItem(item, to.id(), hash.applyAsInt(item)));
                     }
                   }
                 };
@@ -210,11 +212,7 @@ public class Component extends LoggingActor {
                   throw new RuntimeException("grouping operations are not supported when barrier is disabled");
                 }
                 final Grouping<?> grouping = (Grouping<?>) vertex;
-                final Collection<HashUnit> values = props.hashGroups()
-                        .values()
-                        .stream()
-                        .flatMap(g -> g.units().stream())
-                        .collect(Collectors.toSet());
+                final Collection<HashUnit> values = localHashGroup.units();
                 joba = new GroupingJoba(
                         jobaId,
                         grouping,
@@ -243,21 +241,23 @@ public class Component extends LoggingActor {
     ));
   }
 
-  public static Props props(String nodeId,
-                            Set<Graph.Vertex> componentVertices,
-                            Graph graph,
-                            HashUnitMap<ActorRef> localManager,
-                            ActorRef routes,
-                            @Nullable ActorRef localAcker,
-                            ComputationProps props,
-                            Map<String, GroupGroupingState> stateByVertex) {
+  public static Props props(
+          String nodeId,
+          Set<Graph.Vertex> componentVertices,
+          Graph graph,
+          HashUnitMap<ActorRef> routes,
+          HashGroup localHashGroup,
+          @Nullable ActorRef localAcker,
+          ComputationProps props,
+          Map<String, GroupGroupingState> stateByVertex
+  ) {
     return Props.create(
             Component.class,
             nodeId,
             componentVertices,
             graph,
-            localManager,
             routes,
+            localHashGroup,
             localAcker,
             props,
             stateByVertex
@@ -300,8 +300,8 @@ public class Component extends LoggingActor {
   private void inject(AddressedItem addressedItem) {
     final DataItem item = addressedItem.item();
     injectInTracer.log(item.xor());
-    localCall(item, addressedItem.destination());
-    ack(item, wrappedJobas.get(addressedItem.destination()).vertex);
+    localCall(item, addressedItem.vertexId);
+    ack(item, wrappedJobas.get(addressedItem.vertexId).vertex);
     injectOutTracer.log(item.xor());
   }
 
@@ -316,8 +316,8 @@ public class Component extends LoggingActor {
     }
   }
 
-  private void localCall(DataItem item, GraphManager.Destination destination) {
-    wrappedJobas.get(destination).joba.accept(item, wrappedJobas.get(destination).downstream);
+  private void localCall(DataItem item, String vertexId) {
+    wrappedJobas.get(vertexId).joba.accept(item, wrappedJobas.get(vertexId).downstream);
   }
 
   private void onMinTime(MinTimeUpdate minTime) {

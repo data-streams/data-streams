@@ -9,10 +9,10 @@ import static org.testng.Assert.*;
 public class HashUnitTest {
   @Test
   public void testScale() {
-    assertEquals(Integer.MIN_VALUE, HashUnit.scale(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE));
-    assertEquals(Integer.MAX_VALUE, HashUnit.scale(Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE));
-    assertEquals(Integer.MIN_VALUE, HashUnit.scale(0, 0, 0));
-    assertEquals(Integer.MAX_VALUE, HashUnit.scale(1, 0, 0) - 1);
+    assertEquals(Integer.MIN_VALUE, HashUnit.ALL.scale(Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE));
+    assertEquals(Integer.MAX_VALUE, HashUnit.ALL.scale(Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MAX_VALUE));
+    assertEquals(Integer.MIN_VALUE, HashUnit.ALL.scale(0, 0, 0));
+    assertEquals(Integer.MAX_VALUE, HashUnit.ALL.scale(1, 0, 0) - 1);
   }
 
   @Test

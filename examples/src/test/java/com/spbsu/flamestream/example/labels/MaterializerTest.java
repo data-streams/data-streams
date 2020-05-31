@@ -4,6 +4,7 @@ import com.spbsu.flamestream.core.TrackingComponent;
 import com.spbsu.flamestream.runtime.FlameRuntime;
 import com.spbsu.flamestream.runtime.LocalRuntime;
 import com.spbsu.flamestream.runtime.acceptance.FlameAkkaSuite;
+import com.spbsu.flamestream.runtime.config.SystemConfig;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFront;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
@@ -75,8 +76,8 @@ public class MaterializerTest extends FlameAkkaSuite {
             Collectors.mapping(Map.Entry::getKey, Collectors.toSet())
     )).size(), 2);
 
-    try (final LocalRuntime runtime = new LocalRuntime.Builder().maxElementsInGraph(2)
-            .millisBetweenCommits(500)
+    try (final LocalRuntime runtime = new LocalRuntime.Builder()
+            .systemConfig(new SystemConfig.Builder().maxElementsInGraph(2).millisBetweenCommits(500))
             .build()) {
       try (final FlameRuntime.Flame flame = runtime.run(Materializer.materialize(flow))) {
         final BreadthSearchGraph.VertexIdentifier vertexIdentifier = new BreadthSearchGraph.VertexIdentifier(0);

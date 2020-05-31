@@ -55,4 +55,12 @@ public class HashGroup {
   public int hashCode() {
     return Objects.hash(units);
   }
+
+  public boolean isEmpty() {
+    for (final HashUnit unit : units) {
+      if (!unit.isEmpty())
+        return false;
+    }
+    return true;
+  }
 }
