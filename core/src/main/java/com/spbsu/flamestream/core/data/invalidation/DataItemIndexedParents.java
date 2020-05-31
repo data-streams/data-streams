@@ -24,16 +24,18 @@ public interface DataItemIndexedParents {
                               key1.childIdsPrefix,
                               key2.meta,
                               key2.childIdsPrefix
-                      ));
+                      )).thenComparingLong(key -> key.trace);
 
       final Meta meta;
-      int childIdsPrefix;
+      final int childIdsPrefix;
+      final long trace;
 
-      private Key(Meta meta) {this(meta, meta.childIdsLength());}
+      private Key(Meta meta) {this(meta, meta.childIdsLength(), meta.trace());}
 
-      private Key(Meta meta, int childIdsPrefix) {
+      private Key(Meta meta, int childIdsPrefix, long trace) {
         this.meta = meta;
         this.childIdsPrefix = childIdsPrefix;
+        this.trace = trace;
       }
 
       @Override
@@ -61,10 +63,12 @@ public interface DataItemIndexedParents {
     @Override
     public void forEachParent(DataItem dataItem, Consumer<DataItem> consumer) {
       for (int prefix = 0; prefix < dataItem.meta().childIdsLength(); prefix++) {
-        final DataItem parent = tree.get(new Key(dataItem.meta(), prefix));
-        if (parent != null) {
-          consumer.accept(parent);
-        }
+        tree.subMap(
+                new Key(dataItem.meta(), prefix, Long.MIN_VALUE),
+                true,
+                new Key(dataItem.meta(), prefix, Long.MAX_VALUE),
+                true
+        ).values().forEach(consumer);
       }
     }
   }
