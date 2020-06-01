@@ -279,7 +279,7 @@ public class BreadthSearchGraph {
         return Stream.of(new RequestOutput(agent._1.requestIdentifier, agent._1.vertexIdentifier));
       }
       return Stream.empty();
-    }).labelMarkers(requestLabel, Operator.Hashing.Special.Broadcast);
+    }).labelMarkers(requestLabel, null);
   }
 
   private static <T> List<T> scalaStreamToJava(scala.collection.immutable.Vector<T> scalaStream) {

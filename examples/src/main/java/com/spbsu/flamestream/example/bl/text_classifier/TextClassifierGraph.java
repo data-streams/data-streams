@@ -1,7 +1,6 @@
 package com.spbsu.flamestream.example.bl.text_classifier;
 
 import com.spbsu.flamestream.core.Graph;
-import com.spbsu.flamestream.core.graph.SerializablePredicate;
 import com.spbsu.flamestream.example.bl.text_classifier.model.ClassifierState;
 import com.spbsu.flamestream.example.bl.text_classifier.model.IdfObject;
 import com.spbsu.flamestream.example.bl.text_classifier.model.Prediction;
@@ -22,8 +21,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import scala.Tuple2;
 import scala.util.Either;
-import scala.util.Left;
-import scala.util.Right;
 
 import java.util.Collections;
 import java.util.Set;

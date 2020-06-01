@@ -127,7 +127,7 @@ public class Component extends LoggingActor {
 
                   private void accept(DataItem item, Consumer<AddressedItem> sink) {
                     groupingSendTracer.log(item.xor());
-                    if (hash == HashFunction.Broadcast.INSTANCE) {
+                    if (hash == HashFunction.Broadcast.INSTANCE || hash == null && item.marker()) {
                       int childId = 0;
                       for (final Map.Entry<HashUnit, ActorRef> route : routes.entrySet()) {
                         if (!route.getKey().isEmpty()) {
