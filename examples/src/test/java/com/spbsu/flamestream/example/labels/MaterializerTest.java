@@ -1,5 +1,6 @@
 package com.spbsu.flamestream.example.labels;
 
+import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.TrackingComponent;
 import com.spbsu.flamestream.runtime.FlameRuntime;
 import com.spbsu.flamestream.runtime.LocalRuntime;
@@ -10,7 +11,6 @@ import com.spbsu.flamestream.runtime.edge.akka.AkkaFrontType;
 import com.spbsu.flamestream.runtime.edge.akka.AkkaRearType;
 import com.spbsu.flamestream.runtime.utils.AwaitResultConsumer;
 import org.testng.annotations.Test;
-import scala.Function;
 import scala.util.Either;
 
 import java.util.Collections;
@@ -21,6 +21,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -70,16 +71,20 @@ public class MaterializerTest extends FlameAkkaSuite {
                 return 0;
               }
             });
-    assertEquals(Materializer.buildTrackingComponents(Materializer.buildStronglyConnectedComponents(flow)
-            .get(flow.output)).entrySet().stream().collect(Collectors.groupingBy(
-            Map.Entry::getValue,
-            Collectors.mapping(Map.Entry::getKey, Collectors.toSet())
-    )).size(), 2);
+    final Graph graph = Materializer.materialize(flow);
+    assertEquals(
+            graph.components()
+                    .flatMap(Function.identity())
+                    .map(graph::trackingComponent)
+                    .collect(Collectors.toSet())
+                    .size(),
+            2
+    );
 
     try (final LocalRuntime runtime = new LocalRuntime.Builder()
             .systemConfig(new SystemConfig.Builder().maxElementsInGraph(2).millisBetweenCommits(500))
             .build()) {
-      try (final FlameRuntime.Flame flame = runtime.run(Materializer.materialize(flow))) {
+      try (final FlameRuntime.Flame flame = runtime.run(graph)) {
         final BreadthSearchGraph.VertexIdentifier vertexIdentifier = new BreadthSearchGraph.VertexIdentifier(0);
         final BreadthSearchGraph.Request.Identifier requestIdentifier = new BreadthSearchGraph.Request.Identifier(0);
         final Queue<BreadthSearchGraph.Request> input = new ConcurrentLinkedQueue<>();
@@ -112,12 +117,13 @@ public class MaterializerTest extends FlameAkkaSuite {
                 return 0;
               }
             });
+    final Graph graph = Materializer.materialize(flow);
     assertEquals(
-            Materializer.buildTrackingComponents(Materializer.buildStronglyConnectedComponents(flow).get(flow.output))
-                    .entrySet().stream().collect(Collectors.groupingBy(
-                    Map.Entry::getValue,
-                    Collectors.mapping(Map.Entry::getKey, Collectors.toSet())
-            )).size(),
+            graph.components()
+                    .flatMap(Function.identity())
+                    .map(graph::trackingComponent)
+                    .collect(Collectors.toSet())
+                    .size(),
             2
     );
   }

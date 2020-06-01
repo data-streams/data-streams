@@ -50,8 +50,10 @@ public class Materializer {
   private <In, Out> Materializer(Flow<In, Out> flow) {
     final Map<Operator<?>, StronglyConnectedComponent> operatorStronglyConnectedComponent =
             buildStronglyConnectedComponents(flow);
+    final StronglyConnectedComponent sinkComponent = new StronglyConnectedComponent();
+    sinkComponent.inbound.add(operatorStronglyConnectedComponent.get(flow.output));
     final Map<StronglyConnectedComponent, TrackingComponent> stronglyConnectedComponentTracking =
-            buildTrackingComponents(operatorStronglyConnectedComponent.get(flow.output));
+            buildTrackingComponents(sinkComponent);
     operatorTrackingComponent = operatorStronglyConnectedComponent.entrySet().stream().collect(Collectors.toMap(
             Map.Entry::getKey,
             entry -> stronglyConnectedComponentTracking.get(entry.getValue())
@@ -59,7 +61,7 @@ public class Materializer {
     final Source source = new Source();
     final Sink sink = new Sink();
     vertexTrackingComponent.put(source, operatorTrackingComponent.get(flow.input));
-    vertexTrackingComponent.put(sink, operatorTrackingComponent.get(flow.output));
+    vertexTrackingComponent.put(sink, stronglyConnectedComponentTracking.get(sinkComponent));
     graphBuilder
             .link(source, operatorVertex(flow.input))
             .link(operatorVertex(flow.output), sink)
