@@ -16,6 +16,7 @@ import com.spbsu.flamestream.core.graph.Sink;
 import com.spbsu.flamestream.core.graph.Source;
 import com.spbsu.flamestream.runtime.config.ComputationProps;
 import com.spbsu.flamestream.core.graph.HashUnit;
+import com.spbsu.flamestream.runtime.config.Snapshots;
 import com.spbsu.flamestream.runtime.graph.api.AddressedItem;
 import com.spbsu.flamestream.runtime.graph.api.ComponentPrepared;
 import com.spbsu.flamestream.runtime.graph.api.NewRear;
@@ -32,28 +33,48 @@ import com.spbsu.flamestream.runtime.utils.tracing.Tracing;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Component extends LoggingActor {
   @NotNull
   private final Graph graph;
   private final ActorRef localAcker;
 
-  private class JobaWrapper<WrappedJoba extends Joba> {
+  private static class Blocked {
+    final Object message;
+    final long time;
+
+    Blocked(Object message, long time) {
+      this.message = message;
+      this.time = time;
+    }
+
+    @Override
+    public String toString() {
+      return message.toString();
+    }
+  }
+
+  private static class JobaWrapper<WrappedJoba extends Joba> {
     WrappedJoba joba;
     Consumer<DataItem> downstream;
     final Graph.Vertex vertex;
+    final Snapshots<Blocked> snapshots;
 
-    JobaWrapper(WrappedJoba joba, Consumer<DataItem> downstream, Graph.Vertex vertex) {
+    JobaWrapper(WrappedJoba joba, Consumer<DataItem> downstream, Graph.Vertex vertex, Snapshots<Blocked> snapshots) {
       this.joba = joba;
       this.downstream = downstream;
       this.vertex = vertex;
+      this.snapshots = snapshots;
     }
   }
 
@@ -175,12 +196,38 @@ public class Component extends LoggingActor {
                     }
                   };
               }
-              if (joba instanceof SinkJoba) {
-                return wrappedSinkJoba = new JobaWrapper<>((SinkJoba) joba, downstream, vertex);
-              } else if (joba instanceof SourceJoba) {
-                return wrappedSourceJoba = new JobaWrapper<>((SourceJoba) joba, downstream, vertex);
+              final Snapshots<Blocked> snapshots;
+              if (vertex instanceof Grouping
+                      && !props.hashGroups().get(nodeId).units().stream().allMatch(HashUnit::isEmpty)) {
+                snapshots = new Snapshots<>(
+                        blocked -> blocked.time,
+                        props.defaultMinimalTime(),
+                        graph.trackingComponent(vertex).index
+                );
               } else {
-                return new JobaWrapper<>(joba, downstream, vertex);
+                snapshots = null;
+              }
+              if (joba instanceof SinkJoba) {
+                return wrappedSinkJoba = new JobaWrapper<>(
+                        (SinkJoba) joba,
+                        downstream,
+                        vertex,
+                        snapshots
+                );
+              } else if (joba instanceof SourceJoba) {
+                return wrappedSourceJoba = new JobaWrapper<>(
+                        (SourceJoba) joba,
+                        downstream,
+                        vertex,
+                        snapshots
+                );
+              } else {
+                return new JobaWrapper<>(
+                        joba,
+                        downstream,
+                        vertex,
+                        snapshots
+                );
               }
             }
     ));
@@ -207,6 +254,9 @@ public class Component extends LoggingActor {
     ).withDispatcher("processing-dispatcher");
   }
 
+  private interface SnapshotDone extends Runnable {
+  }
+
   @Override
   public Receive createReceive() {
     return ReceiveBuilder.create()
@@ -215,6 +265,9 @@ public class Component extends LoggingActor {
             .match(MinTimeUpdate.class, this::onMinTime)
             .match(NewRear.class, this::onNewRear)
             .match(Heartbeat.class, h -> {
+              if (bufferIfBlocked(h, wrappedSourceJoba, h.time().time() - 1)) {
+                return;
+              }
               if (localAcker != null) {
                 localAcker.forward(h, context());
               }
@@ -226,6 +279,7 @@ public class Component extends LoggingActor {
             })
             .match(Prepare.class, this::onPrepare)
             .match(Commit.class, this::onCommit)
+            .match(SnapshotDone.class, Runnable::run)
             .build();
   }
 
@@ -243,8 +297,9 @@ public class Component extends LoggingActor {
   private void inject(AddressedItem addressedItem) {
     final DataItem item = addressedItem.item();
     injectInTracer.log(item.xor());
-    localCall(item, addressedItem.destination());
-    ack(item, wrappedJobas.get(addressedItem.destination()).vertex);
+    if (accept(addressedItem)) {
+      ack(item, wrappedJobas.get(addressedItem.destination()).vertex);
+    }
     injectOutTracer.log(item.xor());
   }
 
@@ -260,22 +315,64 @@ public class Component extends LoggingActor {
   }
 
   private void localCall(DataItem item, GraphManager.Destination destination) {
-    wrappedJobas.get(destination).joba.accept(item, wrappedJobas.get(destination).downstream);
+    if (!accept(new AddressedItem(item, destination))) {
+      ack(item, wrappedJobas.get(destination).vertex);
+    }
+  }
+
+  private boolean accept(AddressedItem addressedItem) {
+    final JobaWrapper<?> joba = wrappedJobas.get(addressedItem.destination());
+    if (joba.snapshots != null && joba.snapshots.putIfBlocked(new Blocked(
+            addressedItem,
+            addressedItem.item().meta().globalTime().time()
+    ))) {
+      return false;
+    } else {
+      joba.joba.accept(addressedItem.item(), joba.downstream);
+      return true;
+    }
   }
 
   private void onMinTime(MinTimeUpdate minTime) {
-    wrappedJobas.values().forEach(jobaWrapper -> jobaWrapper.joba.onMinTime(minTime));
+    for (final JobaWrapper<?> jobaWrapper : wrappedJobas.values()) {
+      jobaWrapper.joba.onMinTime(minTime);
+      if (graph.trackingComponent(jobaWrapper.vertex).index == minTime.trackingComponent()) {
+        if (jobaWrapper.snapshots != null) {
+          jobaWrapper.snapshots.minTimeUpdate(minTime.minTime().time(), scheduleDoneSnapshot());
+        }
+      }
+    }
+  }
+
+  private <WrappedJoba extends Joba> boolean bufferIfBlocked(Object message, JobaWrapper<WrappedJoba> joba, long time) {
+    if (joba.snapshots == null) {
+      return false;
+    }
+    return joba.snapshots.putIfBlocked(new Blocked(message, time));
   }
 
   private void accept(DataItem item) {
     if (wrappedSourceJoba != null) {
-      acceptInTracer.log(item.xor());
       wrappedSourceJoba.joba.addFront(item.meta().globalTime().frontId(), sender());
-      wrappedSourceJoba.joba.accept(item, wrappedSourceJoba.downstream);
-      acceptOutTracer.log(item.xor());
+      injectInTracer.log(item.xor());
+      localCall(item, GraphManager.Destination.fromVertexId(wrappedSourceJoba.vertex.id()));
+      injectOutTracer.log(item.xor());
     } else {
       throw new IllegalStateException("Source doesn't belong to this component");
     }
+  }
+
+  @NotNull
+  private Consumer<Supplier<Stream<Blocked>>> scheduleDoneSnapshot() {
+    final ActorRef self = self();
+    return onSnapshotDone -> context().system().scheduler().scheduleOnce(
+            Duration.ofMillis(Snapshots.durationMs),
+            () -> self.tell(
+                    (SnapshotDone) () -> onSnapshotDone.get().forEach(blocked -> receive().apply(blocked.message)),
+                    self
+            ),
+            context().dispatcher()
+    );
   }
 
   private void onNewRear(NewRear attachRear) {

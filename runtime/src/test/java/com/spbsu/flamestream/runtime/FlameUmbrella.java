@@ -107,6 +107,7 @@ class Cluster extends LoggingActor {
 
     final Registry registry = new InMemoryRegistry();
     inner = context().actorOf(FlameUmbrella.props(
+            systemConfig,
             context -> {
               final Props ackerProps = Acker.props(defaultMinimalTime, false, g);
               final List<ActorRef> ackers;
@@ -222,12 +223,15 @@ class Cluster extends LoggingActor {
 
 class FlameUmbrella extends LoggingActor {
   private final List<Object> toBeTold;
+  private final SystemConfig systemConfig;
   private final Map<String, ActorPath> paths;
   private final Iterable<ActorRef> flameNodes;
 
-  private FlameUmbrella(Function<akka.actor.ActorContext, Iterable<ActorRef>> actorsStarter,
-                        Map<String, ActorPath> paths,
-                        List<Object> toBeTold, Graph graph) {
+  private FlameUmbrella(
+          SystemConfig systemConfig, Function<akka.actor.ActorContext, Iterable<ActorRef>> actorsStarter,
+          Map<String, ActorPath> paths, List<Object> toBeTold, Graph graph
+  ) {
+    this.systemConfig = systemConfig;
     this.paths = paths;
     this.toBeTold = toBeTold;
 
@@ -252,9 +256,11 @@ class FlameUmbrella extends LoggingActor {
     }));
   }
 
-  static Props props(Function<akka.actor.ActorContext, Iterable<ActorRef>> flameNodesStarter,
-                     Map<String, ActorPath> paths, Graph graph) {
-    return Props.create(FlameUmbrella.class, flameNodesStarter, paths, new ArrayList<>(), graph);
+  static Props props(
+          SystemConfig systemConfig, Function<akka.actor.ActorContext, Iterable<ActorRef>> flameNodesStarter,
+          Map<String, ActorPath> paths, Graph graph
+  ) {
+    return Props.create(FlameUmbrella.class, systemConfig, flameNodesStarter, paths, new ArrayList<>(), graph);
   }
 
   @Override
@@ -262,7 +268,7 @@ class FlameUmbrella extends LoggingActor {
     return ReceiveBuilder.create()
             .match(FrontTypeWithId.class, a -> {
               //noinspection unchecked
-              final AttachFront attach = new AttachFront<>(a.id, a.type.instance());
+              final AttachFront attach = new AttachFront<>(a.id, a.type.instance(), systemConfig.ackerWindow());
               toBeTold.add(attach);
               flameNodes.forEach(n -> n.tell(attach, self()));
               final List<Object> collect = paths.entrySet().stream()
