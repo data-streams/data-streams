@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 
 public class AwaitResultConsumer<T> implements Consumer<T> {
   private final Collection<T> result;
-  private final int expectedSize;
+  public final int expectedSize;
   private boolean finished = false;
 
   public AwaitResultConsumer(int expectedSize) {

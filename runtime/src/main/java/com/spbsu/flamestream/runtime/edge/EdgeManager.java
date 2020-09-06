@@ -34,7 +34,8 @@ public class EdgeManager extends LoggingActor {
             .match(AttachFront.class, attachFront -> {
               final ActorRef frontRef = context().actorOf(FrontActor.props(
                       new SystemEdgeContext(nodePath, nodeId, attachFront.id()),
-                      attachFront.instance()
+                      attachFront.instance(),
+                      attachFront.trackingWindow
               ), attachFront.id());
               negotiator.tell(new NewFront(new EdgeId(attachFront.id(), nodeId), frontRef), self());
             })
