@@ -77,14 +77,14 @@ public class Acker extends LoggingActor {
   private Acker(long defaultMinimalTime, boolean assertAckingBackInTime, Graph graph) {
     int componentsNumber = 0;
     final Iterable<Graph.Vertex> vertices = () -> graph.components().flatMap(Function.identity()).iterator();
-    for (Graph.Vertex component : vertices) {
-      componentsNumber = Integer.max(componentsNumber, component.trackingComponent().index + 1);
+    for (Graph.Vertex vertex : vertices) {
+      componentsNumber = Integer.max(componentsNumber, graph.trackingComponent(vertex).index + 1);
     }
     componentTable = new ComponentAckTable[componentsNumber];
     for (final Graph.Vertex vertex : vertices) {
-      if (componentTable[vertex.trackingComponent().index] == null) {
-        componentTable[vertex.trackingComponent().index] = new ComponentAckTable(
-                vertex.trackingComponent(),
+      if (componentTable[graph.trackingComponent(vertex).index] == null) {
+        componentTable[graph.trackingComponent(vertex).index] = new ComponentAckTable(
+                graph.trackingComponent(vertex),
                 new ArrayAckTable(defaultMinimalTime, SIZE / componentsNumber, WINDOW, assertAckingBackInTime),
                 defaultMinimalTime
         );
@@ -167,13 +167,16 @@ public class Acker extends LoggingActor {
     componentsToRefresh.add(component);
     while ((component = componentsToRefresh.pollFirst()) != null) {
       final ComponentAckTable table = componentTable[component.index];
-      final long minTime = table.ackTable.tryPromote(minHeartbeat);
+      final long minTime = table.ackTable.tryPromote(
+              component.inbound.stream().mapToLong(inbound -> componentTable[inbound.index].lastMinTime)
+                      .reduce(minHeartbeat, Long::min)
+      );
       if (minTime == table.lastMinTime) {
         continue;
       }
-      componentsToRefresh.addAll(component.adjacent);
+      componentsToRefresh.addAll(component.outbound);
       table.lastMinTime = minTime;
-      log().debug("New min time: {}", minHeartbeat);
+      log().debug("New min time: {}", minTime);
       final GlobalTime minAmongTables = new GlobalTime(minTime, EdgeId.MIN);
       for (final ActorRef listener : listeners) {
         listener.tell(new MinTimeUpdate(table.component.index, minAmongTables, nodeTimes), self());

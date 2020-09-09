@@ -40,6 +40,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class Component extends LoggingActor {
+  @org.jetbrains.annotations.NotNull
+  private final Graph graph;
   private final ActorRef localAcker;
 
   private class JobaWrapper<WrappedJoba extends Joba> {
@@ -75,6 +77,7 @@ public class Component extends LoggingActor {
                     @Nullable ActorRef localAcker,
                     ComputationProps props,
                     Map<String, GroupGroupingState> stateByVertex) {
+    this.graph = graph;
     this.localAcker = localAcker;
     final TrackingComponent sinkTrackingComponent = graph.sinkTrackingComponent();
     this.wrappedJobas = componentVertices.stream().collect(Collectors.toMap(
@@ -248,7 +251,7 @@ public class Component extends LoggingActor {
     if (localAcker != null) {
       final GlobalTime globalTime = dataItem.meta().globalTime();
       localAcker.tell(new Ack(
-              to.trackingComponent().index,
+              graph.trackingComponent(to).index,
               new GlobalTime(globalTime.time(), globalTime.frontId()),
               dataItem.xor()
       ), self());
