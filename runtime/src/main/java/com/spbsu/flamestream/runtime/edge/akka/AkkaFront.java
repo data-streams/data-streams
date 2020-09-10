@@ -153,7 +153,7 @@ public class AkkaFront implements Front {
               .match(Checkpoint.class, checkpoint -> log.headMap(checkpoint.time()).clear())
               .match(Raw.class, raw -> {
                 sender = sender();
-                final GlobalTime globalTime = new GlobalTime(++time, edgeContext.edgeId());
+                final GlobalTime globalTime = new GlobalTime(time++, edgeContext.edgeId());
                 log.put(globalTime, new PayloadDataItem(new Meta(globalTime), raw.raw));
                 producerWait = globalTime;
                 tryProcess();

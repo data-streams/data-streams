@@ -25,7 +25,7 @@ public interface Front {
     }
 
     protected synchronized GlobalTime currentTime() {
-      return new GlobalTime(++prevGlobalTs, edgeId);
+      return new GlobalTime(prevGlobalTs++, edgeId);
     }
   }
 }
