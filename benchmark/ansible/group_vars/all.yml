@@ -1,7 +1,7 @@
 rate: 50
 guarantees: AT_MOST_ONCE
-millis_between_commits: 50
-validator: Wiki1000Validator
+millis_between_commits: 1000
+validator: classifier.Lenta1100Validator
 base_dir: /opt
 
 flamestream_dir: "{{ base_dir }}/flamestream"

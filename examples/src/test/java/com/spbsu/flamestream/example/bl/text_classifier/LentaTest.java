@@ -43,6 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.StringJoiner;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeoutException;
@@ -76,14 +77,13 @@ public class LentaTest extends FlameAkkaSuite {
       Pattern p = Pattern.compile("\\w+", Pattern.UNICODE_CHARACTER_CLASS);
       String recordText = r.get(2); // text order
       Matcher m = p.matcher(recordText);
-      StringBuilder text = new StringBuilder();
+      StringJoiner text = new StringJoiner(" ");
       while (m.find()) {
-        text.append(" ");
-        text.append(m.group());
+        text.add(m.group());
       }
       return new TextDocument(
               r.get(0), // url order
-              text.substring(1).toLowerCase(),
+              text.toString().toLowerCase(),
               String.valueOf(ThreadLocalRandom.current().nextInt(0, 10)),
               counter.incrementAndGet(),
               r.get(4) // label
