@@ -1,0 +1,44 @@
+---
+- name: Run the benchmark
+  hosts: bench
+  roles:
+    - { role: flamestream-lenta-bench-post }
+
+- name: Destroy flamestream
+  hosts: "workers[0:{{ parallelism|int - 1 }}]"
+  roles:
+    - { role: flamestream-destroy }
+
+- name: Destroy zookeeper
+  hosts: manager
+  roles:
+    - { role: zookeeper-destroy }
+
+- hosts: all
+  tasks:
+    - name: Fetch grouping events
+      fetch:
+        src: /tmp/grouping_events.bin
+        dest: "{{ results_dir }}/flamestream/grouping_events/{{ inventory_hostname }}.bin"
+        flat: true
+        fail_on_missing: false
+    - name: Fetch traces
+      fetch:
+        src: /tmp/trace.csv
+        dest: "{{ results_dir }}/flamestream/traces/{{ inventory_hostname }}.csv"
+        flat: true
+        fail_on_missing: false
+    - name: Fetch acker
+      fetch:
+        src: /tmp/acker.txt
+        dest: "{{ results_dir }}/flamestream/acker/{{ inventory_hostname }}.txt"
+        flat: true
+        fail_on_missing: false
+    - name: Fetch class addressed items number
+      fetch:
+        src: /tmp/class_addressed_items_number.csv
+        dest: "{{ results_dir }}/flamestream/class_addressed_items_number/{{ inventory_hostname }}.csv"
+        flat: true
+        fail_on_missing: false
+  tags:
+    - lat

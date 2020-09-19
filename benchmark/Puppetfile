@@ -1,0 +1,9 @@
+mod 'my', local: true
+mod 'puppet-python', '3.0.1'
+mod 'puppet-alternatives', '3.0.0'
+mod 'puppetlabs-apt', '7.1.0'
+mod 'puppetlabs-concat', '6.1.0'
+mod 'puppetlabs-sshkeys_core'
+mod 'puppetlabs-stdlib', '6.0.0'
+mod 'puppetlabs-vcsrepo', '3.0.0'
+mod 'saz-ssh', '6.2.0'

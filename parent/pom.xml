@@ -68,6 +68,14 @@
                 <version>${akka.version}</version>
             </dependency>
             <dependency>
+                <groupId>io.aeron</groupId>
+                <artifactId>aeron-driver</artifactId>
+            </dependency>
+            <dependency>
+                <groupId>io.aeron</groupId>
+                <artifactId>aeron-client</artifactId>
+            </dependency>
+            <dependency>
                 <groupId>com.typesafe.akka</groupId>
                 <artifactId>akka-cluster_2.11</artifactId>
                 <version>${akka.version}</version>

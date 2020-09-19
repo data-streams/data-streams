@@ -10,5 +10,11 @@
 - name: Fetch worker logs
   fetch:
     src: "{{ flamestream_dir }}/worker.log"
-    dest: results/{{ lookup("pipe", "git rev-parse --short HEAD") }}/{{ groups['workers'] | length }}/{{ rate }}/flamestream/logs/{{ inventory_hostname }}/worker.log
+    dest: "{{ results_dir }}/flamestream/logs/{{ inventory_hostname }}/worker.log"
     flat: true
+
+- fetch:
+    src: "/tmp/local_acker.txt"
+    dest: "{{ results_dir }}/flamestream/logs/{{ inventory_hostname }}/local_acker.txt"
+    flat: true
+    fail_on_missing: false

@@ -1,6 +1,6 @@
 ---
 zookeeper_dir: "{{ base_dir }}/zookeeper"
-zookeeper_url: http://www.apache.org/dist/zookeeper/zookeeper-{{ zookeeper_version }}/zookeeper-{{ zookeeper_version }}.tar.gz
+zookeeper_url: https://www.apache.org/dist/zookeeper/zookeeper-{{ zookeeper_version }}/zookeeper-{{ zookeeper_version }}.tar.gz
 tick_time: 3000
 zookeeper_data_dir: "{{ zookeeper_dir }}/data"
 zookeeper_cli: "{{ zookeeper_dir }}/bin/zkCli.sh -server localhost:{{ zookeeper_client_port }}"

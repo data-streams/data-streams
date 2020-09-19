@@ -1,0 +1,3 @@
+modulepath: modules
+ssh:
+  host-key-check: false

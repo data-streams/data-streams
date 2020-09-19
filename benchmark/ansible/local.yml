@@ -10,9 +10,6 @@ all:
     bench:
       hosts:
         worker2:
-    input:
-      hosts:
-        worker1:
     workers:
       hosts:
         worker1:

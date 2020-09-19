@@ -1,0 +1,5 @@
+deployer {
+  remote {
+    zk = "{{ groups['manager'][0] }}:{{ zookeeper_client_port }}"
+  }
+}

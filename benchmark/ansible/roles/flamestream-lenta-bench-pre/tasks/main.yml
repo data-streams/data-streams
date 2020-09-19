@@ -1,0 +1,20 @@
+---
+- name: Copy the lenta feed
+  copy:
+    src: lenta-ru-news.csv
+    dest: "{{ flamestream_dir }}/lenta-ru-news.csv"
+
+- name: Copy topics
+  copy:
+    src: topics
+    dest: "{{ flamestream_dir }}/topics"
+
+- name: Copy the deployer file
+  template:
+    src: deployer.conf.j2
+    dest: "{{ flamestream_dir }}/deployer.conf"
+
+- name: Copy the bench configuration file
+  template:
+    src: bench.conf.j2
+    dest: "{{ flamestream_dir }}/bench.conf"
