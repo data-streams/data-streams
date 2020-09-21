@@ -13,11 +13,12 @@ plan my::install(
     include apt
     apt::ppa { 'ppa:deadsnakes/ppa': }
     package { 'git': }
-    package { 'python': }
-    package { 'python3.9': }
+    package { 'libffi-dev': }
+    package { 'libzmq3-dev': }
     package { 'maven': }
-    package { 'python3': }
-    package { 'python3-distutils': }
+    package { 'python3.9': }
+    package { 'python3.9-dev': }
+    package { 'python3.9-distutils': }
     class { 'python::pip::bootstrap': version => 'pip3' }
     python::pip { 'ansible': }
   }
