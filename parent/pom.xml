@@ -31,7 +31,7 @@
         <guava.version>21.0</guava.version>
         <jool.version>0.9.12</jool.version>
         <joda.version>2.9.4</joda.version>
-        <junit.version>4.8.1</junit.version>
+        <junit.version>4.13.1</junit.version>
         <jackson-core.version>2.9.10</jackson-core.version>
         <jackson-databind.version>2.9.10.6</jackson-databind.version>
         <testng.version>6.10</testng.version>
