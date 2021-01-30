@@ -8,23 +8,21 @@ import akka.actor.Props;
 import akka.japi.pf.ReceiveBuilder;
 import akka.pattern.PatternsCS;
 import com.spbsu.flamestream.core.DataItem;
-import com.spbsu.flamestream.runtime.edge.Front;
 import com.spbsu.flamestream.core.data.PayloadDataItem;
+import com.spbsu.flamestream.core.data.invalidation.ArrayInvalidatingBucket;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.core.data.meta.Meta;
-import com.spbsu.flamestream.runtime.master.acker.api.Heartbeat;
-import com.spbsu.flamestream.runtime.master.acker.api.registry.UnregisterFront;
 import com.spbsu.flamestream.runtime.edge.EdgeContext;
+import com.spbsu.flamestream.runtime.edge.Front;
 import com.spbsu.flamestream.runtime.edge.api.Checkpoint;
 import com.spbsu.flamestream.runtime.edge.api.RequestNext;
 import com.spbsu.flamestream.runtime.edge.api.Start;
+import com.spbsu.flamestream.runtime.master.acker.api.Heartbeat;
+import com.spbsu.flamestream.runtime.master.acker.api.registry.UnregisterFront;
 import com.spbsu.flamestream.runtime.utils.FlameConfig;
 import com.spbsu.flamestream.runtime.utils.akka.AwaitResolver;
 import com.spbsu.flamestream.runtime.utils.akka.LoggingActor;
 
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
@@ -104,7 +102,7 @@ public class AkkaFront implements Front {
   }
 
   public static class LocalMediator extends LoggingActor {
-    private final NavigableMap<GlobalTime, DataItem> log = new TreeMap<>();
+    private final ArrayInvalidatingBucket log = new ArrayInvalidatingBucket();
     private final EdgeContext edgeContext;
 
     private GlobalTime producerWait = null;
@@ -150,11 +148,11 @@ public class AkkaFront implements Front {
                 requestDebt = Math.max(requestDebt + 1, requestDebt);
                 tryProcess();
               })
-              .match(Checkpoint.class, checkpoint -> log.headMap(checkpoint.time()).clear())
+              .match(Checkpoint.class, checkpoint -> log.clearRange(0, log.lowerBound(checkpoint.time())))
               .match(Raw.class, raw -> {
                 sender = sender();
                 final GlobalTime globalTime = new GlobalTime(time++, edgeContext.edgeId());
-                log.put(globalTime, new PayloadDataItem(new Meta(globalTime), raw.raw));
+                log.insert(new PayloadDataItem(new Meta(globalTime), raw.raw));
                 producerWait = globalTime;
                 tryProcess();
               })
@@ -182,13 +180,13 @@ public class AkkaFront implements Front {
     }
 
     private void tryProcess() {
-      final Map.Entry<GlobalTime, DataItem> entry = log.higherEntry(lastEmitted);
+      final DataItem entry = log.get(log.lowerBound(lastEmitted));
       if (entry != null && requestDebt > 0) {
+        lastEmitted = entry.meta().globalTime();
         requestDebt--;
-        remoteMediator.tell(entry.getValue(), self());
-        remoteMediator.tell(new Heartbeat(new GlobalTime(entry.getKey().time() + 1, entry.getKey().frontId())), self());
+        remoteMediator.tell(entry, self());
+        remoteMediator.tell(new Heartbeat(new GlobalTime(lastEmitted.time() + 1, lastEmitted.frontId())), self());
 
-        lastEmitted = entry.getKey();
         if (producerWait != null && lastEmitted.equals(producerWait)) {
           sender.tell(Command.OK, self());
           producerWait = null;
