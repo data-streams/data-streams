@@ -31,6 +31,7 @@ public class LocalRuntime implements FlameRuntime {
   private final boolean barrierDisabled;
   private final boolean blinking;
   private final int blinkPeriodSec;
+  private final long defaultMinimalTime;
 
   private LocalRuntime(
           ActorSystem system,
@@ -40,6 +41,7 @@ public class LocalRuntime implements FlameRuntime {
           int millisBetweenCommits,
           boolean blinking,
           int blinkPeriodSec,
+          long defaultMinimalTime,
           SystemConfig.Acking acking,
           StateStorage stateStorage
   ) {
@@ -50,6 +52,7 @@ public class LocalRuntime implements FlameRuntime {
     this.millisBetweenCommits = millisBetweenCommits;
     this.system = system;
     this.blinkPeriodSec = blinkPeriodSec;
+    this.defaultMinimalTime = defaultMinimalTime;
     this.acking = acking;
     this.stateStorage = stateStorage;
   }
@@ -70,7 +73,8 @@ public class LocalRuntime implements FlameRuntime {
                     millisBetweenCommits,
                     acking,
                     blinking,
-                    blinkPeriodSec
+                    blinkPeriodSec,
+                    defaultMinimalTime
             ),
             "restarter"
     );
@@ -122,6 +126,7 @@ public class LocalRuntime implements FlameRuntime {
     private int blinkPeriodSec = 10;
     private SystemConfig.Acking acking = SystemConfig.Acking.CENTRALIZED;
     private StateStorage stateStorage = new InMemStateStorage();
+    private long defaultMinimalTime = 0;
 
     @Nullable
     private ActorSystem system = null;
@@ -144,6 +149,11 @@ public class LocalRuntime implements FlameRuntime {
 
     public Builder blinkPeriodSec(int blinkPeriodSec) {
       this.blinkPeriodSec = blinkPeriodSec;
+      return this;
+    }
+
+    public Builder defaultMinimalTime(long defaultMinimalTime) {
+      this.defaultMinimalTime = defaultMinimalTime;
       return this;
     }
 
@@ -184,6 +194,7 @@ public class LocalRuntime implements FlameRuntime {
               millisBetweenCommits,
               blinking,
               blinkPeriodSec,
+              defaultMinimalTime,
               acking,
               stateStorage
       );

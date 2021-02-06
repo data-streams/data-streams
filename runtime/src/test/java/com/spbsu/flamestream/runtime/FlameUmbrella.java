@@ -58,7 +58,8 @@ class Cluster extends LoggingActor {
           int millisBetweenCommits,
           SystemConfig.Acking acking,
           boolean blinking,
-          int blinkPeriodSec
+          int blinkPeriodSec,
+          long defaultMinimalTime
   ) {
     this.blinking = blinking;
     this.blinkPeriodSec = blinkPeriodSec;
@@ -82,7 +83,6 @@ class Cluster extends LoggingActor {
       ranges.put(id, new HashGroup(Collections.singleton(range)));
     }
     final ClusterConfig clusterConfig = new ClusterConfig(paths, "node-0");
-    final int defaultMinimalTime = 0;
     final SystemConfig systemConfig =
             new SystemConfig(
                     maxElementsInGraph,
@@ -169,7 +169,8 @@ class Cluster extends LoggingActor {
                      int millisBetweenCommits,
                      SystemConfig.Acking acking,
                      boolean blinking,
-                     int blinkPeriodSec
+                     int blinkPeriodSec,
+                     long defaultMinimalTime
   ) {
     return Props.create(
             Cluster.class,
@@ -181,7 +182,8 @@ class Cluster extends LoggingActor {
             millisBetweenCommits,
             acking,
             blinking,
-            blinkPeriodSec
+            blinkPeriodSec,
+            defaultMinimalTime
     );
   }
 
