@@ -3,19 +3,12 @@ package com.spbsu.flamestream.runtime.graph.state;
 import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.data.invalidation.InvalidatingBucket;
 import com.spbsu.flamestream.core.data.invalidation.SynchronizedInvalidatingBucket;
+import com.spbsu.flamestream.core.data.invalidation.TimedMap;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.core.graph.Grouping;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.OptionalLong;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-
 public class GroupingState {
-  private static class Key {
+  public static class Key {
     final Grouping<?> grouping;
     final DataItem dataItem;
     final int hashCode;
@@ -48,56 +41,32 @@ public class GroupingState {
   }
 
   public final Grouping<?> grouping;
-  private final ConcurrentMap<Key, SynchronizedInvalidatingBucket> buffers;
-  private final TreeMap<Long, Set<Key>> timeKeys = new TreeMap<>();
-  private long minTime = Long.MIN_VALUE;
+  private final TimedMap<Key, SynchronizedInvalidatingBucket> map;
 
   public GroupingState(Grouping<?> grouping) {
     this.grouping = grouping;
-    buffers = new ConcurrentHashMap<>();
-  }
-
-  private GroupingState(Grouping<?> grouping, ConcurrentMap<Key, SynchronizedInvalidatingBucket> buffers) {
-    this.grouping = grouping;
-    this.buffers = buffers;
-  }
-
-  public InvalidatingBucket bucketFor(DataItem item) {
-    final Key key = new Key(grouping, item);
-    final OptionalLong keyMinTime =
-            grouping.equalz().labels().stream().mapToLong(label -> item.meta().labels().get(label).globalTime.time()).min();
-    if (keyMinTime.isPresent()) {
-      if (keyMinTime.getAsLong() < minTime) {
-        throw new IllegalArgumentException();
-      }
-      timeKeys.computeIfAbsent(keyMinTime.getAsLong(), __ -> new HashSet<>()).add(key);
-    }
-    return buffers.computeIfAbsent(
-            key,
-            __ -> new SynchronizedInvalidatingBucket(grouping.order())
+    map = new TimedMap<>(
+            () -> new SynchronizedInvalidatingBucket(grouping.order()),
+            grouping.equalz().labels().isEmpty() ? null : key -> grouping.equalz().labels().stream().mapToLong(label ->
+                    key.dataItem.meta().labels().get(label).globalTime.time()
+            ).min().getAsLong()
     );
   }
 
+  private GroupingState(Grouping<?> grouping, TimedMap<Key, SynchronizedInvalidatingBucket> map) {
+    this.grouping = grouping;
+    this.map = map;
+  }
+
+  public InvalidatingBucket bucketFor(DataItem item) {
+    return map.get(new Key(grouping, item));
+  }
+
   public void onMinTime(long minTime) {
-    if (minTime <= this.minTime) {
-      throw new IllegalArgumentException();
-    }
-    this.minTime = minTime;
-    while (!timeKeys.isEmpty()) {
-      final Map.Entry<Long, Set<Key>> minTimeKeys = timeKeys.firstEntry();
-      if (minTime <= minTimeKeys.getKey()) {
-        break;
-      }
-      for (Key key : minTimeKeys.getValue()) {
-        buffers.remove(key);
-      }
-      timeKeys.pollFirstEntry();
-    }
+    map.onMinTime(minTime);
   }
 
   public GroupingState subState(GlobalTime ceil) {
-    final ConcurrentMap<Key, SynchronizedInvalidatingBucket> subState = new ConcurrentHashMap<>();
-    buffers.forEach((key, bucket) -> subState.put(key, bucket.subBucket(ceil, grouping.window())));
-    return new GroupingState(grouping, subState);
+    return new GroupingState(grouping, map.map(bucket -> bucket.subBucket(ceil, grouping.window())));
   }
 }

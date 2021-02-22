@@ -22,4 +22,8 @@ public class LabelsPresence {
   public int hash(int init, Labels labels) {
     return stream().reduce(init, (hashCode, label) -> 31 * hashCode + labels.get(label).hashCode());
   }
+
+  public boolean isEmpty() {
+    return all.length == 0;
+  }
 }
