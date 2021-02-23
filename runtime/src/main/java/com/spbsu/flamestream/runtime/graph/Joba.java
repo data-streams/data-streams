@@ -35,6 +35,11 @@ public abstract class Joba {
     }
 
     @Override
+    public String toString() {
+      return "Joba.Id(" + nodeId + ", " + vertexId + ")";
+    }
+
+    @Override
     public int hashCode() {
       return Objects.hash(nodeId, vertexId);
     }

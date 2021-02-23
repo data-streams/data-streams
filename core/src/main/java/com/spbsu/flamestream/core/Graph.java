@@ -34,6 +34,8 @@ public interface Graph {
 
   Stream<Vertex> adjacent(Vertex vertex);
 
+  Stream<Vertex> inverseAdjacent(Vertex vertex);
+
   default TrackingComponent sinkTrackingComponent() {
     return trackingComponent(sink());
   }
@@ -102,7 +104,7 @@ public interface Graph {
 
       v.forEach(isolated -> components.add(Collections.singleton(isolated)));
 
-      return new MyGraph(adjLists, source, sink, components, vertexTrackingComponentMap, init);
+      return new MyGraph(adjLists, invertedAdjLists, source, sink, components, vertexTrackingComponentMap, init);
     }
 
     private static class MyGraph implements Graph {
@@ -111,12 +113,14 @@ public interface Graph {
       private final Sink sink;
       private final Map<Vertex, Collection<Vertex>> adjLists;
 
+      private final Map<Vertex, Collection<Vertex>> invAdjLists;
       private final Set<Set<Vertex>> components;
       private final Map<Vertex, TrackingComponent> vertexTrackingComponent;
       private final SerializableConsumer<HashGroup> init;
 
       MyGraph(
               Multimap<Vertex, Vertex> adjLists,
+              Multimap<Vertex, Vertex> invAdjLists,
               Source source,
               Sink sink,
               Set<Set<Vertex>> components,
@@ -124,6 +128,13 @@ public interface Graph {
               SerializableConsumer<HashGroup> init
       ) {
         this.allVertices = new ArrayList<>(adjLists.keySet());
+        this.invAdjLists = invAdjLists.entries().stream().collect(Collectors.groupingBy(
+                Map.Entry::getKey,
+                Collectors.mapping(
+                        Map.Entry::getValue,
+                        Collectors.toCollection(LinkedHashSet::new)
+                )
+        ));
         this.components = components;
         this.vertexTrackingComponent = vertexTrackingComponent;
         this.init = init;
@@ -149,6 +160,11 @@ public interface Graph {
       @Override
       public Stream<Vertex> adjacent(Vertex vertex) {
         return adjLists.getOrDefault(vertex, Collections.emptyList()).stream();
+      }
+
+      @Override
+      public Stream<Vertex> inverseAdjacent(Vertex vertex) {
+        return invAdjLists.getOrDefault(vertex, Collections.emptyList()).stream();
       }
 
       @Override

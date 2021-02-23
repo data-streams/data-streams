@@ -34,6 +34,15 @@ public class HashGroup {
     return false;
   }
 
+  public boolean isEmpty() {
+    for (final HashUnit unit : units) {
+      if (!unit.isEmpty()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) {

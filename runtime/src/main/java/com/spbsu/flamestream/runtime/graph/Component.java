@@ -7,6 +7,7 @@ import com.spbsu.flamestream.core.DataItem;
 import com.spbsu.flamestream.core.Graph;
 import com.spbsu.flamestream.core.HashFunction;
 import com.spbsu.flamestream.core.TrackingComponent;
+import com.spbsu.flamestream.core.data.meta.EdgeId;
 import com.spbsu.flamestream.core.data.meta.GlobalTime;
 import com.spbsu.flamestream.core.data.meta.Meta;
 import com.spbsu.flamestream.core.graph.FlameMap;
@@ -21,7 +22,9 @@ import com.spbsu.flamestream.runtime.config.ComputationProps;
 import com.spbsu.flamestream.runtime.graph.api.AddressedItem;
 import com.spbsu.flamestream.runtime.graph.api.ComponentPrepared;
 import com.spbsu.flamestream.runtime.graph.api.NewRear;
+import com.spbsu.flamestream.runtime.graph.api.Watermark;
 import com.spbsu.flamestream.runtime.graph.state.GroupGroupingState;
+import com.spbsu.flamestream.runtime.master.acker.NodeTimes;
 import com.spbsu.flamestream.runtime.master.acker.api.Ack;
 import com.spbsu.flamestream.runtime.master.acker.api.Heartbeat;
 import com.spbsu.flamestream.runtime.master.acker.api.MinTimeUpdate;
@@ -36,6 +39,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -43,21 +47,84 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class Component extends LoggingActor {
+  private final String nodeId;
   @NotNull
   private final Graph graph;
+  private final HashUnitMap<ActorRef> routes;
+  private final ActorRef localManager;
   private final ActorRef localAcker;
+  private final ComputationProps props;
+  private final TrackingComponent sinkTrackingComponent;
 
   private class JobaWrapper<WrappedJoba extends Joba> {
     WrappedJoba joba;
     Joba.Sink downstream;
     final Graph.Vertex vertex;
+    final Map<Joba.Id, Long> incomingWatermarks = new HashMap<>();
+    long outgoingWatermark;
 
     JobaWrapper(WrappedJoba joba, Joba.Sink downstream, Graph.Vertex vertex) {
       this.joba = joba;
       this.downstream = downstream;
       this.vertex = vertex;
+      final var hash = vertex instanceof HashingVertexStub ? ((HashingVertexStub) vertex).hash() : null;
+      if (joba instanceof SourceJoba) {
+        incomingWatermarks.put(null, props.defaultMinimalTime());
+      } else if (hash == null) {
+        graph.inverseAdjacent(vertex).forEach(incoming ->
+                incomingWatermarks.put(new Joba.Id(nodeId, incoming.id()), props.defaultMinimalTime())
+        );
+      } else {
+        for (final var entry : props.hashGroups().entrySet()) {
+          if (!entry.getValue().isEmpty()) {
+            graph.inverseAdjacent(vertex).forEach(incoming ->
+                    incomingWatermarks.put(new Joba.Id(entry.getKey(), incoming.id()), props.defaultMinimalTime())
+            );
+          }
+        }
+      }
+    }
+
+    void onWatermark(Joba.Id from, long time) {
+      if (incomingWatermarks.put(from, time) == null) {
+        throw new IllegalStateException(from.toString());
+      }
+      final var outgoingWatermark = incomingWatermarks.values().stream().mapToLong(l -> l).min().orElse(Long.MAX_VALUE);
+      final var self = new Joba.Id(nodeId, this.vertex.id());
+      if (this.outgoingWatermark < outgoingWatermark) {
+        graph.adjacent(this.vertex).forEach(to -> {
+          final var destination = GraphManager.Destination.fromVertexId(to.id());
+          final var hashing = to instanceof HashingVertexStub ? ((HashingVertexStub) to).hash() : null;
+          if (hashing == null) {
+            wrappedJobas.get(destination).onWatermark(self, outgoingWatermark);
+          } else {
+            props.hashGroups().forEach((nodeId, hashGroup) -> {
+              final var hash = hashGroup.units().stream().flatMapToInt(entry ->
+                      entry.isEmpty() ? IntStream.empty() : IntStream.of(entry.from())
+              ).findAny();
+              if (hash.isPresent()) {
+                final var route = routes.get(hash.getAsInt());
+                if (route == localManager) {
+                  wrappedJobas.get(destination).onWatermark(self, outgoingWatermark);
+                } else {
+                  route.tell(new Watermark(self, destination, outgoingWatermark), self());
+                }
+              }
+            });
+          }
+        });
+        if (vertex instanceof Sink) {
+          onMinTime(new MinTimeUpdate(
+                  sinkTrackingComponent.index,
+                  new GlobalTime(outgoingWatermark, EdgeId.MAX),
+                  new NodeTimes()
+          ));
+        }
+        this.outgoingWatermark = outgoingWatermark;
+      }
     }
   }
 
@@ -74,17 +141,23 @@ public class Component extends LoggingActor {
   @Nullable
   private JobaWrapper<SinkJoba> wrappedSinkJoba;
 
-  private Component(String nodeId,
-                    Set<Graph.Vertex> componentVertices,
-                    Graph graph,
-                    HashUnitMap<ActorRef> routes,
-                    ActorRef localManager,
-                    @Nullable ActorRef localAcker,
-                    ComputationProps props,
-                    Map<String, GroupGroupingState> stateByVertex) {
+  private Component(
+          String nodeId,
+          Set<Graph.Vertex> componentVertices,
+          Graph graph,
+          HashUnitMap<ActorRef> routes,
+          ActorRef localManager,
+          @Nullable ActorRef localAcker,
+          ComputationProps props,
+          Map<String, GroupGroupingState> stateByVertex
+  ) {
+    this.nodeId = nodeId;
     this.graph = graph;
+    this.routes = routes;
+    this.localManager = localManager;
     this.localAcker = localAcker;
-    final TrackingComponent sinkTrackingComponent = graph.sinkTrackingComponent();
+    this.props = props;
+    sinkTrackingComponent = graph.sinkTrackingComponent();
     this.wrappedJobas = componentVertices.stream().collect(Collectors.toMap(
             vertex -> GraphManager.Destination.fromVertexId(vertex.id()),
             vertex -> {
@@ -239,14 +312,16 @@ public class Component extends LoggingActor {
     ));
   }
 
-  public static Props props(String nodeId,
-                            Set<Graph.Vertex> componentVertices,
-                            Graph graph,
-                            HashUnitMap<ActorRef> localManager,
-                            ActorRef routes,
-                            @Nullable ActorRef localAcker,
-                            ComputationProps props,
-                            Map<String, GroupGroupingState> stateByVertex) {
+  public static Props props(
+          String nodeId,
+          Set<Graph.Vertex> componentVertices,
+          Graph graph,
+          HashUnitMap<ActorRef> localManager,
+          ActorRef routes,
+          @Nullable ActorRef localAcker,
+          ComputationProps props,
+          Map<String, GroupGroupingState> stateByVertex
+  ) {
     return Props.create(
             Component.class,
             nodeId,
@@ -270,11 +345,18 @@ public class Component extends LoggingActor {
             .match(Heartbeat.class, h -> {
               if (localAcker != null) {
                 localAcker.forward(h, context());
+              } else {
+                wrappedSourceJoba.onWatermark(null, h.time().time());
               }
             })
+            .match(Watermark.class, watermark ->
+                    wrappedJobas.get(watermark.to).onWatermark(watermark.from, watermark.time)
+            )
             .match(UnregisterFront.class, u -> {
               if (localAcker != null) {
                 localAcker.forward(u, context());
+              } else {
+                wrappedSourceJoba.onWatermark(null, Long.MAX_VALUE);
               }
             })
             .match(Prepare.class, this::onPrepare)

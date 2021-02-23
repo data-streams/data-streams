@@ -9,7 +9,7 @@ import java.util.Set;
 public class NodeTimes {
   private final HashMap<String, Long> all;
 
-  NodeTimes() {
+  public NodeTimes() {
     this.all = new HashMap<>();
   }
 
