@@ -49,13 +49,12 @@ public class BenchStand {
             GraphDeployer graphDeployer = new FlameGraphDeployer(
                     benchStandComponentFactory.runtime(
                             deployerConfig,
-                            new SystemConfig.Builder().defaultMinimalTime(Query8.tumbleStart(
-                                    Instant.ofEpochMilli(baseTime),
-                                    benchStand.nexmarkConfiguration.windowSizeSec
-                            )).workersResourcesDistributor(new SystemConfig.WorkersResourcesDistributor.Enumerated(
-                                    benchStand.workerIdPrefix,
-                                    0
-                            )).build()
+                            new SystemConfig.Builder().workersResourcesDistributor(
+                                    new SystemConfig.WorkersResourcesDistributor.Enumerated(
+                                            benchStand.workerIdPrefix,
+                                            0
+                                    )
+                            ).build()
                     ),
                     Materializer.materialize(Query8.create(benchStand.nexmarkConfiguration.windowSizeSec)),
                     new GeneratorFrontType(
@@ -68,8 +67,13 @@ public class BenchStand {
                             benchStand.maxEvents
                     ),
                     new TimingsRearType<>(
-                            new SocketRearType(benchStand.benchHost, benchStand.rearPort, TimingsRearType.Timings.class),
-                            10
+                            new SocketRearType(
+                                    benchStand.benchHost,
+                                    benchStand.rearPort,
+                                    TimingsRearType.Timings.class
+                            ),
+                            10,
+                            Instant.ofEpochMilli(baseTime)
                     )
             )
     ) {

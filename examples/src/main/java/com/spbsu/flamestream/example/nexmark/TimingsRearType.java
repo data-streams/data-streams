@@ -47,10 +47,12 @@ public class TimingsRearType<Wrapped extends com.spbsu.flamestream.runtime.edge.
 
   final FlameRuntime.RearType<Wrapped, Handle> wrapped;
   final long windowSizeSec;
+  private final Instant baseTime;
 
-  public TimingsRearType(FlameRuntime.RearType<Wrapped, Handle> wrapped, long windowSizeSec) {
+  public TimingsRearType(FlameRuntime.RearType<Wrapped, Handle> wrapped, long windowSizeSec, Instant baseTime) {
     this.wrapped = wrapped;
     this.windowSizeSec = windowSizeSec;
+    this.baseTime = baseTime;
   }
 
   public class Instance implements FlameRuntime.RearInstance<TimingsRearType.Rear> {
@@ -67,6 +69,10 @@ public class TimingsRearType<Wrapped extends com.spbsu.flamestream.runtime.edge.
     @Override
     public Object[] params() {
       return new Object[]{this, wrapped.params()};
+    }
+
+    public TimingsRearType<?, ?> type() {
+      return TimingsRearType.this;
     }
   }
 
@@ -93,13 +99,16 @@ public class TimingsRearType<Wrapped extends com.spbsu.flamestream.runtime.edge.
         final var window = batch.time().time() - instance.windowSizeSec;
         final var processed = batch.lastGlobalTimeProcessedAt().get(window);
         final var now = Instant.now();
+        final var windowEnd = Instant.ofEpochSecond(
+                Query8.tumbleStart(instance.type().baseTime.plus(window, ChronoUnit.SECONDS), instance.windowSizeSec)
+        );
         return wrapped.accept(new SinkJoba.BatchImpl(
                 batch.time(),
                 Collections.singletonList(new PayloadDataItem(new Meta(batch.time()), new Timings(
                         window,
                         edgeContext.edgeId().nodeId(),
-                        Instant.ofEpochSecond(window).until(processed, ChronoUnit.NANOS),
-                        Instant.ofEpochSecond(window).until(now, ChronoUnit.NANOS)
+                        windowEnd.until(processed, ChronoUnit.NANOS),
+                        windowEnd.until(now, ChronoUnit.NANOS)
                 ))),
                 batch.lastGlobalTimeProcessedAt()
         ));

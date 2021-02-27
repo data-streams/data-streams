@@ -88,7 +88,8 @@ public class GeneratorFrontType implements FlameRuntime.FrontType<GeneratorFront
             if (!sleep.isNegative()) {
               Thread.sleep(sleep.toMillis());
             }
-            final var time = Query8.tumbleStart(instant, nexmarkConfiguration.windowSizeSec);
+            final var time = Query8.tumbleStart(instant, nexmarkConfiguration.windowSizeSec)
+                    - Query8.tumbleStart(Instant.ofEpochMilli(type.baseTime), nexmarkConfiguration.windowSizeSec);
             if (basicMeta != null && basicMeta.globalTime().time() > time) {
               throw new IllegalArgumentException();
             }
