@@ -136,7 +136,7 @@ public class BenchStand {
   public void run(GraphDeployer graphDeployer, String inputHostId) throws Exception {
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
     final var expectedSize =
-            parallelism * (int) ((maxEvents - 1) / nexmarkConfiguration.firstEventRate / parallelism / nexmarkConfiguration.windowSizeSec + 1);
+            parallelism * (int) (10 + (maxEvents - 1) / nexmarkConfiguration.firstEventRate / parallelism / nexmarkConfiguration.windowSizeSec + 1);
     System.out.println(expectedSize);
     final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(
             expectedSize

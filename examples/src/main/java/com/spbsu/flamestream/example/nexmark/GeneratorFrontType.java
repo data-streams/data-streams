@@ -10,10 +10,12 @@ import com.spbsu.flamestream.runtime.FlameRuntime;
 import com.spbsu.flamestream.runtime.edge.EdgeContext;
 import com.spbsu.flamestream.runtime.master.acker.api.Heartbeat;
 import com.spbsu.flamestream.runtime.master.acker.api.registry.UnregisterFront;
+import org.apache.commons.lang3.SerializationUtils;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
@@ -65,21 +67,58 @@ public class GeneratorFrontType implements FlameRuntime.FrontType<GeneratorFront
         consumer.accept(new UnregisterFront(edgeContext.edgeId()));
         return;
       }
-      final var nexmarkConfiguration = type.nexmarkConfiguration;
-      final var generatorConfig = new GeneratorConfig(
-              nexmarkConfiguration,
-              type.baseTime,
-              1,
-              type.maxEvents,
-              1
-      ).split(type.nodePartition.size()).get(partition);
       final var executor =
               Executors.newSingleThreadExecutor(runnable -> new Thread(runnable, edgeContext.edgeId().toString()));
-      executor.submit(() -> {
-        try {
-          Meta basicMeta = null;
-          int childId = 0;
-          final var generator = new NexmarkGenerator(generatorConfig);
+      executor.submit(new Callable<Object>() {
+        private int childId;
+        private Meta basicMeta;
+
+        @Override
+        public Object call() throws Exception {
+          try {
+            final var warmUpRateReduction = 10;
+            generate(
+                    generate(
+                            1,
+                            type.baseTime,
+                            type.nexmarkConfiguration.windowSizeSec * type.nexmarkConfiguration.firstEventRate * type.nodePartition.size(),
+                            slower(type.nexmarkConfiguration, warmUpRateReduction)
+                    ),
+                    type.baseTime + type.nexmarkConfiguration.windowSizeSec * warmUpRateReduction * 1000,
+                    type.maxEvents,
+                    type.nexmarkConfiguration
+            );
+            consumer.accept(new Heartbeat(new GlobalTime(Long.MAX_VALUE, edgeContext.edgeId())));
+            return null;
+          } catch (Throwable throwable) {
+            throwable.printStackTrace();
+            throw throwable;
+          } finally {
+            executor.shutdown();
+          }
+        }
+
+        private NexmarkConfiguration slower(NexmarkConfiguration nexmarkConfiguration, int times) {
+          nexmarkConfiguration = SerializationUtils.clone(nexmarkConfiguration);
+          nexmarkConfiguration.firstEventRate /= times;
+          nexmarkConfiguration.nextEventRate /= times;
+          return nexmarkConfiguration;
+        }
+
+        private long generate(
+                long firstEventId,
+                long baseTime,
+                long maxEvents,
+                NexmarkConfiguration nexmarkConfiguration
+        ) throws InterruptedException {
+          final var generatorConfig = new GeneratorConfig(
+                  nexmarkConfiguration,
+                  baseTime,
+                  firstEventId,
+                  maxEvents,
+                  1
+          );
+          final var generator = new NexmarkGenerator(generatorConfig.split(type.nodePartition.size()).get(partition));
           while (generator.hasNext()) {
             final var nextEvent = generator.nextEvent();
             final var event = nextEvent.event;
@@ -101,13 +140,8 @@ public class GeneratorFrontType implements FlameRuntime.FrontType<GeneratorFront
             }
             consumer.accept(new PayloadDataItem(new Meta(basicMeta, 0, childId++), event));
           }
-          consumer.accept(new Heartbeat(new GlobalTime(Long.MAX_VALUE, edgeContext.edgeId())));
-          return null;
-        } catch (Throwable throwable) {
-          throwable.printStackTrace();
-          throw throwable;
-        } finally {
-          executor.shutdown();
+          System.out.println("hi");
+          return generatorConfig.getStopEventId();
         }
       });
     }
