@@ -98,6 +98,9 @@ public class TimingsRearType<Wrapped extends com.spbsu.flamestream.runtime.edge.
       if (batch.time().time() < Long.MAX_VALUE) {
         final var window = batch.time().time() - instance.windowSizeSec;
         final var processed = batch.lastGlobalTimeProcessedAt().get(window);
+        if (processed == null) {
+          throw new IllegalStateException(batch.lastGlobalTimeProcessedAt().toString());
+        }
         final var now = Instant.now();
         final var windowEnd = Instant.ofEpochSecond(
                 Query8.tumbleStart(instance.type().baseTime.plus(window, ChronoUnit.SECONDS), instance.windowSizeSec)
