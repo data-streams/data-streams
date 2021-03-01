@@ -6,4 +6,7 @@ benchmark/ansible/aws.yml
 wiki.xml
 .terraform/
 results/
-!/benchmark/.terraform.lock.hcl
+benchmark/.terraform.lock.hcl
+benchmark/terraform.tfstate
+benchmark/terraform.tfstate.backup
+benchmark/terraform.tfvars

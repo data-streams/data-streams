@@ -11,11 +11,11 @@ def group(nodes):
 
 data = json.load(sys.stdin)
 
-private_ips = data['private_ips']['value']
-public_ips = data['public_ips']['value']
+private_list = data['private_ips']['value']
+public_list = data['public_ips']['value']
 
-private_list = [ip.strip() for ip in private_ips.split(',')]
-public_list = [ip.strip() for ip in public_ips.split(',')]
+# private_list = [ip.strip() for ip in private_ips.split(',')]
+# public_list = [ip.strip() for ip in public_ips.split(',')]
 
 assert len(private_list) >= 2
 assert len(public_list) >= 2
