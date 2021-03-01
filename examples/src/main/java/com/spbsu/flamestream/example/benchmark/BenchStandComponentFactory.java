@@ -53,9 +53,10 @@ public class BenchStandComponentFactory {
     return producerConnections(
             connections -> {
               int index = 0;
+              final Object[] objects = connections.values().toArray();
               for (final Payload payload : payloads) {
                 index++;
-                connections.get(remotesList.get(index % remotesList.size())).sendTCP(payload);
+                ((Connection)objects[index % remotesList.size()]).sendTCP(payload);
               }
             },
             port,
@@ -96,7 +97,7 @@ public class BenchStandComponentFactory {
           return;
         }
         String id = (String) received;
-        if (remotes.contains(id) && !connections.containsKey(id)) {
+        if (!connections.containsKey(id)) {
           LOG.info("Accepting connection: {}", id);
           connections.put(id, connection);
           allConnected.countDown();
@@ -156,7 +157,7 @@ public class BenchStandComponentFactory {
     return runtime(config, new SystemConfig.Builder().build());
   }
 
-  public FlameRuntime runtime(Config config, SystemConfig systemConfig) {
+  public FlameRuntime runtime(@NotNull Config config, SystemConfig systemConfig) {
     final FlameRuntime runtime;
     if (config.hasPath("local")) {
       runtime = new LocalRuntime.Builder().parallelism(config.getConfig("local").getInt("parallelism")).build();

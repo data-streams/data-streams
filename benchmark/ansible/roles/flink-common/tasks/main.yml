@@ -11,8 +11,7 @@
 
 - name: Download flink application
   get_url:
-    url: "https://archive.apache.org/dist/flink/flink-1.4.0/flink-1.4.0-bin-scala_2.11.tgz"
-    checksum: "md5:https://archive.apache.org/dist/flink/flink-1.4.0/flink-1.4.0-bin-scala_2.11.tgz.md5"
+    url: "https://downloads.apache.org/flink/flink-1.12.1/flink-1.12.1-bin-scala_2.11.tgz"
     dest: "{{ flink_tarball_dir }}/flink.tgz"
   retries: 5
 
@@ -24,8 +23,13 @@
 
 - name: Set up manager config
   template:
-    src: slaves.j2
-    dest: "{{ flink_dir }}/conf/slaves"
+    src: workers.j2
+    dest: "{{ flink_dir }}/conf/workers"
+
+- name: Set up manager config2
+  template:
+    src: masters.j2
+    dest: "{{ flink_dir }}/conf/masters"
 
 - name: Set up common config
   template:

@@ -68,4 +68,4 @@ remote_flink_bench() {
     && ansible-playbook -v -i "${ANSIBLE_HOME}/aws.yml" "${ANSIBLE_HOME}/flink.yml"
 }
 
-[[ "$0" == "$BASH_SOURCE" ]] && local_flink_bench
+[[ "$0" == "$BASH_SOURCE" ]] && remote_flink_bench

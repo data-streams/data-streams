@@ -1,8 +1,8 @@
 ---
-- name: Copy the wiki dump
-  copy:
-    src: wiki.xml
-    dest: "{{ flink_dir }}/wiki.xml"
+#- name: Copy the wiki dump
+#  copy:
+#    src: wiki.xml
+#    dest: "{{ flink_dir }}/wiki.xml"
 
 - name: Copy the deployer file
   template:
@@ -23,7 +23,7 @@
   shell: >
     java -Xms500m -Xmx500m -XX:+PrintGC -XX:+PrintGCDetails -XX:+HeapDumpOnOutOfMemoryError
     -cp {{ flink_dir }}/flink-benchmark-1.0-SNAPSHOT-uber.jar
-    com.spbsu.benchmark.flink.index.FlinkBench
+    com.spbsu.benchmark.flink.roundrobin.FlinkBench
     {{ flink_dir }}/bench.conf {{ flink_dir }}/deployer.conf > {{ flink_dir }}/bench.log 2>&1
 
 - name: Fetch bench logs

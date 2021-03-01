@@ -3,5 +3,5 @@
   shell: nohup bash {{ flink_dir }}/bin/jobmanager.sh stop-all
 
 - name: Starting flink jobmanager
-  shell: nohup bash {{ flink_dir }}/bin/jobmanager.sh start cluster
+  shell: nohup bash {{ flink_dir }}/bin/jobmanager.sh start
 

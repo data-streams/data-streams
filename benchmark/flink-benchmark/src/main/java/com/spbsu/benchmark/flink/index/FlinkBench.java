@@ -77,7 +77,7 @@ public class FlinkBench {
         try {
           final FsStateBackend backend = new FsStateBackend("file:///" + rocksDbPath, true);
           environment.setStateBackend(backend);
-        } catch (IOException e) {
+        } catch (Exception e) {
           throw new RuntimeException(e);
         }
 
