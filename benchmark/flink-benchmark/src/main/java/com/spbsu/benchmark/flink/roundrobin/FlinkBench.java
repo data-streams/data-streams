@@ -10,6 +10,7 @@ import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.configuration.ConfigConstants;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimeCharacteristic;
+import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.jooq.lambda.Unchecked;
 
@@ -52,21 +53,18 @@ public class FlinkBench {
         environment.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
         environment.setRestartStrategy(new RestartStrategies.NoRestartStrategyConfiguration());
 
-        environment
-                .addSource(new SimpleSource(wikiBenchStand.benchHost, wikiBenchStand.frontPort, benchConfig.getInt("watermarks-period")))
-                .setParallelism(parallelism)
-                .shuffle()
-                .map(new IntermediateVertex())
-                .setParallelism(parallelism)
-                .shuffle()
-                .map(new IntermediateVertex())
-                .setParallelism(parallelism)
-                .shuffle()
-                .map(new IntermediateVertex())
-                .setParallelism(parallelism)
-                .shuffle()
-                .addSink(new SimpleSink(wikiBenchStand.benchHost, wikiBenchStand.rearPort))
-                .setParallelism(parallelism);
+        SingleOutputStreamOperator<Integer> operator = environment.addSource(new SimpleSource(
+                wikiBenchStand.benchHost,
+                wikiBenchStand.frontPort,
+                benchConfig.getInt("watermarks-period")
+        ));
+        for (int i = 0; i < 30; i++) {
+          operator = operator.setParallelism(parallelism).shuffle().map(new IntermediateVertex());
+        }
+        operator.setParallelism(parallelism).shuffle().addSink(new SimpleSink(
+                wikiBenchStand.benchHost,
+                wikiBenchStand.rearPort
+        ));
         new Thread(Unchecked.runnable(environment::execute)).start();
       }
 

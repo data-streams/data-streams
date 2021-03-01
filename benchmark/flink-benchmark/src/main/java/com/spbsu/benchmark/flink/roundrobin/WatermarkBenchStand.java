@@ -56,7 +56,7 @@ public class WatermarkBenchStand {
     try (
             AutoCloseable ignored = benchStandComponentFactory.producer(
                     IntStream.range(0, this.itemsCount).peek(item -> {
-                      LockSupport.parkNanos((long) (nextExp(1.0 / sleepBetweenDocs) * 1.0e6));
+                      LockSupport.parkNanos((long) (1.0 / sleepBetweenDocs * 1.0e6));
                       latencies.put(item, new LatencyMeasurer());
                     })::iterator,
                     frontPort,
