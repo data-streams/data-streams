@@ -42,16 +42,21 @@ public class SimpleSource extends RichParallelSourceFunction<Integer> {
 
     client = new Client(1000, INPUT_BUFFER_SIZE);
     client.getKryo().register(Integer.class);
-    ((Kryo.DefaultInstantiatorStrategy) client.getKryo()
-            .getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
   }
 
   @Override
   public void run(SourceContext<Integer> ctx) throws Exception {
+    final SimpleSource simpleSource = this;
+
     client.addListener(new Listener() {
       @Override
       public void received(Connection connection, Object object) {
         if (object instanceof Integer) {
+
+          if (object.equals(-1)) {
+            simpleSource.cancel();
+            client.stop();
+          }
           //tracer.log(((WikipediaPage) object).id());
 
           ctx.collectWithTimestamp((Integer) object, currentTime());
@@ -65,12 +70,14 @@ public class SimpleSource extends RichParallelSourceFunction<Integer> {
       }
     });
 
+
     client.addListener(new Listener() {
       @Override
       public void disconnected(Connection connection) {
         LOG.info("DISCONNECTED");
         ctx.emitWatermark(new Watermark(Long.MAX_VALUE));
         client.stop();
+        simpleSource.cancel();
       }
     });
 

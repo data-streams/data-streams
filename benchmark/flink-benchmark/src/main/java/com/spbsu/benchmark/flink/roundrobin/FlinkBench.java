@@ -7,15 +7,18 @@ import com.spbsu.flamestream.example.benchmark.GraphDeployer;
 import com.typesafe.config.Config;
 import com.typesafe.config.ConfigFactory;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
-import org.apache.flink.configuration.ConfigConstants;
-import org.apache.flink.configuration.Configuration;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.jooq.lambda.Unchecked;
 
+import java.io.PrintWriter;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 public class FlinkBench {
   public static void main(String[] args) throws Exception {
@@ -28,31 +31,57 @@ public class FlinkBench {
       benchConfig = ConfigFactory.load("flink-rr-bench.conf").getConfig("benchmark");
       deployerConfig = ConfigFactory.load("flink-rr-deployer.conf").getConfig("deployer");
     }
-
-    final WatermarkBenchStand wikiBenchStand = new WatermarkBenchStand(benchConfig);
     final int parallelism = deployerConfig.getInt("parallelism");
 
-    wikiBenchStand.run(new GraphDeployer() {
+    final StreamExecutionEnvironment environment;
+    if (deployerConfig.hasPath("remote")) {
+      environment = StreamExecutionEnvironment.createRemoteEnvironment(
+              deployerConfig.getString("remote.manager-hostname"),
+              deployerConfig.getInt("remote.manager-port"),
+              parallelism,
+              deployerConfig.getString("remote.uber-jar")
+      );
+    } else {
+      environment = StreamExecutionEnvironment.createLocalEnvironment();
+      environment.setParallelism(5);
+    }
+    environment.setBufferTimeout(0);
+    environment.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
+    environment.setRestartStrategy(new RestartStrategies.NoRestartStrategyConfiguration());
+
+    double[] sleeps = new double[]{1.0, 0.1, 0.01, 0.001};
+    for (double sleep : sleeps) {
+      final WatermarkBenchStand wikiBenchStand = new WatermarkBenchStand(benchConfig, sleep);
+
+      final long[] latencies = wikiBenchStand.run(getDeployer(
+              environment,
+              benchConfig,
+              wikiBenchStand,
+              parallelism
+      ), parallelism);
+
+      try (final PrintWriter bw = new PrintWriter(Files.newBufferedWriter(
+              Path.of(sleep + "csv"),
+              StandardOpenOption.CREATE,
+              StandardOpenOption.WRITE,
+              StandardOpenOption.TRUNCATE_EXISTING
+      ))) {
+        bw.println(Arrays.stream(latencies).boxed().map(Object::toString).collect(Collectors.joining(",")));
+      }
+    }
+
+    System.exit(0);
+  }
+
+  public static GraphDeployer getDeployer(
+          StreamExecutionEnvironment environment,
+          Config benchConfig,
+          WatermarkBenchStand wikiBenchStand,
+          int parallelism
+  ) {
+    return new GraphDeployer() {
       @Override
       public void deploy() {
-        final StreamExecutionEnvironment environment;
-        if (deployerConfig.hasPath("remote")) {
-          environment = StreamExecutionEnvironment.createRemoteEnvironment(
-                  deployerConfig.getString("remote.manager-hostname"),
-                  deployerConfig.getInt("remote.manager-port"),
-                  parallelism,
-                  deployerConfig.getString("remote.uber-jar")
-          );
-        } else {
-          final Configuration config = new Configuration();
-          config.setBoolean(ConfigConstants.LOCAL_START_WEBSERVER, true);
-          environment = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(config);
-          environment.setParallelism(5);
-        }
-        environment.setBufferTimeout(0);
-        environment.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
-        environment.setRestartStrategy(new RestartStrategies.NoRestartStrategyConfiguration());
-
         SingleOutputStreamOperator<Integer> operator = environment.addSource(new SimpleSource(
                 wikiBenchStand.benchHost,
                 wikiBenchStand.frontPort,
@@ -65,6 +94,7 @@ public class FlinkBench {
                 wikiBenchStand.benchHost,
                 wikiBenchStand.rearPort
         ));
+
         new Thread(Unchecked.runnable(environment::execute)).start();
       }
 
@@ -72,8 +102,6 @@ public class FlinkBench {
       public void close() {
 
       }
-    }, parallelism);
-
-    System.exit(0);
+    };
   }
 }

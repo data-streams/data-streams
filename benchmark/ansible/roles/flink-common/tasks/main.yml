@@ -11,7 +11,7 @@
 
 - name: Download flink application
   get_url:
-    url: "https://archive.apache.org/dist/flink/flink-1.4.0/flink-1.4.0-bin-scala_2.11.tgz"
+    url: "https://downloads.apache.org/flink/flink-1.12.1/flink-1.12.1-bin-scala_2.11.tgz"
     dest: "{{ flink_tarball_dir }}/flink.tgz"
   retries: 5
 

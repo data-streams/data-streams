@@ -1,5 +1,6 @@
 package com.spbsu.benchmark.flink.roundrobin;
 
+import com.esotericsoftware.kryonet.Server;
 import com.spbsu.flamestream.example.benchmark.BenchStandComponentFactory;
 import com.spbsu.flamestream.example.benchmark.GraphDeployer;
 import com.spbsu.flamestream.example.benchmark.LatencyMeasurer;
@@ -39,50 +40,55 @@ public class WatermarkBenchStand {
   public final int frontPort;
   public final int rearPort;
 
-  public WatermarkBenchStand(Config benchConfig) {
-    sleepBetweenDocs = benchConfig.getDouble("sleep-between-docs-ms");
+  public WatermarkBenchStand(Config benchConfig, double sleepBetweenDocs) {
+    this.sleepBetweenDocs = sleepBetweenDocs;
     benchHost = benchConfig.getString("bench-host");
     itemsCount = benchConfig.getInt("items-count");
     frontPort = benchConfig.getInt("bench-source-port");
     rearPort = benchConfig.getInt("bench-sink-port");
   }
 
-  public void run(GraphDeployer graphDeployer, int hosts) throws Exception {
+  public long[] run(GraphDeployer graphDeployer, int hosts) throws Exception {
     final BenchStandComponentFactory benchStandComponentFactory = new BenchStandComponentFactory();
 
     //noinspection unchecked
     final AwaitCountConsumer awaitConsumer = new AwaitCountConsumer(this.itemsCount);
     final Map<Integer, LatencyMeasurer> latencies = Collections.synchronizedMap(new LinkedHashMap<>());
-    try (
-            AutoCloseable ignored = benchStandComponentFactory.producer(
-                    IntStream.range(0, this.itemsCount).peek(item -> {
-                      LockSupport.parkNanos((long) (1.0 / sleepBetweenDocs * 1.0e6));
-                      latencies.put(item, new LatencyMeasurer());
-                    })::iterator,
-                    frontPort,
-                    Stream.generate(UUID::randomUUID).map(UUID::toString).limit(hosts),
-                    Integer.class
-            )::stop;
-            AutoCloseable ignored1 = benchStandComponentFactory.consumer(
-                    object -> {
-                      if (!(object instanceof Integer)) {
-                        return;
-                      }
-                      final Integer item = (Integer) object;
-                      latencies.get(item).finish();
-                      awaitConsumer.accept(item);
-                      if (awaitConsumer.got() % 1000 == 0) {
-                        LOG.warn("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
-                      }
-                    },
-                    rearPort,
-                    CLASSES_TO_REGISTER
-            )::stop
-    ) {
-      graphDeployer.deploy();
-      awaitConsumer.await(5, TimeUnit.MINUTES);
-      Tracing.TRACING.flush(Paths.get("/tmp/trace.csv"));
-    }
+    final Server s = benchStandComponentFactory.producer(
+            IntStream.range(0, this.itemsCount).peek(item -> {
+              LockSupport.parkNanos((long) (sleepBetweenDocs * 1.0e6));
+              latencies.put(item, new LatencyMeasurer());
+            })::iterator,
+            frontPort,
+            Stream.generate(UUID::randomUUID).map(UUID::toString).limit(hosts),
+            Integer.class
+    );
+
+    final Server si = benchStandComponentFactory.consumer(
+            object -> {
+              if (!(object instanceof Integer)) {
+                return;
+              }
+              final Integer item = (Integer) object;
+              latencies.get(item).finish();
+              awaitConsumer.accept(item);
+              if (awaitConsumer.got() % 1000 == 0) {
+                LOG.warn("Progress: {}/{}", awaitConsumer.got(), awaitConsumer.expected());
+              }
+            },
+            rearPort,
+            CLASSES_TO_REGISTER
+    );
+
+
+    graphDeployer.deploy();
+    awaitConsumer.await(5, TimeUnit.MINUTES);
+
+    s.stop();
+    si.stop();
+
+    graphDeployer.close();
+
     final String latenciesString = latencies.values()
             .stream()
             .map(latencyMeasurer -> Long.toString(latencyMeasurer.statistics().getMax()))
@@ -102,6 +108,7 @@ public class WatermarkBenchStand {
     System.out.println("75: " +  (long) percentiles().index(75).compute(skipped));
     System.out.println("95: " +  (long) percentiles().index(95).compute(skipped));
     System.out.println("99: " +  (long) percentiles().index(99).compute(skipped));
+    return skipped;
   }
 
   private final Random payloadDelayRandom = new Random(7);

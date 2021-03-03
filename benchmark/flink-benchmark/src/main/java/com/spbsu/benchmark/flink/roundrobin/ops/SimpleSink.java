@@ -36,8 +36,6 @@ public class SimpleSink extends RichSinkFunction<Integer> {
   public void open(Configuration parameters) throws Exception {
     client = new Client(OUTPUT_BUFFER_SIZE, 1234);
     client.getKryo().register(Integer.class);
-    ((Kryo.DefaultInstantiatorStrategy) client.getKryo()
-            .getInstantiatorStrategy()).setFallbackInstantiatorStrategy(new StdInstantiatorStrategy());
 
     client.addListener(new Listener() {
       @Override
